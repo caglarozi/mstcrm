@@ -682,6 +682,26 @@
       font-size: 14px;
       transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
     }
+    
+    input[type="file"] {
+      padding: 8px 14px;
+    }
+
+    input[type="file"]::file-selector-button {
+      background: rgba(108, 92, 231, 0.25);
+      border: 1px solid rgba(108, 92, 231, 0.4);
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-right: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    input[type="file"]::file-selector-button:hover {
+      background: rgba(108, 92, 231, 0.4);
+    }
 
     option {
       background: var(--panel-2);
@@ -1399,8 +1419,7 @@
       <input type="hidden" id="fi_authorId">
       <div id="fi_authorSelectContainer" style="display:none; margin-bottom: 12px">
         <label>Yazar Seçin</label>
-        <select id="fi_authorSelect"
-          style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--txt); outline:none"></select>
+        <select id="fi_authorSelect"></select>
       </div>
       <label>Dosya Türü</label>
       <select id="fi_type" style="margin-bottom:12px">
