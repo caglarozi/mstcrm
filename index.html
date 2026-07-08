@@ -1272,6 +1272,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyDnqNrkeIi7SLHpk8LOXI94BtOU9mXems4",
@@ -1287,6 +1288,7 @@
     // file:/// protokolünde WebSocket bağlantı sorunlarını çözmek için:
     firestore.settings({ experimentalForceLongPolling: true });
     const auth = firebase.auth();
+    const storage = firebase.storage();
 
     /* ---------- Veri katmanı (Firebase) ---------- */
     const KEY = "kalem_crm_v1";
@@ -1921,7 +1923,7 @@
         return `<tr style="border-bottom:1px solid var(--line)">
       <td style="padding:10px 8px">${fmtDate(f.date)}</td>
       <td style="padding:10px 8px;font-weight:600;cursor:pointer;color:var(--blue)" onclick="openDrawer('${f.authorId}')">${f.authorName}</td>
-      <td style="padding:10px 8px;font-weight:600"><span class="badge" style="background:var(--panel-2);border:1px solid var(--line);margin-right:6px;font-size:11px;padding:2px 8px">${f.type || 'Diğer'}</span><a href="#" onclick="downloadFile('${f.data}','${f.name}');return false;" style="color:var(--brand);text-decoration:underline">${f.name}</a></td>
+      <td style="padding:10px 8px;font-weight:600"><span class="badge" style="background:var(--panel-2);border:1px solid var(--line);margin-right:6px;font-size:11px;padding:2px 8px">${f.type || 'Diğer'}</span><a href="#" onclick="downloadFile('${f.url || f.data || ''}','${f.name}');return false;" style="color:var(--brand);text-decoration:underline">${f.name}</a></td>
       <td style="padding:10px 8px;color:var(--muted)">${(f.size / 1024).toFixed(1)} KB</td>
       <td style="padding:10px 8px;text-align:right">
         ${currentRole === 'admin' ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delFile('${f.authorId}', ${f.originalIndex})" title="Sil">🗑</button>` : ''}
@@ -2202,7 +2204,7 @@
       document.getElementById("fileModal").classList.add("open");
     }
     function closeFileModal() { document.getElementById("fileModal").classList.remove("open"); }
-    function saveFile() {
+    async function saveFile() {
       let id = document.getElementById("fi_authorId").value;
       if (!id) {
         id = document.getElementById("fi_authorSelect").value;
@@ -2214,28 +2216,31 @@
       if (!fileInput.files[0]) { alert("Lütfen dosya seçin."); return; }
       const file = fileInput.files[0];
       if (!name) { alert("Lütfen dosya adı/açıklaması girin."); return; }
-      if (file.size > 2 * 1024 * 1024) { alert("Dosya boyutu 2MB'den büyük olamaz (Tarayıcı kotası)."); return; }
+      if (file.size > 20 * 1024 * 1024) { alert("Dosya boyutu 20MB'den büyük olamaz."); return; }
 
       const btn = document.getElementById("fi_saveBtn");
       btn.disabled = true; btn.innerHTML = "Yükleniyor...";
 
-      const reader = new FileReader();
-      reader.onload = function (e) {
+      try {
+        const storageRef = storage.ref();
+        const fileRef = storageRef.child('authors/' + id + '/' + Date.now() + '_' + file.name);
+        await fileRef.put(file);
+        const url = await fileRef.getDownloadURL();
+
         const a = db.authors.find(x => x.id === id);
         a.files = a.files || [];
         a.files.push({
-          name, size: file.size, data: e.target.result, date: new Date().toISOString().slice(0, 10), type
+          name, size: file.size, url: url, date: new Date().toISOString().slice(0, 10), type
         });
-        try {
-          save();
-          closeFileModal(); openDrawer(id); render();
-        } catch (err) {
-          alert("Hata: Tarayıcı hafızası dolu olabilir. Diğer dosyaları silmeyi deneyin.");
-          a.files.pop(); // rollback
-        }
+        
+        save();
+        closeFileModal(); openDrawer(id); render();
+      } catch (err) {
+        console.error("Storage Yükleme Hatası:", err);
+        alert("Dosya yüklenirken hata oluştu: " + err.message);
+      } finally {
         btn.disabled = false; btn.innerHTML = "Yükle";
-      };
-      reader.readAsDataURL(file);
+      }
     }
     async function delFile(authorId, idx) {
       if (!(await customConfirm("Dosya silinsin mi?"))) return;
@@ -2243,13 +2248,18 @@
       a.files.splice(idx, 1);
       save(); openDrawer(authorId); render();
     }
-    function downloadFile(dataUrl, fileName) {
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+    function downloadFile(fileUrlOrData, fileName) {
+      if (!fileUrlOrData) return;
+      if (fileUrlOrData.startsWith("data:")) {
+        const a = document.createElement("a");
+        a.href = fileUrlOrData;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else if (fileUrlOrData.startsWith("http")) {
+        window.open(fileUrlOrData, "_blank");
+      }
     }
 
     /* ---------- Ekip Yönetimi ---------- */
