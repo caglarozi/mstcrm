@@ -1,0 +1,10 @@
+[build]
+  # Netlify'da çalıştırılacak bir derleme (build) komutu yok çünkü bu statik bir site.
+  # Yayınlanacak dizin olarak bulunduğumuz klasörü (./) belirtiyoruz.
+  publish = "."
+
+[[redirects]]
+  # Tüm istekleri index.html'e yönlendirir (SPA routing yapısı için faydalıdır).
+  from = "/*"
+  to = "/index.html"
+  status = 200

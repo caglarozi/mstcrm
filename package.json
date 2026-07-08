@@ -1,0 +1,10 @@
+{
+  "name": "yazar-crm",
+  "version": "1.0.0",
+  "description": "Yazar CRM Web Uygulaması ve API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {}
+}

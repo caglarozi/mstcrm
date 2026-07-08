@@ -1,0 +1,2430 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mst CRM — Yazar İlişkileri Yönetimi</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #171a23;
+      --panel-2: #1e222d;
+      --line: #2a2f3d;
+      --txt: #e7e9ee;
+      --muted: #9aa1b2;
+      --brand: #7c6cff;
+      --brand-2: #a99bff;
+      --green: #37c98a;
+      --amber: #f4b740;
+      --red: #f2617a;
+      --blue: #4aa8ff;
+      --radius: 14px;
+      --shadow: 0 8px 30px rgba(0, 0, 0, .35);
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(145deg, var(--bg) 0%, #151821 100%);
+      background-attachment: fixed;
+      color: var(--txt);
+      font-size: 14px
+    }
+
+    a {
+      color: inherit
+    }
+
+    button {
+      font-family: inherit;
+      cursor: pointer
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      min-height: 100vh
+    }
+
+    /* Sidebar */
+    .side {
+      background: rgba(23, 26, 35, 0.45);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-right: 1px solid rgba(42, 47, 61, 0.5);
+      padding: 20px 14px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      z-index: 40;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 18px;
+      margin: 4px 6px 22px
+    }
+
+    .logo .mark {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      overflow: hidden
+    }
+
+    .logo .mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: invert(1);
+      mix-blend-mode: screen
+    }
+
+    .nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px
+    }
+
+    .nav button {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: 1px solid transparent;
+      color: var(--muted);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .nav button:hover {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: var(--txt)
+    }
+
+    .nav button.active {
+      background: rgba(124, 108, 255, 0.15);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--brand);
+      color: #fff;
+      box-shadow: 0 0 16px rgba(124, 108, 255, 0.4), inset 4px 0 0 var(--brand);
+      font-weight: 600;
+      text-shadow: 0 0 8px rgba(124, 108, 255, 0.6);
+      transform: translateY(-1px);
+    }
+
+    .side-foot {
+      position: absolute;
+      bottom: 16px;
+      left: 14px;
+      right: 14px;
+      font-size: 11px;
+      color: var(--muted)
+    }
+
+    .side-foot button {
+      width: 100%;
+      margin-bottom: 6px;
+      background: rgba(30, 34, 45, 0.4);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--txt);
+      padding: 8px;
+      border-radius: 9px;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .side-foot button:hover {
+      background: rgba(45, 50, 68, 0.5);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-1px);
+    }
+
+    /* Main */
+    .main {
+      padding: 26px 30px;
+      overflow: auto
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 22px;
+      position: sticky;
+      top: 0;
+      background: rgba(15, 17, 23, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid transparent;
+      /* İstenirse çizgi eklenebilir */
+      z-index: 50;
+      padding: 16px 0;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+      /* Hafif gölge */
+    }
+
+    .topbar h1 {
+      font-size: 22px;
+      margin: 0;
+      font-weight: 700
+    }
+
+    .topbar .sub {
+      color: var(--muted);
+      font-size: 13px
+    }
+
+    .spacer {
+      flex: 1
+    }
+
+    .search {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 13px;
+      color: var(--txt);
+      min-width: 140px;
+      flex: 1 1 200px;
+      max-width: 300px
+    }
+
+    .btn {
+      background: rgba(108, 92, 231, 0.25);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(108, 92, 231, 0.4);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(108, 92, 231, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn:hover {
+      background: rgba(108, 92, 231, 0.35);
+      border-color: rgba(108, 92, 231, 0.6);
+      box-shadow: 0 6px 20px rgba(108, 92, 231, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .btn.ghost {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+      color: var(--txt);
+    }
+
+    .btn.ghost:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Cards / stats */
+    .grid {
+      display: grid;
+      gap: 16px
+    }
+
+    .stats {
+      grid-template-columns: repeat(4, 1fr)
+    }
+
+    .card {
+      background: rgba(23, 26, 35, 0.45);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    }
+
+    .stat .n {
+      font-size: 28px;
+      font-weight: 700
+    }
+
+    .stat .l {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 2px
+    }
+
+    .stat .chip {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      display: inline-block;
+      margin-top: 8px
+    }
+
+    /* Author list */
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      align-items: center
+    }
+
+    .pill {
+      cursor: pointer;
+      background: rgba(30, 34, 45, 0.4);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--txt);
+      padding: 7px 15px;
+      border-radius: 20px;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .pill:hover {
+      background: rgba(45, 50, 68, 0.5);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .pill.active {
+      /* Aktif state JS'den gelir, cam efektiyle birleşir */
+      transform: translateY(-1px);
+    }
+
+    .authors {
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr))
+    }
+
+    .author {
+      cursor: pointer;
+      transition: transform .12s, border-color .12s
+    }
+
+    .author:hover {
+      transform: translateY(-2px);
+      border-color: var(--brand)
+    }
+
+    .author .head {
+      display: flex;
+      align-items: center;
+      gap: 12px
+    }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: #fff;
+      flex: none
+    }
+
+    .author .name {
+      font-weight: 600;
+      font-size: 15px
+    }
+
+    .author .role {
+      color: var(--muted);
+      font-size: 12px
+    }
+
+    .tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 12px
+    }
+
+    .tag {
+      font-size: 11px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      padding: 3px 9px;
+      border-radius: 20px;
+      color: var(--muted)
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 600
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--muted)
+    }
+
+    .temp {
+      display: flex;
+      gap: 3px
+    }
+
+    .temp span {
+      width: 16px;
+      height: 5px;
+      border-radius: 3px;
+      background: var(--line)
+    }
+
+    /* Pipeline */
+    .pipe {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+      align-items: start
+    }
+
+    .col {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      min-height: 120px
+    }
+
+    .col h3 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted)
+    }
+
+    .col .count {
+      background: var(--panel-2);
+      padding: 1px 9px;
+      border-radius: 20px
+    }
+
+    .mini {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 9px;
+      cursor: pointer;
+      font-size: 13px
+    }
+
+    .mini:hover {
+      border-color: var(--brand)
+    }
+
+    .mini .mn {
+      font-weight: 600
+    }
+
+    .mini .ms {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 3px
+    }
+
+    /* Detail drawer */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .55);
+      display: none;
+      z-index: 40
+    }
+
+    .overlay.open {
+      display: block
+    }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100vh;
+      width: 520px;
+      max-width: 94vw;
+      background: rgba(18, 20, 28, 0.7);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      z-index: 50;
+      transform: translateX(100%);
+      transition: transform .25s;
+      overflow: auto;
+      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .drawer.open {
+      transform: translateX(0)
+    }
+
+    .drawer .dh {
+      padding: 22px 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      position: sticky;
+      top: 0;
+      background: rgba(18, 20, 28, 0.4);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      z-index: 2
+    }
+
+    .drawer .db {
+      padding: 22px 24px
+    }
+
+    .close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 22px;
+      float: right
+    }
+
+    .section {
+      margin-bottom: 22px
+    }
+
+    .section h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--muted);
+      margin: 0 0 10px
+    }
+
+    .kv {
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 0;
+      border-bottom: 1px dashed var(--line);
+      font-size: 13px
+    }
+
+    .kv span:first-child {
+      color: var(--muted)
+    }
+
+    .timeline {
+      position: relative;
+      padding-left: 18px
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 4px;
+      bottom: 4px;
+      width: 2px;
+      background: var(--line)
+    }
+
+    .tl {
+      position: relative;
+      margin-bottom: 14px
+    }
+
+    .tl::before {
+      content: "";
+      position: absolute;
+      left: -16px;
+      top: 4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--brand)
+    }
+
+    .tl .tt {
+      font-size: 12px;
+      color: var(--muted)
+    }
+
+    .tl .tx {
+      font-size: 13px;
+      margin-top: 2px
+    }
+
+    .tl .type {
+      font-size: 10px;
+      padding: 1px 7px;
+      border-radius: 20px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      margin-right: 6px
+    }
+
+    .msg-preview {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      margin-top: 8px;
+      max-height: 160px;
+      overflow: auto
+    }
+
+
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+      align-items: end
+    }
+
+    .input-group input {
+      flex: 1
+    }
+
+    .input-group button {
+      white-space: nowrap;
+      flex: none
+    }
+
+    /* Modal / forms */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      place-items: center;
+      z-index: 60
+    }
+
+    .modal.open {
+      display: grid
+    }
+
+    .modal .box {
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(48px);
+      -webkit-backdrop-filter: blur(48px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+      border-radius: 24px;
+      width: 520px;
+      max-width: 94vw;
+      max-height: 90vh;
+      overflow: auto;
+      padding: 32px
+    }
+
+    .modal h2 {
+      margin: 0 0 18px;
+      font-size: 18px
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 12px 0 6px
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: var(--txt);
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    }
+
+    option {
+      background: var(--panel-2);
+      color: var(--txt);
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px rgba(108, 92, 231, 0.2);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 70px
+    }
+
+    .row2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px
+    }
+
+    .empty {
+      color: var(--muted);
+      text-align: center;
+      padding: 40px;
+      font-size: 13px
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(154, 161, 178, 0.25);
+      border-radius: 20px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(154, 161, 178, 0.5);
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+
+    .login-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: grid;
+      place-items: center;
+      z-index: 9999;
+      padding: 20px;
+    }
+
+    .login-box {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 900px;
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .login-left {
+      padding: 60px 40px;
+      background: radial-gradient(circle at 100% 50%, rgba(124, 108, 255, 0.05) 0%, transparent 50%), var(--panel);
+      position: relative;
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+
+    .login-left::before {
+      content: "";
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      border: 1px solid rgba(124, 108, 255, 0.08);
+      top: -100px;
+      right: -100px;
+    }
+
+    .login-left::after {
+      content: "";
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      border: 1px solid rgba(124, 108, 255, 0.05);
+      bottom: -150px;
+      right: -150px;
+    }
+
+    .login-right {
+      padding: 60px 50px;
+      background: var(--panel);
+    }
+
+    @media (max-width: 768px) {
+      .login-box {
+        grid-template-columns: 1fr;
+      }
+
+      .login-left {
+        display: none;
+      }
+
+      .login-right {
+        padding: 40px 30px;
+      }
+    }
+
+    #profileDropdown.open {
+      display: block !important
+    }
+
+    #topProfileArea:hover {
+      opacity: .85
+    }
+
+    /* --- EKLENEN ANİMASYON VE EFEKTLER --- */
+
+    /* Animasyonlar */
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(15px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Genel Geçişler (Transitions) */
+    .btn,
+    .pill,
+    button,
+    .mini,
+    .card,
+    .author,
+    input,
+    textarea,
+    select {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Kart ve Yazar Efektleri */
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+      border-color: var(--brand-2);
+    }
+
+    .author:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+      background: var(--panel-2);
+      border-color: var(--brand);
+    }
+
+    /* Mini görev/yazı efekti */
+    .mini:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+      border-color: var(--brand);
+    }
+
+    /* Buton Tıklama (Active) Efekti */
+    .btn:active,
+    .pill:active,
+    .nav button:active {
+      transform: scale(0.95);
+    }
+
+    /* Input Odaklanma (Focus) Efekti */
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(124, 108, 255, 0.25);
+      transform: translateY(-1px);
+    }
+
+    /* Sayfa içi Fade-in Uygulaması */
+    .main>div,
+    .login-box {
+      animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Drawer Animasyon Geliştirmesi */
+    .drawer {
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <div id="loginScreen" class="login-screen">
+    <div class="login-box">
+      <!-- SOL PANEL (BRANDING) -->
+      <div class="login-left">
+        <div>
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom: 40px; position:relative; z-index:2;">
+            <div class="mark"
+              style="width:40px; height:40px; border-radius:10px; display:grid; place-items:center; overflow:hidden; background:rgba(255,255,255,0.05);">
+              <img src="logo.jpeg" alt="Logo"
+                style="width:100%; height:100%; object-fit:contain; filter:invert(1); mix-blend-mode:screen;">
+            </div>
+            <div style="font-size:18px; font-weight:700; color:#fff;">Mst CRM</div>
+          </div>
+          <h1
+            style="font-size:32px; font-weight:800; color:#fff; line-height:1.2; margin-bottom:16px; position:relative; z-index:2;">
+            Yazar ilişkileri ve<br>eser yönetim paneli</h1>
+          <p
+            style="color:var(--muted); font-size:15px; line-height:1.5; max-width:280px; position:relative; z-index:2;">
+            Yazar sözleşmelerini, eser değerlendirmelerini ve iletişim süreçlerini tek panelden yönet.</p>
+        </div>
+        <div style="color:var(--muted); font-size:13px; font-weight:500; position:relative; z-index:2;">MST Ajans © 2026
+        </div>
+      </div>
+
+      <!-- SAĞ PANEL (FORM) -->
+      <div class="login-right">
+        <h2 style="font-size:24px; font-weight:700; color:#fff; margin:0 0 6px 0;">Giriş yap</h2>
+        <p style="color:var(--muted); font-size:14px; margin:0 0 30px 0;">Hesabınla panele eriş.</p>
+
+        <!-- Sekme Başlıkları -->
+        <div style="display:flex; border-bottom: 1px solid var(--line); margin-bottom: 24px;">
+          <button id="tabLogin" onclick="switchAuthTab('login')"
+            style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2px solid var(--brand); color:var(--brand); font-weight:600; cursor:pointer; font-size:14px; transition:.2s;">Giriş
+            Yap</button>
+          <button id="tabRegister" onclick="switchAuthTab('register')"
+            style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); font-weight:600; cursor:pointer; font-size:14px; transition:.2s;">Kayıt
+            Ol</button>
+        </div>
+
+        <!-- Giriş Formu -->
+        <form id="loginForm" onsubmit="handleLogin(event)">
+          <label style="color:var(--muted); font-size:12px; margin:0 0 8px 0; display:block;">Kullanıcı Adı</label>
+          <div style="position:relative; margin-bottom: 16px;">
+            <input type="text" id="loginUser" required
+              style="width:100%; padding:12px; background:transparent; border:1px solid var(--line); border-radius:8px; color:var(--txt);"
+              autocomplete="username">
+          </div>
+
+          <label style="color:var(--muted); font-size:12px; margin:0 0 8px 0; display:block;">Şifre</label>
+          <div style="position:relative; margin-bottom: 24px;">
+            <input type="password" id="loginPass" required
+              style="width:100%; padding:12px 40px 12px 12px; background:transparent; border:1px solid var(--line); border-radius:8px; color:var(--txt);"
+              autocomplete="current-password">
+            <span
+              style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--muted); cursor:pointer; display:flex; align-items:center;"
+              onclick="togglePassword('loginPass', this)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </span>
+          </div>
+
+          <div id="loginError" style="color:var(--red);font-size:12px;margin-bottom:12px;display:none">Kullanıcı adı
+            veya şifre hatalı.</div>
+          <button type="submit" class="btn"
+            style="width:100%; padding:14px; font-size:15px; border-radius:8px; margin-top:10px;">Giriş Yap</button>
+        </form>
+
+        <!-- Kayıt Formu -->
+        <form id="registerForm" onsubmit="handleRegister(event)" style="display:none">
+          <label style="color:var(--muted); font-size:12px; margin:0 0 8px 0; display:block;">Ad Soyad</label>
+          <div style="position:relative; margin-bottom: 16px;">
+            <input type="text" id="regName" required
+              style="width:100%; padding:12px; background:transparent; border:1px solid var(--line); border-radius:8px; color:var(--txt);">
+          </div>
+
+          <label style="color:var(--muted); font-size:12px; margin:0 0 8px 0; display:block;">Kullanıcı Adı</label>
+          <div style="position:relative; margin-bottom: 16px;">
+            <input type="text" id="regUser" required
+              style="width:100%; padding:12px; background:transparent; border:1px solid var(--line); border-radius:8px; color:var(--txt);"
+              autocomplete="username">
+          </div>
+
+          <div style="display:flex; gap:12px;">
+            <div style="flex:1;">
+              <label style="color:var(--muted); font-size:12px; margin:0 0 8px 0; display:block;">Şifre</label>
+              <div style="position:relative; margin-bottom: 24px;">
+                <input type="password" id="regPass" required minlength="6"
+                  style="width:100%; padding:12px 40px 12px 12px; background:transparent; border:1px solid var(--line); border-radius:8px; color:var(--txt);"
+                  autocomplete="new-password">
+                <span
+                  style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--muted); cursor:pointer; display:flex; align-items:center;"
+                  onclick="togglePassword('regPass', this)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </span>
+              </div>
+            </div>
+            <div style="flex:1;">
+              <label style="color:var(--muted); font-size:12px; margin:0 0 8px 0; display:block;">Şifre Tekrar</label>
+              <div style="position:relative; margin-bottom: 24px;">
+                <input type="password" id="regPass2" required minlength="6"
+                  style="width:100%; padding:12px 40px 12px 12px; background:transparent; border:1px solid var(--line); border-radius:8px; color:var(--txt);"
+                  autocomplete="new-password">
+                <span
+                  style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--muted); cursor:pointer; display:flex; align-items:center;"
+                  onclick="togglePassword('regPass2', this)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div id="regError" style="color:var(--red);font-size:12px;margin-bottom:12px;display:none"></div>
+          <div id="regSuccess" style="color:var(--green);font-size:12px;margin-bottom:12px;display:none"></div>
+          <button type="submit" class="btn"
+            style="width:100%; padding:14px; font-size:15px; border-radius:8px; margin-top:10px;">Kayıt Ol</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="app" style="display:none">
+    <!-- SIDEBAR -->
+    <aside class="side">
+      <div class="logo"><span class="mark"><img src="logo.jpeg" alt="Logo"></span> Mst CRM</div>
+      <nav class="nav">
+        <button data-view="dashboard" class="active">📊 Panel</button>
+        <button data-view="authors">👤 Yazarlar</button>
+        <button data-view="contracts">📕 Sözleşmeli Yazarlar</button>
+        <button data-view="files">📁 Dosyalar</button>
+        <button data-view="followups">🔔 Takip Listesi</button>
+        <button data-view="team">👥 Ekip</button>
+      </nav>
+      <div class="side-foot" style="padding:10px 16px">
+        <div style="font-size:11px;color:var(--muted);text-align:center">Mst CRM • v1.0</div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1 id="viewTitle">Panel</h1>
+          <div class="sub" id="viewSub">Genel bakış</div>
+        </div>
+        <div class="spacer"></div>
+        <input class="search" id="search" placeholder="🔍 Yazar, telefon, tür, not ara..." oninput="render()">
+        <button class="btn" id="btnNewAuthor" onclick="openAuthorModal()">+ Yeni Yazar</button>
+
+        <div id="topProfileArea"
+          style="position:relative;display:flex;align-items:center;gap:8px;margin-left:16px;padding:6px 14px;background:rgba(255,255,255,0.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.08);border-radius:20px;cursor:pointer;user-select:none;box-shadow:0 4px 12px rgba(0,0,0,0.1);transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1);"
+          onmouseover="this.style.background='rgba(255,255,255,0.09)';this.style.boxShadow='0 6px 16px rgba(0,0,0,0.2)';this.style.borderColor='rgba(255,255,255,0.15)';"
+          onmouseout="this.style.background='rgba(255,255,255,0.05)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';this.style.borderColor='rgba(255,255,255,0.08)';"
+          onclick="document.getElementById('profileDropdown').classList.toggle('open')">
+          <div>
+            <div style="font-size:11px;color:var(--muted);text-align:right">Hoş geldiniz,</div>
+            <div id="topUserName" style="font-size:13px;font-weight:600;color:var(--txt)">Admin</div>
+          </div>
+          <span style="font-size:10px;color:var(--muted);margin-left:2px">▼</span>
+          <!-- Dropdown -->
+          <div id="profileDropdown"
+            style="position:absolute;top:calc(100% + 12px);right:0;background:rgba(30, 34, 45, 0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.4);min-width:100px;padding:4px;z-index:999;display:none;animation:fadeIn 0.2s ease-out;">
+            <button onclick="event.stopPropagation(); handleLogout()"
+              style="width:100%;background:none;border:none;color:var(--red);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;transition:all 0.2s;"
+              onmouseover="this.style.background='rgba(242, 97, 122, 0.15)'"
+              onmouseout="this.style.background='none'">Çıkış Yap</button>
+          </div>
+        </div>
+      </div>
+      <div id="storageWarn"
+        style="display:none;background:rgba(244,183,64,.12);border:1px solid var(--amber);color:var(--amber);padding:10px 14px;border-radius:10px;margin-bottom:16px;font-size:13px">
+        ⚠️ Bu tarayıcı yerel dosyada veri saklamayı engelliyor; girdiğiniz kayıtlar sayfayı kapatınca kaybolur. Kalıcı
+        kayıt için dosyayı bir sunucu üzerinden açın (aşağıdaki nota bakın) ya da <b>⬇️ Yedek Al</b> ile dışa aktarın.
+      </div>
+      <div id="content"></div>
+    </main>
+  </div>
+
+  <!-- DETAIL DRAWER -->
+  <div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+  <div class="drawer" id="drawer"></div>
+
+  <!-- CUSTOM CONFIRM MODAL (GLASSMORPHISM) -->
+  <div class="modal" id="customConfirmModal" style="z-index: 9999;">
+    <div class="box" style="background: rgba(25, 25, 30, 0.65); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); max-width: 320px; text-align: center; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5); padding: 24px; border-radius: 16px;">
+      <div style="margin-bottom: 16px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(244, 67, 54, 0.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 8px rgba(244,67,54,0.4));"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+      </div>
+      <h3 style="margin: 0; color: #fff; font-size: 18px; font-weight: 600;">Emin misiniz?</h3>
+      <p id="customConfirmMessage" style="color: rgba(255,255,255,0.7); margin: 12px 0 24px; font-size: 14px; line-height: 1.5;">Bu işlem geri alınamaz.</p>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button class="btn" style="flex: 1; background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'" onclick="window.customConfirmResolve(false)">İptal</button>
+        <button class="btn" style="flex: 1; background: rgba(244, 67, 54, 0.85); color: #fff; border: 1px solid rgba(244, 67, 54, 0.4); border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(244,67,54,1)'" onmouseout="this.style.background='rgba(244,67,54,0.85)'" onclick="window.customConfirmResolve(true)">Evet, Sil</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTHOR MODAL -->
+  <div class="modal" id="authorModal">
+    <div class="box">
+      <h2 id="modalTitle">Yeni Yazar</h2>
+      <input type="hidden" id="f_id">
+      <div class="row2">
+        <div><label>Ad Soyad *</label><input id="f_name" placeholder="Örn. Elif Kaya"></div>
+        <div><label>Durum</label>
+          <select id="f_status">
+            <option value="aday">Aday</option>
+            <option value="gorusuluyor">Görüşülüyor</option>
+            <option value="degerlendirme">Değerlendirmede</option>
+            <option value="sozlesme">Sözleşme</option>
+            <option value="yayinda">Yayında</option>
+            <option value="arsiv">Arşiv</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div><label>E-posta</label><input id="f_email" placeholder="ornek@mail.com"></div>
+        <div><label>Telefon</label><input id="f_phone" placeholder="05xx..."></div>
+      </div>
+      <div class="row2">
+        <div><label>Türler (virgülle)</label><input id="f_genres" placeholder="Roman, Şiir"></div>
+        <div><label>İlgi / Sıcaklık (1-5)</label>
+          <select id="f_temp">
+            <option value="5">🔥🔥🔥 Çok yüksek</option>
+            <option value="4">🔥🔥 Yüksek</option>
+            <option value="3" selected>🔥 Orta</option>
+            <option value="2">Düşük</option>
+            <option value="1">Soğuk</option>
+          </select>
+        </div>
+      </div>
+      <label>Eser / Dosya Adı</label><input id="f_work" placeholder="Örn. 'Gece Yürüyüşleri' (roman dosyası)">
+      <div class="row2">
+        <div><label>Görüşme Tarihi (Başlangıç)</label><input type="date" id="f_interviewDate"></div>
+        <div><label>Sonraki Takip Tarihi</label><input type="date" id="f_followup"></div>
+      </div>
+      <div class="row2">
+        <div><label>Kaynak</label>
+          <select id="f_source">
+            <option>E-posta başvurusu</option>
+            <option>Fuar/Etkinlik</option>
+            <option>Referans</option>
+            <option>Sosyal medya</option>
+            <option>Ajans</option>
+            <option>Diğer</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+      <label>Notlar</label><textarea id="f_notes"
+        placeholder="Görüşmeden edinilen izlenimler, beklentiler..."></textarea>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeModal()">Vazgeç</button>
+        <button class="btn" onclick="saveAuthor()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INTERACTION MODAL -->
+  <div class="modal" id="logModal">
+    <div class="box">
+      <h2>Görüşme / Etkileşim Ekle</h2>
+      <input type="hidden" id="l_authorId">
+      <div class="row2">
+        <div><label>Tür</label>
+          <select id="l_type">
+            <option>Telefon</option>
+            <option>E-posta</option>
+            <option>Yüz yüze</option>
+            <option>Video görüşme</option>
+            <option>Etkinlik</option>
+            <option>Dosya değerlendirme</option>
+          </select>
+        </div>
+        <div><label>Tarih</label><input type="date" id="l_date"></div>
+      </div>
+      <label>Görüşmeci</label>
+      <select id="l_staff">
+        <option value="">— Seçiniz —</option>
+      </select>
+      <label>Özet *</label><textarea id="l_text" placeholder="Ne konuşuldu, ne karar alındı?"></textarea>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeLogModal()">Vazgeç</button>
+        <button class="btn" onclick="saveLog()">Ekle</button>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- PAYMENT MODAL -->
+  <div class="modal" id="payModal">
+    <div class="box">
+      <h2>Ödeme / Avans Ekle</h2>
+      <input type="hidden" id="p_authorId">
+      <div id="p_authorSelectContainer" style="display:none; margin-bottom: 12px">
+        <label>Yazar Seçin</label>
+        <select id="p_authorSelect"
+          style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--txt); outline:none"></select>
+      </div>
+      <div class="row2">
+        <div><label>Toplam Tutar (₺)</label><input type="number" id="p_amount" placeholder="Örn: 5000"></div>
+        <div><label>Taksit Sayısı</label><input type="number" id="p_installments" value="1" min="1" max="24"></div>
+      </div>
+      <div class="row2">
+        <div><label>Başlangıç Tarihi</label><input type="date" id="p_date"></div>
+        <div>
+          <label>Durum</label>
+          <select id="p_status">
+            <option value="Ödendi">Ödendi</option>
+            <option value="Bekliyor">Bekliyor</option>
+            <option value="İptal">İptal</option>
+          </select>
+        </div>
+      </div>
+      <label>Açıklama</label><input id="p_notes" placeholder="Örn: Kaparo ödemesi">
+      <div class="actions">
+        <button class="btn ghost" onclick="closePayModal()">Vazgeç</button>
+        <button class="btn" onclick="savePayment()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FILE MODAL -->
+  <div class="modal" id="fileModal">
+    <div class="box">
+      <h2>Dosya / Belge Yükle</h2>
+      <input type="hidden" id="fi_authorId">
+      <div id="fi_authorSelectContainer" style="display:none; margin-bottom: 12px">
+        <label>Yazar Seçin</label>
+        <select id="fi_authorSelect"
+          style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--txt); outline:none"></select>
+      </div>
+      <label>Dosya Türü</label>
+      <select id="fi_type" style="margin-bottom:12px">
+        <option value="Sözleşme">Sözleşme</option>
+        <option value="Dekont">Dekont</option>
+        <option value="Kapak">Kapak</option>
+        <option value="Diğer" selected>Diğer</option>
+      </select>
+      <label>Dosya Seç (Max 2MB)</label>
+      <input type="file" id="fi_file">
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Dosyalar tarayıcı önbelleğinde saklanır. Büyük
+        dosyalar kotayı doldurabilir.</div>
+      <label style="margin-top:12px">Dosya Açıklaması / Adı</label><input id="fi_name"
+        placeholder="Örn: Sözleşme Taslağı">
+      <div class="actions">
+        <button class="btn ghost" onclick="closeFileModal()">Vazgeç</button>
+        <button class="btn" onclick="saveFile()" id="fi_saveBtn">Yükle</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDnqNrkeIi7SLHpk8LOXI94BtOU9mXems4",
+      authDomain: "mst-crm.firebaseapp.com",
+      projectId: "mst-crm",
+      storageBucket: "mst-crm.firebasestorage.app",
+      messagingSenderId: "796821173721",
+      appId: "1:796821173721:web:f3fdef9395f7606e4f95c8",
+      measurementId: "G-R6EXXCECYC"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const firestore = firebase.firestore();
+    // file:/// protokolünde WebSocket bağlantı sorunlarını çözmek için:
+    firestore.settings({ experimentalForceLongPolling: true });
+    const auth = firebase.auth();
+
+    /* ---------- Veri katmanı (Firebase) ---------- */
+    const KEY = "kalem_crm_v1";
+    const STATUS = {
+      aday: { label: "Aday", color: "#9aa1b2" },
+      gorusuluyor: { label: "Görüşülüyor", color: "#4aa8ff" },
+      degerlendirme: { label: "Değerlendirmede", color: "#f4b740" },
+      sozlesme: { label: "Sözleşme", color: "#a99bff" },
+      yayinda: { label: "Yayında", color: "#37c98a" },
+      arsiv: { label: "Arşiv", color: "#5b6070" }
+    };
+    const PIPELINE = ["aday", "gorusuluyor", "degerlendirme", "sozlesme", "yayinda"];
+
+    let db = { staff: [], authors: [] };
+    let currentView = "dashboard";
+    let filterStatus = "all";
+    let filterFile = "Sözleşme";
+    let currentRole = "admin";
+    let currentStaffId = null;
+    let isRegistering = false;
+
+    function setupAuthListener() {
+      auth.onAuthStateChanged(async user => {
+        if (isRegistering) return; // Kayıt sırasında onAuthStateChanged devreye girme
+        if (user) {
+          const u = user.email.split("@")[0].toLowerCase();
+          const clean = str => str.toLowerCase().replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ç/g, 'c').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/\s+/g, '');
+
+          if (u === "admin") {
+            currentRole = "admin";
+          } else {
+            // Onay kontrolü
+            try {
+              const userDoc = await firestore.collection("users").doc(user.uid).get();
+              if (!userDoc.exists || userDoc.data().approved !== true) {
+                auth.signOut();
+                const err = document.getElementById("loginError");
+                if (err) {
+                  err.innerText = "⏳ Hesabınız henüz admin tarafından onaylanmadı. Lütfen bekleyin.";
+                  err.style.display = "block";
+                }
+                return;
+              }
+              currentRole = userDoc.data().role || "admin";
+            } catch (e) {
+              console.error("Onay kontrolü hatası:", e);
+              currentRole = "admin";
+            }
+          }
+
+          const stf = db.staff.find(s => clean(s.name) === clean(u) || clean(s.name).includes(clean(u)));
+          currentStaffId = stf ? stf.id : null;
+          document.getElementById("loginError").style.display = "none";
+          document.getElementById("loginScreen").style.display = "none";
+          document.querySelector(".app").style.display = "grid";
+          render();
+        } else {
+          document.getElementById("loginScreen").style.display = "grid";
+          document.querySelector(".app").style.display = "none";
+        }
+      });
+    }
+
+    function checkLogin() {
+      if (auth.currentUser) {
+        document.getElementById("loginScreen").style.display = "none";
+        document.querySelector(".app").style.display = "grid";
+      } else {
+        document.getElementById("loginScreen").style.display = "grid";
+        document.querySelector(".app").style.display = "none";
+      }
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = e.target.querySelector("button[type='submit']");
+      const u = document.getElementById("loginUser").value.trim().toLowerCase();
+      const p = document.getElementById("loginPass").value.trim();
+      const err = document.getElementById("loginError");
+
+      btn.disabled = true;
+      btn.innerText = "Giriş Yapılıyor...";
+
+      const email = u.includes("@") ? u : u + "@crm.com";
+
+      try {
+        await auth.signInWithEmailAndPassword(email, p);
+        btn.disabled = false;
+        btn.innerText = "Giriş Yap";
+        // onAuthStateChanged will trigger and render the app.
+      } catch (error) {
+        let errorMsg = error.message;
+        if (error.code === 'auth/invalid-credential') {
+          errorMsg = "Girdiğiniz e-posta veya şifre hatalı.";
+        }
+        err.innerText = "Hata: " + errorMsg;
+        err.style.display = "block";
+        btn.disabled = false;
+        btn.innerText = "Giriş Yap";
+      }
+    }
+
+    function handleLogout() {
+      auth.signOut().then(() => {
+        document.getElementById("loginUser").value = "";
+        document.getElementById("loginPass").value = "";
+      });
+    }
+
+    function togglePassword(id, el) {
+      const inp = document.getElementById(id);
+      if (inp.type === "password") {
+        inp.type = "text";
+        el.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+      } else {
+        inp.type = "password";
+        el.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+      }
+    }
+
+    function switchAuthTab(tab) {
+      const loginForm = document.getElementById("loginForm");
+      const regForm = document.getElementById("registerForm");
+      const tabL = document.getElementById("tabLogin");
+      const tabR = document.getElementById("tabRegister");
+      if (tab === "login") {
+        loginForm.style.display = "block";
+        regForm.style.display = "none";
+        tabL.style.borderBottom = "2px solid var(--brand)"; tabL.style.color = "var(--brand)";
+        tabR.style.borderBottom = "2px solid transparent"; tabR.style.color = "var(--muted)";
+      } else {
+        loginForm.style.display = "none";
+        regForm.style.display = "block";
+        tabR.style.borderBottom = "2px solid var(--brand)"; tabR.style.color = "var(--brand)";
+        tabL.style.borderBottom = "2px solid transparent"; tabL.style.color = "var(--muted)";
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const btn = e.target.querySelector("button[type='submit']");
+      const name = document.getElementById("regName").value.trim();
+      const u = document.getElementById("regUser").value.trim().toLowerCase();
+      const p = document.getElementById("regPass").value;
+      const p2 = document.getElementById("regPass2").value;
+      const err = document.getElementById("regError");
+      const suc = document.getElementById("regSuccess");
+      err.style.display = "none";
+      suc.style.display = "none";
+
+      if (!name) { err.innerText = "Lütfen adınızı ve soyadınızı girin."; err.style.display = "block"; return; }
+      if (p !== p2) { err.innerText = "Şifreler eşleşmiyor."; err.style.display = "block"; return; }
+      if (p.length < 6) { err.innerText = "Şifre en az 6 karakter olmalıdır."; err.style.display = "block"; return; }
+
+      btn.disabled = true;
+      btn.innerText = "Kayıt Yapılıyor...";
+      const email = u.includes("@") ? u : u + "@crm.com";
+      isRegistering = true;
+
+      try {
+        const cred = await auth.createUserWithEmailAndPassword(email, p);
+
+        const usersSnapshot = await firestore.collection("users").limit(1).get();
+        const isFirstUser = usersSnapshot.empty;
+
+        const role = isFirstUser ? "admin" : "personel";
+        const approved = isFirstUser ? true : false;
+
+        await firestore.collection("users").doc(cred.user.uid).set({
+          name: name,
+          username: u,
+          email: email,
+          approved: approved,
+          role: role,
+          createdAt: new Date().toISOString()
+        });
+        await auth.signOut();
+        if (isFirstUser) {
+          suc.innerText = "✅ Kayıt başarılı! İlk kullanıcı olduğunuz için otomatik admin yapıldınız. Giriş yapabilirsiniz.";
+        } else {
+          suc.innerText = "✅ Kayıt başarılı! Hesabınız admin onayından sonra aktif olacaktır.";
+        }
+        suc.style.display = "block";
+        btn.disabled = false;
+        btn.innerText = "Kayıt Ol";
+        isRegistering = false;
+      } catch (error) {
+        isRegistering = false;
+        let msg = error.message;
+        if (error.code === "auth/email-already-in-use") msg = "Bu kullanıcı adı zaten kayıtlı.";
+        if (error.code === "auth/weak-password") msg = "Şifre çok zayıf, en az 6 karakter olmalı.";
+        err.innerText = msg;
+        err.style.display = "block";
+        btn.disabled = false;
+        btn.innerText = "Kayıt Ol";
+      }
+    }
+
+    let storageOK = true;
+
+    async function load() {
+      try {
+        // 5 saniye içinde cevap gelmezse zaman aşımına uğrat
+        const doc = await Promise.race([
+          firestore.collection("crm").doc("main_db").get(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000))
+        ]);
+
+        if (doc.exists) {
+          db = doc.data();
+        } else {
+          db = seed();
+          await save();
+        }
+      } catch (e) {
+        console.error("Firebase veri çekme hatası:", e);
+        alert("Veritabanına bağlanılamadı (veya zaman aşımı). Yerel verilerle açılıyor...");
+        db = seed();
+      }
+    }
+
+    async function save() {
+      try {
+        await firestore.collection("crm").doc("main_db").set(db);
+      } catch (e) {
+        console.error("Firebase kaydetme hatası:", e);
+        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+      }
+    }
+
+    function seed() {
+      const today = new Date();
+      const d = (off) => { const x = new Date(today); x.setDate(x.getDate() + off); return x.toISOString().slice(0, 10); };
+      const s1 = uid(), s2 = uid(), s3 = uid();
+      const data = {
+        staff: [
+          { id: s1, name: "Ayşe Yılmaz", role: "Editör" },
+          { id: s2, name: "Mehmet Kara", role: "Yayın Koordinatörü" },
+          { id: s3, name: "Selin Demir", role: "Pazarlama" }
+        ],
+        authors: []
+      };
+      return data;
+    }
+    function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+    function staffName(id) { const s = (db.staff || []).find(x => x.id === id); return s ? s.name : ''; }
+
+    /* ---------- Yardımcılar ---------- */
+    function initials(n) { return n.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase(); }
+    function avatarColor(n) {
+      const colors = ["#7c6cff", "#4aa8ff", "#37c98a", "#f4b740", "#f2617a", "#a99bff", "#22c1c3"];
+      let s = 0; for (const c of n) s += c.charCodeAt(0);
+      return colors[s % colors.length];
+    }
+    function fmtDate(s) { if (!s) return "—"; const d = new Date(s); return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" }); }
+    function daysUntil(s) { if (!s) return null; return Math.round((new Date(s) - new Date().setHours(0, 0, 0, 0)) / 864e5); }
+    function toWaLink(phone) {
+      if (!phone) return "";
+      let p = phone.replace(/\D/g, "");
+      if (p.startsWith("0")) p = "90" + p.substring(1);
+      else if (p.length === 10 && p.startsWith("5")) p = "90" + p;
+      return "https://api.whatsapp.com/send?phone=" + p;
+    }
+    function waBtn(phone) {
+      if (!phone) return "";
+      return `<a href="${toWaLink(phone)}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;justify-content:center;background:#25D366;color:#fff;border-radius:50%;width:26px;height:26px;text-decoration:none;box-shadow:0 2px 5px rgba(37,211,102,0.4);transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="WhatsApp ile Mesaj Gönder">
+        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
+      </a>`;
+    }
+
+    /* ---------- Profil dropdown kapat ---------- */
+    document.addEventListener("click", e => {
+      const dd = document.getElementById("profileDropdown");
+      const pa = document.getElementById("topProfileArea");
+      if (dd && pa && !pa.contains(e.target)) dd.classList.remove("open");
+    });
+
+    /* ---------- Navigasyon ---------- */
+    document.querySelectorAll(".nav button").forEach(b => {
+      b.onclick = () => {
+        document.querySelectorAll(".nav button").forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+        currentView = b.dataset.view; filterStatus = "all";
+        document.getElementById("search").value = ""; // Sekme değiştiğinde aramayı temizle
+        render();
+      };
+    });
+    const TITLES = {
+      dashboard: ["Panel", "Genel bakış ve bugünkü işler"],
+      authors: ["Yazarlar", "Tüm yazar ve adaylar"],
+      contracts: ["Sözleşmeli Yazarlar", "Sözleşme yaptığımız yazarlar"],
+      followups: ["Takip Listesi", "Yaklaşan ve geciken takipler"],
+      team: ["Ekip", "Görüşmeciler ve ekip üyeleri"],
+      files: ["Dosyalar", "Tüm yüklenen dosya ve belgeler"]
+    };
+
+    /* ---------- Render ---------- */
+    function render() {
+      const w = document.getElementById("storageWarn");
+      if (w) w.style.display = storageOK ? "none" : "block";
+
+      let title = TITLES[currentView][0];
+      document.getElementById("viewTitle").textContent = title;
+      document.getElementById("viewSub").textContent = TITLES[currentView][1];
+
+      const tp = document.getElementById("topProfileArea");
+      if (tp) {
+        const stf = db.staff.find(s => s.id === currentStaffId);
+        if (stf) {
+          document.getElementById("topUserName").textContent = stf.name;
+        } else if (currentRole === "admin") {
+          document.getElementById("topUserName").textContent = "Sistem Yöneticisi";
+        } else if (auth.currentUser) {
+          let n = auth.currentUser.email.split("@")[0];
+          document.getElementById("topUserName").textContent = n.charAt(0).toUpperCase() + n.slice(1);
+        } else {
+          document.getElementById("topUserName").textContent = "Personel";
+        }
+      }
+
+      const isPersonel = currentRole === "personel";
+      const navTeam = document.querySelector('[data-view="team"]');
+      if (navTeam) navTeam.style.display = isPersonel ? "none" : "block";
+      const navPay = document.querySelector('[data-view="files"]');
+      if (navPay) navPay.style.display = "flex"; // Herkese açık
+
+      if (isPersonel && currentView === "team") {
+        currentView = "dashboard";
+        document.querySelectorAll(".nav button").forEach(x => x.classList.remove("active"));
+        document.querySelector('[data-view="dashboard"]').classList.add("active");
+        return render(); // Re-render with new view
+      }
+
+      // Arama çubuğu ve buton gösterimi
+      const searchInput = document.getElementById("search");
+      if (currentView === "dashboard") {
+        searchInput.style.display = "none";
+      } else {
+        searchInput.style.display = "block";
+        searchInput.placeholder = currentView === "team" ? "🔍 Ekip üyesi ara..." : currentView === "files" ? "🔍 Yazar, telefon veya dosya adı ara..." : "🔍 Yazar, telefon, tür, not ara...";
+      }
+      document.getElementById("btnNewAuthor").style.display = currentView === "authors" ? "inline-block" : "none";
+
+      const c = document.getElementById("content");
+      if (currentView === "dashboard") {
+        c.innerHTML = viewDashboard();
+        setTimeout(initCharts, 0); // DOM update sonrası çalışması için
+      }
+      else if (currentView === "authors") c.innerHTML = viewAuthors();
+      else if (currentView === "contracts") c.innerHTML = viewContracts();
+      else if (currentView === "files") c.innerHTML = viewFiles();
+      else if (currentView === "followups") c.innerHTML = viewFollowups();
+      else if (currentView === "team") { c.innerHTML = viewTeam(); if (currentRole === "admin") setTimeout(loadPendingUsers, 0); }
+    }
+
+    function searchTerm() { return document.getElementById("search").value.toLowerCase().trim(); }
+    function filteredAuthors() {
+      const t = searchTerm();
+      return db.authors.filter(a => {
+        const hay = (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase();
+        return (!t || hay.includes(t)) && (filterStatus === "all" || a.status === filterStatus);
+      });
+    }
+
+    function viewDashboard() {
+      const a = db.authors;
+      const overdue = a.filter(x => { const d = daysUntil(x.followup); return d !== null && d < 0; }).length;
+
+      // Ortak bölümler: Takip uyarıları ve Son etkileşimler
+      const followList = a.filter(x => { const d = daysUntil(x.followup); return d !== null && d <= 3; })
+        .sort((x, y) => daysUntil(x.followup) - daysUntil(y.followup));
+      let follow = `<div class="card"><h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">🔔 Bugün ilgilenmen gerekenler ${overdue ? `<span class="badge" style="background:rgba(242,97,122,.2);color:#f2617a">${overdue} gecikmiş</span>` : ""}</h4>`;
+      if (!followList.length) follow += `<div class="empty">Yaklaşan takip yok. 🎉</div>`;
+      else follow += followList.map(x => {
+        const d = daysUntil(x.followup);
+        const lbl = d < 0 ? `${-d} gün gecikti` : d === 0 ? "Bugün" : `${d} gün sonra`;
+        const col = d < 0 ? "var(--red)" : d === 0 ? "var(--amber)" : "var(--muted)";
+        return `<div class="mini" onclick="openDrawer('${x.id}')" style="display:flex;justify-content:space-between;align-items:center">
+      <div><span class="mn">${x.name}</span><div class="ms">${x.work || "—"} • ${STATUS[x.status].label}</div></div>
+      <span style="color:${col};font-weight:600;font-size:12px">${lbl}</span></div>`;
+      }).join("");
+      follow += `</div>`;
+
+      const acts = [];
+      a.forEach(x => (x.logs || []).forEach(l => acts.push({ ...l, name: x.name, id: x.id })));
+      acts.sort((p, q) => new Date(q.date) - new Date(p.date));
+      let recent = `<div class="card"><h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">🕑 Son etkileşimler</h4><div class="timeline">`;
+      recent += acts.slice(0, 6).map(l => `<div class="tl"><div class="tt">${fmtDate(l.date)} • ${l.name}</div><div class="tx"><span class="type">${l.type}</span>${l.text}</div></div>`).join("") || `<div class="empty">Kayıt yok</div>`;
+      recent += `</div></div>`;
+
+      // PERSONEL GÖRÜNÜMÜ
+      const total = a.length;
+      const adaylar = a.filter(x => ["aday", "gorusuluyor"].includes(x.status)).length;
+      const aktif = a.filter(x => ["degerlendirme", "sozlesme"].includes(x.status)).length;
+      const yayinda = a.filter(x => x.status === "yayinda").length;
+
+      let stats = `<div class="grid stats" style="margin-bottom:16px">
+    <div class="card stat"><div class="n">${total}</div><div class="l">Toplam kayıt</div></div>
+    <div class="card stat"><div class="n">${adaylar}</div><div class="l">Aday & görüşülüyor</div><span class="chip" style="background:rgba(74,168,255,.15);color:#4aa8ff">Pipeline'da</span></div>
+    <div class="card stat"><div class="n">${aktif}</div><div class="l">Aktif süreç</div><span class="chip" style="background:rgba(169,155,255,.15);color:#a99bff">Değerlendirme/Sözleşme</span></div>
+    <div class="card stat"><div class="n">${yayinda}</div><div class="l">Yayında</div><span class="chip" style="background:rgba(55,201,138,.15);color:#37c98a">Aktif yazar</span></div>
+  </div>`;
+
+      return stats + `<div class="grid" style="grid-template-columns:1fr 1fr;gap:16px">${follow}${recent}</div>`;
+    }
+
+    let chartStatus = null;
+    let chartGenre = null;
+
+    function initCharts() {
+      if (typeof Chart === 'undefined') return;
+
+      // Status Chart Data
+      const statusCounts = {};
+      Object.keys(STATUS).forEach(k => statusCounts[k] = 0);
+      db.authors.forEach(a => { if (statusCounts[a.status] !== undefined) statusCounts[a.status]++; });
+
+      const ctxStatus = document.getElementById('statusChart');
+      if (ctxStatus) {
+        if (chartStatus) chartStatus.destroy();
+        chartStatus = new Chart(ctxStatus, {
+          type: 'doughnut',
+          data: {
+            labels: Object.keys(STATUS).map(k => STATUS[k].label),
+            datasets: [{
+              data: Object.values(statusCounts),
+              backgroundColor: Object.keys(STATUS).map(k => STATUS[k].color),
+              borderWidth: 0,
+              hoverOffset: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'right', labels: { color: '#9aa1b2', font: { size: 11, family: 'Inter, sans-serif' } } }
+            },
+            cutout: '65%'
+          }
+        });
+      }
+
+      // Genre Chart Data
+      const genreCounts = {};
+      db.authors.forEach(a => {
+        (a.genres || []).forEach(g => {
+          genreCounts[g] = (genreCounts[g] || 0) + 1;
+        });
+      });
+      const genres = Object.keys(genreCounts).sort((x, y) => genreCounts[y] - genreCounts[x]).slice(0, 6);
+
+      const ctxGenre = document.getElementById('genreChart');
+      if (ctxGenre) {
+        if (chartGenre) chartGenre.destroy();
+        chartGenre = new Chart(ctxGenre, {
+          type: 'bar',
+          data: {
+            labels: genres,
+            datasets: [{
+              label: 'Yazar',
+              data: genres.map(g => genreCounts[g]),
+              backgroundColor: '#4aa8ff',
+              borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { stepSize: 1, color: '#9aa1b2', font: { family: 'Inter, sans-serif' } }, grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } },
+              x: { ticks: { color: '#9aa1b2', font: { family: 'Inter, sans-serif' } }, grid: { display: false }, border: { display: false } }
+            }
+          }
+        });
+      }
+    }
+
+    function viewAuthors() {
+      const counts = { all: db.authors.length };
+      Object.keys(STATUS).forEach(s => counts[s] = db.authors.filter(a => a.status === s).length);
+      const allActive = filterStatus === 'all';
+      const allStyle = allActive ? `background: rgba(255,255,255,0.08); border-color: #fff; color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.15);` : ``;
+      let bar = `<div class="toolbar" style="gap:10px">
+        <span class="pill ${allActive ? 'active' : ''}" style="${allStyle}" onclick="setFilter('all')" onmouseover="this.style.borderColor='#fff'" onmouseout="if(!${allActive}) this.style.borderColor='var(--line)'">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--txt);margin-right:8px;box-shadow:0 0 6px rgba(255,255,255,0.5)"></span>
+          Tümü (${counts.all})
+        </span>`;
+      bar += Object.entries(STATUS).map(([k, v]) => {
+        const isActive = filterStatus === k;
+        const style = isActive ? `background: ${v.color}18; border-color: ${v.color}; color: ${v.color}; box-shadow: 0 0 14px ${v.color}33; text-shadow: 0 0 12px ${v.color}44;` : ``;
+        return `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setFilter('${k}')" onmouseover="this.style.borderColor='${v.color}'" onmouseout="if(!${isActive}) this.style.borderColor='var(--line)'">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${v.color};margin-right:8px;box-shadow:0 0 8px ${v.color}"></span>
+          ${v.label} (${counts[k]})
+        </span>`;
+      }).join("");
+      bar += `</div>`;
+      const list = filteredAuthors();
+      if (!list.length) return bar + `<div class="empty">Kayıt bulunamadı.</div>`;
+      const cards = list.map(authorCard).join("");
+      return bar + `<div class="grid authors">${cards}</div>`;
+    }
+
+    function authorCard(a) {
+      const st = STATUS[a.status];
+      const temp = Array.from({ length: 5 }, (_, i) => `<span style="background:${i < a.temp ? '#f4b740' : 'var(--line)'}"></span>`).join("");
+      const d = daysUntil(a.followup);
+      const fl = d === null ? "" : d < 0 ? `<span style="color:var(--red)">⚠ ${-d}g gecikti</span>` : d <= 3 ? `<span style="color:var(--amber)">🔔 ${d === 0 ? 'bugün' : d + 'g sonra'}</span>` : `📅 ${fmtDate(a.followup)}`;
+      
+      const adder = a.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(a.addedBy) || "Personel");
+
+      return `<div class="card author" onclick="openDrawer('${a.id}')">
+    <div class="head">
+      <div class="avatar" style="background:${avatarColor(a.name)}">${initials(a.name)}</div>
+      <div style="flex:1">
+        <div class="name">${a.name}</div>
+        <div class="role">${a.work || "—"}</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:6px;">
+        <span style="font-size:11px; color:var(--muted); line-height:1;">(${adder})</span>
+        <span class="badge" style="background:${st.color}15;color:${st.color};border:1px solid ${st.color}44;box-shadow:0 0 10px ${st.color}22">${st.label}</span>
+      </div>
+    </div>
+    <div class="tags">${(a.genres || []).map(g => `<span class="tag">${g}</span>`).join("")}</div>
+    <div class="meta-row">
+      <div class="temp" title="İlgi düzeyi">${temp}</div>
+      <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">${fl} ${waBtn(a.phone)}</div>
+    </div>
+  </div>`;
+    }
+
+    function setFilter(s) { filterStatus = s; render(); }
+    function setFileFilter(s) { filterFile = s; render(); }
+    let filterContract = "all";
+    function setContractFilter(s) { filterContract = s; render(); }
+
+    function viewContracts() {
+      const t = searchTerm();
+      const match = a => !t || (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase().includes(t);
+      const sozlesme = db.authors.filter(a => a.status === "sozlesme" && match(a));
+      const yayinda = db.authors.filter(a => a.status === "yayinda" && match(a));
+      const toplam = sozlesme.length + yayinda.length;
+
+      const TYPES = ["Tümü", "Aktif Sözleşme", "Yayında"];
+      const counts = { "Tümü": toplam, "Aktif Sözleşme": sozlesme.length, "Yayında": yayinda.length };
+      const COLORS = { "Tümü": "#9aa1b2", "Aktif Sözleşme": "#a99bff", "Yayında": "#37c98a" };
+
+      let bar = `<div class="toolbar" style="margin-top:-8px;margin-bottom:20px;gap:10px">`;
+      TYPES.forEach(ft => {
+        const c = COLORS[ft];
+        const isActive = filterContract === ft || (filterContract === 'all' && ft === 'Tümü');
+        const style = isActive ? `background: ${c}15; border-color: ${c}; color: ${c}; box-shadow: 0 0 14px ${c}40;` : ``;
+        const setVal = ft === 'Tümü' ? 'all' : ft;
+        bar += `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setContractFilter('${setVal}')" onmouseover="this.style.borderColor='${c}'" onmouseout="if(!${isActive}) this.style.borderColor='rgba(255,255,255,0.08)'">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:8px;box-shadow:0 0 8px ${c}"></span>
+          ${ft} (${counts[ft]})
+        </span>`;
+      });
+      bar += `</div>`;
+
+      let html = `<p class="sub" style="color:var(--muted);margin-top:-8px">Sözleşme yaptığınız tüm yazarlar burada toplanır. Toplam <b>${toplam}</b> sözleşmeli yazar.</p>`;
+      html += bar;
+
+      let displayList = [];
+      if (filterContract === 'all') displayList = [...sozlesme, ...yayinda];
+      else if (filterContract === 'Aktif Sözleşme') displayList = sozlesme;
+      else if (filterContract === 'Yayında') displayList = yayinda;
+
+      if (displayList.length) {
+        html += `<div class="grid authors">${displayList.map(authorCard).join("")}</div>`;
+      } else {
+        html += `<div class="empty">Bu bölümde henüz yazar yok.</div>`;
+      }
+
+      return html;
+    }
+
+    function viewFiles() {
+      let allFiles = [];
+      db.authors.forEach(a => {
+        (a.files || []).forEach((f, idx) => {
+          allFiles.push({ ...f, authorId: a.id, authorName: a.name, authorPhone: a.phone, originalIndex: idx });
+        });
+      });
+
+      const t = searchTerm();
+      if (t) {
+        allFiles = allFiles.filter(f => (f.authorName + " " + (f.authorPhone || "") + " " + (f.name || "")).toLowerCase().includes(t));
+      }
+
+      const FILE_TYPES = ["Sözleşme", "Dekont", "Kapak", "Diğer"];
+      const counts = {};
+      FILE_TYPES.forEach(ft => counts[ft] = allFiles.filter(f => (f.type || "Diğer") === ft).length);
+
+      const FT_COLORS = { "Sözleşme": "#a99bff", "Dekont": "#37c98a", "Kapak": "#f2617a", "Diğer": "#9aa1b2" };
+      let bar = `<div class="toolbar" style="margin-top:-8px;margin-bottom:20px;gap:10px">`;
+      FILE_TYPES.forEach(ft => {
+        const c = FT_COLORS[ft] || "#9aa1b2";
+        const isActive = filterFile === ft;
+        const style = isActive ? `background: ${c}15; border-color: ${c}; color: ${c}; box-shadow: 0 0 14px ${c}40;` : ``;
+        bar += `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setFileFilter('${ft}')" onmouseover="this.style.borderColor='${c}'" onmouseout="if(!${isActive}) this.style.borderColor='rgba(255,255,255,0.08)'">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:8px;box-shadow:0 0 8px ${c}"></span>
+          ${ft} (${counts[ft]})
+        </span>`;
+      });
+      bar += `</div>`;
+
+      if (filterFile !== 'all') {
+        allFiles = allFiles.filter(f => (f.type || "Diğer") === filterFile);
+      }
+
+      allFiles.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      let html = bar + `<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+    <button class="btn" onclick="openFileModal()">+ Yeni Dosya Yükle</button>
+  </div>`;
+
+      if (allFiles.length === 0) {
+        return html + `<div class="empty">Dosya kaydı bulunamadı.</div>`;
+      }
+
+      let listHtml = `<div class="card"><table style="width:100%;text-align:left;border-collapse:collapse;font-size:14px">
+    <tr style="border-bottom:1px solid var(--line);color:var(--muted)">
+      <th style="padding:10px 8px;font-weight:600">Tarih</th>
+      <th style="padding:10px 8px;font-weight:600">Yazar</th>
+      <th style="padding:10px 8px;font-weight:600">Dosya Adı</th>
+      <th style="padding:10px 8px;font-weight:600">Boyut</th>
+      <th></th>
+    </tr>`;
+
+      listHtml += allFiles.map(f => {
+        return `<tr style="border-bottom:1px solid var(--line)">
+      <td style="padding:10px 8px">${fmtDate(f.date)}</td>
+      <td style="padding:10px 8px;font-weight:600;cursor:pointer;color:var(--blue)" onclick="openDrawer('${f.authorId}')">${f.authorName}</td>
+      <td style="padding:10px 8px;font-weight:600"><span class="badge" style="background:var(--panel-2);border:1px solid var(--line);margin-right:6px;font-size:11px;padding:2px 8px">${f.type || 'Diğer'}</span><a href="#" onclick="downloadFile('${f.data}','${f.name}');return false;" style="color:var(--brand);text-decoration:underline">${f.name}</a></td>
+      <td style="padding:10px 8px;color:var(--muted)">${(f.size / 1024).toFixed(1)} KB</td>
+      <td style="padding:10px 8px;text-align:right">
+        ${currentRole === 'admin' ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delFile('${f.authorId}', ${f.originalIndex})" title="Sil">🗑</button>` : ''}
+      </td>
+    </tr>`;
+      }).join('');
+
+      listHtml += `</table></div>`;
+      return html + listHtml;
+    }
+
+
+    function viewFollowups() {
+      const t = searchTerm();
+      const list = db.authors.filter(a =>
+        a.followup &&
+        (!t || (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase().includes(t))
+      ).sort((x, y) => new Date(x.followup) - new Date(y.followup));
+      if (!list.length) return `<div class="empty">Planlanmış takip yok.</div>`;
+
+      const overdue = [], today = [], upcoming = [];
+      list.forEach(a => {
+        const d = daysUntil(a.followup);
+        if (d < 0) overdue.push(a);
+        else if (d === 0) today.push(a);
+        else upcoming.push(a);
+      });
+
+      if (!['all', 'overdue', 'today', 'upcoming'].includes(filterStatus)) filterStatus = 'all';
+
+      const filterTabs = [
+        { id: 'all', label: 'Tümü', count: list.length, color: '#fff' },
+        { id: 'overdue', label: 'Gecikenler', count: overdue.length, color: '#f2617a' },
+        { id: 'today', label: 'Bugün', count: today.length, color: '#f4b740' },
+        { id: 'upcoming', label: 'Gelecek', count: upcoming.length, color: '#4aa8ff' }
+      ];
+
+      let bar = `<div class="toolbar" style="margin-top:-8px;margin-bottom:20px;gap:10px">`;
+      filterTabs.forEach(t => {
+        const isActive = filterStatus === t.id;
+        const style = isActive ? `background: ${t.color}15; border-color: ${t.color}; color: ${t.color}; box-shadow: 0 0 14px ${t.color}40;` : ``;
+        bar += `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setFilter('${t.id}')" onmouseover="this.style.borderColor='${t.color}'" onmouseout="if(!${isActive}) this.style.borderColor='rgba(255,255,255,0.08)'">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.color};margin-right:8px;box-shadow:0 0 8px ${t.color}"></span>
+          ${t.label} (${t.count})
+        </span>`;
+      });
+      bar += `</div>`;
+
+      let activeList = list;
+      if (filterStatus === 'overdue') activeList = overdue;
+      else if (filterStatus === 'today') activeList = today;
+      else if (filterStatus === 'upcoming') activeList = upcoming;
+
+      if (!activeList.length) return bar + `<div class="empty">Bu kategoride kayıt bulunamadı.</div>`;
+      const cards = activeList.map(authorCard).join("");
+      return bar + `<div class="grid authors">${cards}</div>`;
+    }
+
+    /* ---------- Detay Drawer ---------- */
+    function openDrawer(id) {
+      const a = db.authors.find(x => x.id === id); if (!a) return;
+      const st = STATUS[a.status];
+      const logs = (a.logs || []).slice().sort((p, q) => new Date(q.date) - new Date(p.date));
+      const tl = logs.map(l => { const sn = staffName(l.staffId); return `<div class="tl"><div class="tt">${fmtDate(l.date)}${sn ? ` • <span style="color:var(--blue)">${sn}</span>` : ''}</div><div class="tx"><span class="type">${l.type}</span>${l.text}</div></div>`; }).join("") || `<div class="empty" style="padding:16px">Henüz görüşme kaydı yok.</div>`;
+
+      document.getElementById("drawer").innerHTML = `
+    <div class="dh">
+      <button class="close" onclick="closeDrawer()">×</button>
+      <div style="display:flex;gap:14px;align-items:center">
+        <div class="avatar" style="width:54px;height:54px;font-size:20px;background:${avatarColor(a.name)}">${initials(a.name)}</div>
+        <div><div style="font-size:19px;font-weight:700">${a.name}</div>
+        <div style="color:var(--muted);font-size:13px">${a.work || "—"}</div></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <span class="badge" style="background:${st.color}22;color:${st.color}">${st.label}</span>
+        ${(a.genres || []).map(g => `<span class="tag">${g}</span>`).join("")}
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <button class="btn" style="flex:1" onclick="openLogModal('${a.id}')">+ Görüşme Ekle</button>
+        <button class="btn ghost" onclick="openAuthorModal('${a.id}')">✏️ Düzenle</button>
+        <button class="btn ghost" onclick="delAuthor('${a.id}')" title="Sil">🗑</button>
+      </div>
+    </div>
+    <div class="db">
+      <div class="section"><h4>İletişim & Bilgi</h4>
+        <div class="kv"><span>E-posta</span><span>${a.email || "—"}</span></div>
+        <div class="kv"><span>Telefon</span><span style="display:flex;align-items:center;gap:8px">${a.phone || "—"} ${waBtn(a.phone)}</span></div>
+        <div class="kv"><span>Kaynak</span><span>${a.source || "—"}</span></div>
+        <div class="kv"><span>İlgi düzeyi</span><span>${"🔥".repeat(a.temp || 0) || "—"}</span></div>
+        <div class="kv"><span>Görüşme tarihi</span><span>${fmtDate(a.interviewDate)}</span></div>
+        <div class="kv"><span>Sonraki takip</span><span>${fmtDate(a.followup)}</span></div>
+        <div class="kv"><span>İlk kayıt</span><span>${fmtDate(a.created)}</span></div>
+      </div>
+      <div class="section"><h4>Notlar</h4>
+        <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px;line-height:1.5;white-space:pre-wrap">${a.notes || "—"}</div>
+      </div>
+
+      <div class="section"><h4>Görüşme Geçmişi (${logs.length})</h4>
+        <div class="timeline">${tl}</div>
+      </div>
+    </div>`;
+      document.getElementById("drawer").classList.add("open");
+      document.getElementById("overlay").classList.add("open");
+    }
+    function closeDrawer() { document.getElementById("drawer").classList.remove("open"); document.getElementById("overlay").classList.remove("open"); }
+
+    /* ---------- Yazar CRUD ---------- */
+    function openAuthorModal(id) {
+      const m = document.getElementById("authorModal");
+      const g = v => document.getElementById(v);
+      if (id) {
+        const a = db.authors.find(x => x.id === id);
+        document.getElementById("modalTitle").textContent = "Yazarı Düzenle";
+        g("f_id").value = a.id; g("f_name").value = a.name; g("f_status").value = a.status;
+        g("f_email").value = a.email || ""; g("f_phone").value = a.phone || "";
+        g("f_genres").value = (a.genres || []).join(", "); g("f_temp").value = a.temp || 3;
+        g("f_work").value = a.work || ""; g("f_interviewDate").value = a.interviewDate || ""; g("f_followup").value = a.followup || ""; g("f_source").value = a.source || "Diğer";
+        g("f_notes").value = a.notes || "";
+      } else {
+        document.getElementById("modalTitle").textContent = "Yeni Yazar";
+        ["f_id", "f_name", "f_email", "f_phone", "f_genres", "f_work", "f_interviewDate", "f_followup", "f_notes"].forEach(v => g(v).value = "");
+        g("f_status").value = "aday"; g("f_temp").value = "3"; g("f_source").value = "E-posta başvurusu";
+      }
+      m.classList.add("open");
+    }
+    function closeModal() { document.getElementById("authorModal").classList.remove("open"); }
+    function saveAuthor() {
+      const g = v => document.getElementById(v).value.trim();
+      const name = g("f_name");
+      if (!name) { alert("Ad Soyad zorunlu."); return; }
+      const id = g("f_id");
+      const payload = {
+        name, status: g("f_status"), email: g("f_email"), phone: g("f_phone"),
+        genres: g("f_genres").split(",").map(s => s.trim()).filter(Boolean),
+        temp: +g("f_temp"), work: g("f_work"), interviewDate: g("f_interviewDate"), followup: g("f_followup"), source: g("f_source"), notes: g("f_notes")
+      };
+      if (id) { Object.assign(db.authors.find(x => x.id === id), payload); }
+      else { payload.id = uid(); payload.created = new Date().toISOString().slice(0, 10); payload.logs = []; payload.addedBy = currentStaffId || "admin"; db.authors.unshift(payload); }
+      save(); closeModal(); render();
+      if (id) openDrawer(id);
+    }
+    window.customConfirmResolve = null;
+    async function customConfirm(message) {
+      return new Promise(resolve => {
+        document.getElementById("customConfirmMessage").textContent = message;
+        document.getElementById("customConfirmModal").classList.add("open");
+        window.customConfirmResolve = function(result) {
+          document.getElementById("customConfirmModal").classList.remove("open");
+          resolve(result);
+        };
+      });
+    }
+
+    async function delAuthor(id) {
+      if (!(await customConfirm("Bu yazar ve tüm kayıtları silinsin mi?"))) return;
+      db.authors = db.authors.filter(x => x.id !== id); save(); closeDrawer(); render();
+    }
+
+    /* ---------- Görüşme kaydı ---------- */
+    function openLogModal(authorId) {
+      document.getElementById("l_authorId").value = authorId;
+      document.getElementById("l_type").value = "Telefon";
+      document.getElementById("l_date").value = new Date().toISOString().slice(0, 10);
+      document.getElementById("l_text").value = "";
+      // Staff dropdown doldur
+      const sel = document.getElementById("l_staff");
+      sel.innerHTML = '<option value="">— Seçiniz —</option>' + (db.staff || []).map(s => `<option value="${s.id}">${s.name} (${s.role})</option>`).join('');
+
+      if (currentStaffId) {
+        sel.value = currentStaffId;
+        sel.style.display = "none";
+        sel.previousElementSibling.style.display = "none";
+      } else {
+        sel.style.display = "block";
+        sel.previousElementSibling.style.display = "block";
+      }
+
+      document.getElementById("logModal").classList.add("open");
+    }
+    function closeLogModal() { document.getElementById("logModal").classList.remove("open"); }
+    function saveLog() {
+      const id = document.getElementById("l_authorId").value;
+      const text = document.getElementById("l_text").value.trim();
+      if (!text) { alert("Özet zorunlu."); return; }
+      let staffId = document.getElementById("l_staff").value;
+      if (currentStaffId) staffId = currentStaffId;
+
+      const a = db.authors.find(x => x.id === id);
+      a.logs = a.logs || [];
+      a.logs.push({ type: document.getElementById("l_type").value, date: document.getElementById("l_date").value, text, staffId });
+      save(); closeLogModal(); openDrawer(id); render();
+    }
+
+    /* ---------- Ödeme Yönetimi ---------- */
+    function openPayModal(authorId) {
+      if (authorId) {
+        document.getElementById("p_authorId").value = authorId;
+        document.getElementById("p_authorSelectContainer").style.display = "none";
+      } else {
+        document.getElementById("p_authorId").value = "";
+        const sel = document.getElementById("p_authorSelect");
+        sel.innerHTML = `<option value="">-- Yazar Seçin --</option>` +
+          db.authors.map(a => `<option value="${a.id}">${a.name}</option>`).join("");
+        document.getElementById("p_authorSelectContainer").style.display = "block";
+      }
+      document.getElementById("p_amount").value = "";
+      document.getElementById("p_installments").value = "1";
+      document.getElementById("p_date").value = new Date().toISOString().slice(0, 10);
+      document.getElementById("p_notes").value = "";
+      document.getElementById("p_status").value = "Ödendi";
+      document.getElementById("payModal").classList.add("open");
+    }
+    function closePayModal() { document.getElementById("payModal").classList.remove("open"); }
+    function savePayment() {
+      let id = document.getElementById("p_authorId").value;
+      if (!id) {
+        id = document.getElementById("p_authorSelect").value;
+        if (!id) { alert("Lütfen yazar seçin."); return; }
+      }
+      const totalAmount = parseFloat(document.getElementById("p_amount").value.trim());
+      if (!totalAmount) { alert("Tutar zorunlu."); return; }
+      const installments = parseInt(document.getElementById("p_installments").value) || 1;
+      const a = db.authors.find(x => x.id === id);
+      a.payments = a.payments || [];
+
+      const baseDate = new Date(document.getElementById("p_date").value);
+      const status = document.getElementById("p_status").value;
+      const notes = document.getElementById("p_notes").value.trim();
+
+      if (installments > 1) {
+        const instAmount = Math.floor(totalAmount / installments);
+        const remainder = totalAmount - (instAmount * installments);
+        for (let i = 0; i < installments; i++) {
+          let d = new Date(baseDate);
+          d.setMonth(d.getMonth() + i);
+          let instNotes = notes + (notes ? " " : "") + `(${i + 1}/${installments}. Taksit)`;
+          let instStatus = i === 0 ? status : "Bekliyor";
+          let amt = (i === installments - 1) ? (instAmount + remainder) : instAmount;
+          a.payments.push({
+            amount: amt, date: d.toISOString().slice(0, 10),
+            status: instStatus, notes: instNotes
+          });
+        }
+      } else {
+        a.payments.push({
+          amount: totalAmount, date: document.getElementById("p_date").value,
+          status: status, notes: notes
+        });
+      }
+      save(); closePayModal();
+      if (document.getElementById("drawer").classList.contains("open")) openDrawer(id);
+      render();
+    }
+    async function delPayment(authorId, idx) {
+      if (!(await customConfirm("Ödeme silinsin mi?"))) return;
+      const a = db.authors.find(x => x.id === authorId);
+      a.payments.splice(idx, 1);
+      save();
+      if (document.getElementById("drawer").classList.contains("open")) openDrawer(authorId);
+      render();
+    }
+
+    /* ---------- Dosya Yönetimi ---------- */
+    function openFileModal(authorId) {
+      if (authorId) {
+        document.getElementById("fi_authorId").value = authorId;
+        document.getElementById("fi_authorSelectContainer").style.display = "none";
+      } else {
+        document.getElementById("fi_authorId").value = "";
+        const sel = document.getElementById("fi_authorSelect");
+        sel.innerHTML = `<option value="">-- Yazar Seçin --</option>` +
+          db.authors.map(a => `<option value="${a.id}">${a.name}</option>`).join("");
+        document.getElementById("fi_authorSelectContainer").style.display = "block";
+      }
+      document.getElementById("fi_file").value = "";
+      document.getElementById("fi_name").value = "";
+      document.getElementById("fi_type").value = "Diğer";
+      document.getElementById("fileModal").classList.add("open");
+    }
+    function closeFileModal() { document.getElementById("fileModal").classList.remove("open"); }
+    function saveFile() {
+      let id = document.getElementById("fi_authorId").value;
+      if (!id) {
+        id = document.getElementById("fi_authorSelect").value;
+        if (!id) { alert("Lütfen yazar seçin."); return; }
+      }
+      const fileInput = document.getElementById("fi_file");
+      const name = document.getElementById("fi_name").value.trim();
+      const type = document.getElementById("fi_type").value;
+      if (!fileInput.files[0]) { alert("Lütfen dosya seçin."); return; }
+      const file = fileInput.files[0];
+      if (!name) { alert("Lütfen dosya adı/açıklaması girin."); return; }
+      if (file.size > 2 * 1024 * 1024) { alert("Dosya boyutu 2MB'den büyük olamaz (Tarayıcı kotası)."); return; }
+
+      const btn = document.getElementById("fi_saveBtn");
+      btn.disabled = true; btn.innerHTML = "Yükleniyor...";
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const a = db.authors.find(x => x.id === id);
+        a.files = a.files || [];
+        a.files.push({
+          name, size: file.size, data: e.target.result, date: new Date().toISOString().slice(0, 10), type
+        });
+        try {
+          save();
+          closeFileModal(); openDrawer(id); render();
+        } catch (err) {
+          alert("Hata: Tarayıcı hafızası dolu olabilir. Diğer dosyaları silmeyi deneyin.");
+          a.files.pop(); // rollback
+        }
+        btn.disabled = false; btn.innerHTML = "Yükle";
+      };
+      reader.readAsDataURL(file);
+    }
+    async function delFile(authorId, idx) {
+      if (!(await customConfirm("Dosya silinsin mi?"))) return;
+      const a = db.authors.find(x => x.id === authorId);
+      a.files.splice(idx, 1);
+      save(); openDrawer(authorId); render();
+    }
+    function downloadFile(dataUrl, fileName) {
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    /* ---------- Ekip Yönetimi ---------- */
+    function viewTeam() {
+      db.staff = db.staff || [];
+      const t = searchTerm();
+      const staff = db.staff.filter(s => !t || (s.name + " " + (s.role || "")).toLowerCase().includes(t));
+      // Her üyenin istatistikleri
+      const stats = staff.map(s => {
+        const logs = [];
+        const myAuthors = new Set();
+        db.authors.forEach(a => {
+          if (a.addedBy === s.id) myAuthors.add(a.id);
+          (a.logs || []).forEach(l => {
+            if (l.staffId === s.id) {
+              logs.push({ ...l, authorName: a.name, authorId: a.id });
+              myAuthors.add(a.id);
+            }
+          });
+        });
+        return { ...s, totalLogs: logs.length, authorCount: myAuthors.size, recentLogs: logs.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3) };
+      });
+
+      const addForm = "";
+
+      const pendingApprovalHtml = currentRole === "admin" ? `
+    <div class="card" style="margin-bottom:16px;border-color:var(--amber)">
+      <h3 style="margin:0 0 12px;font-size:14px;color:var(--amber)">👥 Kullanıcı Onay Yönetimi</h3>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:12px">Kayıt olan kullanıcılar burada listelenir. Onaylamadığınız kullanıcılar sisteme giriş yapamaz.</div>
+      <div id="pendingUsersArea"><div class="empty">⏳ Yükleniyor...</div></div>
+    </div>
+  ` : "";
+
+      if (!staff.length) return pendingApprovalHtml + addForm + `<div class="empty">Henüz ekip üyesi eklenmemiş.</div>`;
+
+      const cards = stats.map(s => {
+        const recentHtml = s.recentLogs.map(l => `<div style="font-size:11px;color:var(--muted);padding:3px 0;border-bottom:1px dashed var(--line)">${fmtDate(l.date)} • ${l.authorName} • <span style="color:var(--txt)">${l.text.slice(0, 50)}${l.text.length > 50 ? '...' : ''}</span></div>`).join('');
+        return `<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div class="avatar" style="background:${avatarColor(s.name)}">${initials(s.name)}</div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:15px">${s.name}</div>
+          <div style="color:var(--muted);font-size:12px">${s.role || '—'}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:700;color:var(--brand)">${s.totalLogs}</div>
+          <div style="color:var(--muted);font-size:11px">görüşme</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:700;color:var(--blue)">${s.authorCount}</div>
+          <div style="color:var(--muted);font-size:11px">yazar</div>
+        </div>
+        <button class="btn ghost" onclick="delStaff('${s.id}')" style="padding:6px 10px" title="Sil">🗑</button>
+      </div>
+      ${recentHtml ? `<div style="margin-top:6px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Son görüşmeler</div>${recentHtml}</div>` : ''}
+    </div>`;
+      }).join('');
+
+      return pendingApprovalHtml + addForm + cards;
+    }
+
+    function addStaff() {
+      const name = document.getElementById('st_name').value.trim();
+      if (!name) { alert('Ad Soyad zorunlu.'); return; }
+      const role = document.getElementById('st_role').value.trim();
+      db.staff = db.staff || [];
+      db.staff.push({ id: uid(), name, role });
+      save(); render();
+    }
+    async function delStaff(id) {
+      if (!(await customConfirm('Bu ekip üyesi silinsin mi? Görüşme kayıtlarındaki referanslar kalacaktır.'))) return;
+      db.staff = (db.staff || []).filter(x => x.id !== id);
+      save(); render();
+    }
+
+    /* ---------- Yedek al / yükle ---------- */
+    function exportData() {
+      const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "mst-crm-yedek-" + new Date().toISOString().slice(0, 10) + ".json";
+      a.click();
+    }
+    function importData(e) {
+      const f = e.target.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => { try { db = JSON.parse(r.result); save(); render(); alert("Yedek yüklendi."); } catch { alert("Geçersiz dosya."); } };
+      r.readAsText(f); e.target.value = "";
+    }
+
+
+    async function loadPendingUsers() {
+      const area = document.getElementById("pendingUsersArea");
+      if (!area) return;
+      try {
+        const snap = await firestore.collection("users").get();
+        if (snap.empty) {
+          area.innerHTML = '<div class="empty">Henüz kayıt olan kullanıcı yok.</div>';
+          return;
+        }
+        let html = '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">';
+        let count = 0;
+        snap.forEach(doc => {
+          const d = doc.data();
+          if (d.approved === true) return; // Onaylananları gizle
+          count++;
+
+          const statusBadge = '<span style="background:rgba(244,183,64,.15);color:var(--amber);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600">⏳ Onay Bekliyor</span>';
+          const actions = `<button class="btn" style="padding:5px 12px;font-size:12px" onclick="approveUser('${doc.id}')">✅ Onayla</button>
+           <button class="btn ghost" style="padding:5px 10px;font-size:12px;color:var(--red)" onclick="rejectUser('${doc.id}')">❌ Reddet</button>`;
+          html += `<div style="display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 16px">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:14px">${d.name || '—'}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">@${d.username || d.email} • ${d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—'}</div>
+        </div>
+        ${statusBadge}
+        <div style="display:flex;gap:6px">${actions}</div>
+      </div>`;
+        });
+        if (count === 0) {
+          area.innerHTML = '<div class="empty">Henüz onay bekleyen kullanıcı yok.</div>';
+        } else {
+          html += '</div>';
+          area.innerHTML = html;
+        }
+      } catch (e) {
+        area.innerHTML = '<div class="empty" style="color:var(--red)">Kullanıcılar yüklenemedi: ' + e.message + '</div>';
+      }
+    }
+
+    async function approveUser(userId) {
+      if (!confirm('Bu kullanıcıyı onaylamak istediğinize emin misiniz?')) return;
+      try {
+        const doc = await firestore.collection("users").doc(userId).get();
+        const d = doc.data();
+        await firestore.collection("users").doc(userId).update({ approved: true });
+
+        // Otomatik olarak Ekip'e de ekle
+        if (d && d.name) {
+          db.staff = db.staff || [];
+          const clean = str => str.toLowerCase().replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ç/g, 'c').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/\s+/g, '');
+          if (!db.staff.find(s => clean(s.name) === clean(d.name))) {
+            db.staff.push({ id: uid(), name: d.name, role: "Personel" });
+            await save();
+          }
+        }
+
+        render();
+        await loadPendingUsers();
+      } catch (e) { alert('Hata: ' + e.message); }
+    }
+
+    async function rejectUser(userId) {
+      if (!confirm('Bu kullanıcıyı silmek/engellemek istediğinize emin misiniz?')) return;
+      try {
+        await firestore.collection("users").doc(userId).delete();
+        render();
+        await loadPendingUsers();
+      } catch (e) { alert('Hata: ' + e.message); }
+    }
+
+
+
+    async function initApp() {
+      const loginFormHtml = document.getElementById("loginScreen").innerHTML;
+      document.getElementById("loginScreen").innerHTML = `<div style="text-align:center;color:#fff"><div style="font-size:32px;margin-bottom:14px;animation:spin 1s linear infinite">⏳</div><div style="font-size:15px;color:var(--muted)">Bulut veritabanına (Firebase) bağlanılıyor...</div><style>@keyframes spin { 100% { transform:rotate(360deg); } }</style></div>`;
+
+      await load();
+
+      document.getElementById("loginScreen").innerHTML = loginFormHtml;
+      setupAuthListener();
+    }
+
+    initApp();
+  </script>
+</body>
+
+</html>
