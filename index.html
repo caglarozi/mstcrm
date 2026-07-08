@@ -1441,6 +1441,7 @@
     firestore.settings({ experimentalForceLongPolling: true });
     const auth = firebase.auth();
     const storage = firebase.storage();
+    storage.setMaxUploadRetryTime(15000); // 15 saniye sonra sonsuz döngüyü kır ve hata ver
 
     /* ---------- Veri katmanı (Firebase) ---------- */
     const KEY = "kalem_crm_v1";
