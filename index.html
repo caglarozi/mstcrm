@@ -2073,7 +2073,7 @@
         return `<tr style="border-bottom:1px solid var(--line)">
       <td style="padding:10px 8px">${fmtDate(f.date)}</td>
       <td style="padding:10px 8px;font-weight:600;cursor:pointer;color:var(--blue)" onclick="openDrawer('${f.authorId}')">${f.authorName}</td>
-      <td style="padding:10px 8px;font-weight:600"><span class="badge" style="background:var(--panel-2);border:1px solid var(--line);margin-right:6px;font-size:11px;padding:2px 8px">${f.type || 'Diğer'}</span><a href="#" onclick="downloadFile('${f.url || f.data || ''}','${f.name}');return false;" style="color:var(--brand);text-decoration:underline">${f.name}</a></td>
+      <td style="padding:10px 8px;font-weight:600"><span class="badge" style="background:var(--panel-2);border:1px solid var(--line);margin-right:6px;font-size:11px;padding:2px 8px">${f.type || 'Diğer'}</span><a href="#" onclick="downloadFile('${f.authorId}', ${f.originalIndex});return false;" style="color:var(--brand);text-decoration:underline">${f.name}</a></td>
       <td style="padding:10px 8px;color:var(--muted)">${(f.size / 1024).toFixed(1)} KB</td>
       <td style="padding:10px 8px;text-align:right">
         ${currentRole === 'admin' ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delFile('${f.authorId}', ${f.originalIndex})" title="Sil">🗑</button>` : ''}
@@ -2142,7 +2142,7 @@
       const authorFiles = (a.files || []).map((f, idx) => `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px dashed var(--line);">
           <div style="display:flex; flex-direction:column; gap:4px">
-            <div style="font-weight:600; font-size:13px"><a href="#" onclick="downloadFile('${f.url || f.data || ''}','${f.name}');return false;" style="color:var(--brand);text-decoration:none">${f.name}</a></div>
+            <div style="font-weight:600; font-size:13px"><a href="#" onclick="downloadFile('${a.id}', ${idx});return false;" style="color:var(--brand);text-decoration:none">${f.name}</a></div>
             <div style="font-size:11px; color:var(--muted)">${fmtDate(f.date)} • <span style="color:var(--txt)">${f.type || 'Diğer'}</span> • ${(f.size / 1024).toFixed(1)} KB</div>
           </div>
           <button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delFile('${a.id}', ${idx})" title="Sil">🗑</button>
@@ -2387,21 +2387,38 @@
       btn.disabled = true; btn.innerHTML = "Yükleniyor...";
 
       try {
-        const storageRef = storage.ref();
-        const fileRef = storageRef.child('authors/' + id + '/' + Date.now() + '_' + file.name);
-        await fileRef.put(file);
-        const url = await fileRef.getDownloadURL();
+        const fileDataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        // Firebase Firestore 1MB doc limiti aşmamak için chunklara ayırıyoruz
+        const chunkSize = 800000;
+        const totalChunks = Math.ceil(fileDataUrl.length / chunkSize);
+        const fileId = "file_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+
+        for (let i = 0; i < totalChunks; i++) {
+          const chunkData = fileDataUrl.slice(i * chunkSize, (i + 1) * chunkSize);
+          await firestore.collection("crm_files").doc(`${fileId}_${i}`).set({
+            data: chunkData,
+            index: i,
+            fileId: fileId
+          });
+        }
 
         const a = db.authors.find(x => x.id === id);
         a.files = a.files || [];
         a.files.push({
-          name, size: file.size, url: url, date: new Date().toISOString().slice(0, 10), type
+          name, size: file.size, date: new Date().toISOString().slice(0, 10), type,
+          isChunked: true, fileId: fileId, totalChunks: totalChunks
         });
 
         save();
         closeFileModal(); openDrawer(id); render();
       } catch (err) {
-        console.error("Storage Yükleme Hatası:", err);
+        console.error("Yükleme Hatası:", err);
         alert("Dosya yüklenirken hata oluştu: " + err.message);
       } finally {
         btn.disabled = false; btn.innerHTML = "Yükle";
@@ -2410,21 +2427,45 @@
     async function delFile(authorId, idx) {
       if (!(await customConfirm("Dosya silinsin mi?"))) return;
       const a = db.authors.find(x => x.id === authorId);
+      const f = a.files[idx];
+      if (f.isChunked) {
+        for(let i=0; i<f.totalChunks; i++) {
+          firestore.collection("crm_files").doc(`${f.fileId}_${i}`).delete().catch(e=>console.log(e));
+        }
+      }
       a.files.splice(idx, 1);
       save(); openDrawer(authorId); render();
     }
-    function downloadFile(fileUrlOrData, fileName) {
-      if (!fileUrlOrData) return;
-      if (fileUrlOrData.startsWith("data:")) {
-        const a = document.createElement("a");
-        a.href = fileUrlOrData;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } else if (fileUrlOrData.startsWith("http")) {
-        window.open(fileUrlOrData, "_blank");
+    async function downloadFile(authorId, idx) {
+      const a = db.authors.find(x => x.id === authorId);
+      if (!a || !a.files || !a.files[idx]) return;
+      const f = a.files[idx];
+      
+      if (f.isChunked) {
+        let fullData = "";
+        try {
+          // Chunkları birleştir
+          for(let i=0; i<f.totalChunks; i++) {
+            const doc = await firestore.collection("crm_files").doc(`${f.fileId}_${i}`).get();
+            if(doc.exists) fullData += doc.data().data;
+          }
+          if(fullData) triggerDownload(fullData, f.name);
+          else alert("Dosya verisi bulunamadı.");
+        } catch(e) {
+          alert("Dosya indirilirken hata: " + e.message);
+        }
+      } else if (f.url) {
+        if (f.url.startsWith("http")) window.open(f.url, "_blank");
+        else if (f.url.startsWith("data:")) triggerDownload(f.url, f.name);
       }
+    }
+    function triggerDownload(dataUrl, name) {
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
 
     /* ---------- Ekip Yönetimi ---------- */
