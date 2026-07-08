@@ -1491,11 +1491,7 @@
 
     async function load() {
       try {
-        // 5 saniye içinde cevap gelmezse zaman aşımına uğrat
-        const doc = await Promise.race([
-          firestore.collection("crm").doc("main_db").get(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000))
-        ]);
+        const doc = await firestore.collection("crm").doc("main_db").get();
 
         if (doc.exists) {
           db = doc.data();
@@ -1505,8 +1501,7 @@
         }
       } catch (e) {
         console.error("Firebase veri çekme hatası:", e);
-        alert("Veritabanına bağlanılamadı (veya zaman aşımı). Yerel verilerle açılıyor...");
-        db = seed();
+        alert("Bağlantı çok yavaş veya veritabanına ulaşılamadı. Lütfen sayfayı yenileyin.");
       }
     }
 
