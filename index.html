@@ -902,6 +902,130 @@
     .drawer {
       transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
+
+    /* Mobile Responsiveness */
+    @media (max-width: 768px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      #mobileMenuBtn {
+        display: block !important;
+      }
+
+      .side {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 260px;
+        background: rgba(18, 20, 28, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        flex-direction: column;
+        padding-top: 20px;
+      }
+
+      .side.open {
+        transform: translateX(0);
+        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+      }
+
+      .logo {
+        margin: 0 10px 20px 10px;
+      }
+
+      .nav {
+        flex-direction: column;
+        overflow-x: hidden;
+      }
+
+      .nav button {
+        width: 100%;
+        white-space: normal;
+      }
+
+      .side-foot {
+        display: block;
+        position: static;
+        margin-top: auto;
+        padding: 20px 10px;
+      }
+
+      .main {
+        padding: 16px;
+      }
+
+      .topbar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .topbar>div:first-of-type {
+        display: flex;
+        align-items: center;
+      }
+
+      .search {
+        order: 3;
+        width: 100%;
+        max-width: 100%;
+        margin-top: 8px;
+      }
+
+      #btnNewAuthor {
+        order: 4;
+        width: 100%;
+      }
+
+      #viewTitle,
+      #viewSub {
+        display: none !important;
+      }
+
+      #topProfileArea {
+        display: none !important;
+      }
+
+      #mobileProfileArea {
+        display: block !important;
+      }
+
+      .spacer {
+        display: none;
+      }
+
+      .stats {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .pipe {
+        grid-template-columns: 1fr;
+      }
+
+      .authors {
+        grid-template-columns: 1fr;
+      }
+
+      .drawer {
+        width: 100%;
+      }
+
+      .row2 {
+        grid-template-columns: 1fr;
+      }
+
+      .modal .box {
+        padding: 20px;
+      }
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -1049,6 +1173,16 @@
         <button data-view="followups">🔔 Takip Listesi</button>
         <button data-view="team">👥 Ekip</button>
       </nav>
+      <!-- Mobile Profile Area (only visible on mobile) -->
+      <div id="mobileProfileArea"
+        style="display:none; padding:16px; margin:auto 10px 16px 10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Hoş geldiniz,</div>
+        <div class="userNameLabel" style="font-size:14px;font-weight:600;color:var(--txt)">Admin</div>
+        <button onclick="handleLogout()"
+          style="width:100%;background:rgba(242,97,122,0.1);border:1px solid rgba(242,97,122,0.3);color:var(--red);padding:8px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;margin-top:12px;transition:0.2s;"
+          onmouseover="this.style.background='rgba(242,97,122,0.2)'"
+          onmouseout="this.style.background='rgba(242,97,122,0.1)'">Çıkış Yap</button>
+      </div>
       <div class="side-foot" style="padding:10px 16px">
         <div style="font-size:11px;color:var(--muted);text-align:center">Mst CRM • v1.0</div>
       </div>
@@ -1057,6 +1191,9 @@
     <!-- MAIN -->
     <main class="main">
       <div class="topbar">
+        <button id="mobileMenuBtn"
+          style="display:none; background:none; border:none; color:var(--txt); font-size:26px; padding:0; margin-right:12px; cursor:pointer;"
+          onclick="document.querySelector('.side').classList.toggle('open')">☰</button>
         <div>
           <h1 id="viewTitle">Panel</h1>
           <div class="sub" id="viewSub">Genel bakış</div>
@@ -1072,7 +1209,7 @@
           onclick="document.getElementById('profileDropdown').classList.toggle('open')">
           <div>
             <div style="font-size:11px;color:var(--muted);text-align:right">Hoş geldiniz,</div>
-            <div id="topUserName" style="font-size:13px;font-weight:600;color:var(--txt)">Admin</div>
+            <div class="userNameLabel" style="font-size:13px;font-weight:600;color:var(--txt)">Admin</div>
           </div>
           <span style="font-size:10px;color:var(--muted);margin-left:2px">▼</span>
           <!-- Dropdown -->
@@ -1100,15 +1237,31 @@
 
   <!-- CUSTOM CONFIRM MODAL (GLASSMORPHISM) -->
   <div class="modal" id="customConfirmModal" style="z-index: 9999;">
-    <div class="box" style="background: rgba(25, 25, 30, 0.65); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); max-width: 320px; text-align: center; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5); padding: 24px; border-radius: 16px;">
+    <div class="box"
+      style="background: rgba(25, 25, 30, 0.65); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); max-width: 320px; text-align: center; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5); padding: 24px; border-radius: 16px;">
       <div style="margin-bottom: 16px;">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(244, 67, 54, 0.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 8px rgba(244,67,54,0.4));"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(244, 67, 54, 0.8)" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 8px rgba(244,67,54,0.4));">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
       </div>
       <h3 style="margin: 0; color: #fff; font-size: 18px; font-weight: 600;">Emin misiniz?</h3>
-      <p id="customConfirmMessage" style="color: rgba(255,255,255,0.7); margin: 12px 0 24px; font-size: 14px; line-height: 1.5;">Bu işlem geri alınamaz.</p>
+      <p id="customConfirmMessage"
+        style="color: rgba(255,255,255,0.7); margin: 12px 0 24px; font-size: 14px; line-height: 1.5;">Bu işlem geri
+        alınamaz.</p>
       <div style="display: flex; gap: 12px; justify-content: center;">
-        <button class="btn" style="flex: 1; background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'" onclick="window.customConfirmResolve(false)">İptal</button>
-        <button class="btn" style="flex: 1; background: rgba(244, 67, 54, 0.85); color: #fff; border: 1px solid rgba(244, 67, 54, 0.4); border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(244,67,54,1)'" onmouseout="this.style.background='rgba(244,67,54,0.85)'" onclick="window.customConfirmResolve(true)">Evet, Sil</button>
+        <button class="btn"
+          style="flex: 1; background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;"
+          onmouseover="this.style.background='rgba(255,255,255,0.15)'"
+          onmouseout="this.style.background='rgba(255,255,255,0.1)'"
+          onclick="window.customConfirmResolve(false)">İptal</button>
+        <button class="btn"
+          style="flex: 1; background: rgba(244, 67, 54, 0.85); color: #fff; border: 1px solid rgba(244, 67, 54, 0.4); border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;"
+          onmouseover="this.style.background='rgba(244,67,54,1)'"
+          onmouseout="this.style.background='rgba(244,67,54,0.85)'" onclick="window.customConfirmResolve(true)">Evet,
+          Sil</button>
       </div>
     </div>
   </div>
@@ -1258,8 +1411,7 @@
       </select>
       <label>Dosya Seç (Max 2MB)</label>
       <input type="file" id="fi_file">
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">Dosyalar tarayıcı önbelleğinde saklanır. Büyük
-        dosyalar kotayı doldurabilir.</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Dosyalar güvenli bir şekilde buluta (Firebase Storage) yüklenecektir.</div>
       <label style="margin-top:12px">Dosya Açıklaması / Adı</label><input id="fi_name"
         placeholder="Örn: Sözleşme Taslağı">
       <div class="actions">
@@ -1569,6 +1721,8 @@
         currentView = b.dataset.view; filterStatus = "all";
         document.getElementById("search").value = ""; // Sekme değiştiğinde aramayı temizle
         render();
+        const side = document.querySelector('.side');
+        if (side) side.classList.remove('open');
       };
     });
     const TITLES = {
@@ -1591,17 +1745,17 @@
 
       const tp = document.getElementById("topProfileArea");
       if (tp) {
+        let nameToSet = "Personel";
         const stf = db.staff.find(s => s.id === currentStaffId);
         if (stf) {
-          document.getElementById("topUserName").textContent = stf.name;
+          nameToSet = stf.name;
         } else if (currentRole === "admin") {
-          document.getElementById("topUserName").textContent = "Sistem Yöneticisi";
+          nameToSet = "Sistem Yöneticisi";
         } else if (auth.currentUser) {
           let n = auth.currentUser.email.split("@")[0];
-          document.getElementById("topUserName").textContent = n.charAt(0).toUpperCase() + n.slice(1);
-        } else {
-          document.getElementById("topUserName").textContent = "Personel";
+          nameToSet = n.charAt(0).toUpperCase() + n.slice(1);
         }
+        document.querySelectorAll(".userNameLabel").forEach(el => el.textContent = nameToSet);
       }
 
       const isPersonel = currentRole === "personel";
@@ -1792,7 +1946,7 @@
       const temp = Array.from({ length: 5 }, (_, i) => `<span style="background:${i < a.temp ? '#f4b740' : 'var(--line)'}"></span>`).join("");
       const d = daysUntil(a.followup);
       const fl = d === null ? "" : d < 0 ? `<span style="color:var(--red)">⚠ ${-d}g gecikti</span>` : d <= 3 ? `<span style="color:var(--amber)">🔔 ${d === 0 ? 'bugün' : d + 'g sonra'}</span>` : `📅 ${fmtDate(a.followup)}`;
-      
+
       const adder = a.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(a.addedBy) || "Personel");
 
       return `<div class="card author" onclick="openDrawer('${a.id}')">
@@ -1984,6 +2138,16 @@
       const logs = (a.logs || []).slice().sort((p, q) => new Date(q.date) - new Date(p.date));
       const tl = logs.map(l => { const sn = staffName(l.staffId); return `<div class="tl"><div class="tt">${fmtDate(l.date)}${sn ? ` • <span style="color:var(--blue)">${sn}</span>` : ''}</div><div class="tx"><span class="type">${l.type}</span>${l.text}</div></div>`; }).join("") || `<div class="empty" style="padding:16px">Henüz görüşme kaydı yok.</div>`;
 
+      const authorFiles = (a.files || []).map((f, idx) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px dashed var(--line);">
+          <div style="display:flex; flex-direction:column; gap:4px">
+            <div style="font-weight:600; font-size:13px"><a href="#" onclick="downloadFile('${f.url || f.data || ''}','${f.name}');return false;" style="color:var(--brand);text-decoration:none">${f.name}</a></div>
+            <div style="font-size:11px; color:var(--muted)">${fmtDate(f.date)} • <span style="color:var(--txt)">${f.type || 'Diğer'}</span> • ${(f.size / 1024).toFixed(1)} KB</div>
+          </div>
+          <button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delFile('${a.id}', ${idx})" title="Sil">🗑</button>
+        </div>
+      `).join("") || `<div class="empty" style="padding:16px">Henüz dosya eklenmemiş.</div>`;
+
       document.getElementById("drawer").innerHTML = `
     <div class="dh">
       <button class="close" onclick="closeDrawer()">×</button>
@@ -1997,8 +2161,9 @@
         ${(a.genres || []).map(g => `<span class="tag">${g}</span>`).join("")}
       </div>
       <div style="margin-top:14px;display:flex;gap:8px">
-        <button class="btn" style="flex:1" onclick="openLogModal('${a.id}')">+ Görüşme Ekle</button>
-        <button class="btn ghost" onclick="openAuthorModal('${a.id}')">✏️ Düzenle</button>
+        <button class="btn" style="flex:1" onclick="openLogModal('${a.id}')">+ Görüşme</button>
+        <button class="btn" style="flex:1; background:rgba(124,108,255,0.15); border-color:var(--brand); color:var(--brand)" onclick="openFileModal('${a.id}')">+ Dosya</button>
+        <button class="btn ghost" onclick="openAuthorModal('${a.id}')">✏️</button>
         <button class="btn ghost" onclick="delAuthor('${a.id}')" title="Sil">🗑</button>
       </div>
     </div>
@@ -2014,6 +2179,10 @@
       </div>
       <div class="section"><h4>Notlar</h4>
         <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px;line-height:1.5;white-space:pre-wrap">${a.notes || "—"}</div>
+      </div>
+
+      <div class="section"><h4>Dosyalar ve Belgeler (${(a.files || []).length})</h4>
+        <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:0 12px">${authorFiles}</div>
       </div>
 
       <div class="section"><h4>Görüşme Geçmişi (${logs.length})</h4>
@@ -2065,7 +2234,7 @@
       return new Promise(resolve => {
         document.getElementById("customConfirmMessage").textContent = message;
         document.getElementById("customConfirmModal").classList.add("open");
-        window.customConfirmResolve = function(result) {
+        window.customConfirmResolve = function (result) {
           document.getElementById("customConfirmModal").classList.remove("open");
           resolve(result);
         };
@@ -2211,7 +2380,7 @@
       if (!fileInput.files[0]) { alert("Lütfen dosya seçin."); return; }
       const file = fileInput.files[0];
       if (!name) { alert("Lütfen dosya adı/açıklaması girin."); return; }
-      if (file.size > 20 * 1024 * 1024) { alert("Dosya boyutu 20MB'den büyük olamaz."); return; }
+      if (file.size > 2 * 1024 * 1024) { alert("Dosya boyutu 2MB'den büyük olamaz."); return; }
 
       const btn = document.getElementById("fi_saveBtn");
       btn.disabled = true; btn.innerHTML = "Yükleniyor...";
@@ -2227,7 +2396,7 @@
         a.files.push({
           name, size: file.size, url: url, date: new Date().toISOString().slice(0, 10), type
         });
-        
+
         save();
         closeFileModal(); openDrawer(id); render();
       } catch (err) {
