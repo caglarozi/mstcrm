@@ -1730,66 +1730,85 @@
 
     let storageOK = true;
 
-    function load() {
-      return new Promise((resolve, reject) => {
-        try {
-          let firstLoad = true;
-          firestore.collection("crm").doc("main_db").onSnapshot(doc => {
-            if (doc.exists) {
-              db = doc.data();
-            } else {
-              if (firstLoad) {
-                db = seed();
-                save();
-              }
-            }
-            if (!firstLoad) {
-              render();
-              // Çekmece açıksa güncelle
-              const drawer = document.getElementById("drawer");
-              if (drawer && drawer.classList.contains("open")) {
-                 const match = drawer.innerHTML.match(/openAuthorModal\('([^']+)'\)/);
-                 if (match && match[1]) openDrawer(match[1]);
-              }
-            } else {
-              firstLoad = false;
-              resolve();
-            }
-          }, err => {
-            console.error("Firebase veri çekme hatası:", err);
-            if (firstLoad) reject(err);
-          });
-        } catch (e) {
-          console.error("Firebase başlatma hatası:", e);
-          if (firstLoad) reject(e);
-        }
-      });
-    }
-
-    async function save() {
-      try {
-        await firestore.collection("crm").doc("main_db").set(db);
-      } catch (e) {
-        console.error("Firebase kaydetme hatası:", e);
-        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+    // Yazarlar artık tek dev dokümanda değil, her biri kendi dokümanında
+    // (authors/{id} koleksiyonu); personel ise küçük ayrı bir dokümanda
+    // (crm/staff). db.authors / db.staff'ın şekli (düz dizi) DEĞİŞMEDİ —
+    // sadece nereden geldikleri değişti — bu yüzden render/view
+    // fonksiyonlarının hiçbiri değişmek zorunda kalmadı.
+    function onDataChanged() {
+      render();
+      const drawer = document.getElementById("drawer");
+      if (drawer && drawer.classList.contains("open")) {
+        const match = drawer.innerHTML.match(/openAuthorModal\('([^']+)'\)/);
+        if (match && match[1]) openDrawer(match[1]);
       }
     }
 
-    // İki kullanıcı aynı anda kayıt yaparsa birbirini ezmesin diye: save()
-    // gibi elindeki (bayat olabilecek) db'yi bütün olarak yazmak yerine,
-    // transaction içinde sunucudaki EN GÜNCEL veriyi okuyup aynı değişikliği
-    // ona uygular. fn iki kez çağrılır (anlık ekran güncellemesi için db'ye,
-    // asıl kayıt için sunucudan taze okunan kopyaya) — bu yüzden fn içinde
-    // uid()/new Date() gibi her çağrıda farklı sonuç üretebilecek değerler
+    function loadStaff() {
+      return new Promise((resolve, reject) => {
+        let firstLoad = true;
+        firestore.collection("crm").doc("staff").onSnapshot(doc => {
+          db.staff = doc.exists ? (doc.data().staff || []) : [];
+          if (firstLoad) { firstLoad = false; resolve(); }
+          else onDataChanged();
+        }, err => {
+          console.error("Personel veri çekme hatası:", err);
+          if (firstLoad) reject(err);
+        });
+      });
+    }
+
+    function loadAuthors() {
+      return new Promise((resolve, reject) => {
+        let firstLoad = true;
+        firestore.collection("authors").onSnapshot(snapshot => {
+          if (firstLoad) {
+            db.authors = snapshot.docs.map(d => d.data());
+          } else {
+            snapshot.docChanges().forEach(change => {
+              const data = change.doc.data();
+              const idx = db.authors.findIndex(a => a.id === data.id);
+              if (change.type === "removed") {
+                if (idx !== -1) db.authors.splice(idx, 1);
+              } else if (idx !== -1) {
+                db.authors[idx] = data;
+              } else {
+                db.authors.unshift(data);
+              }
+            });
+          }
+          if (firstLoad) { firstLoad = false; resolve(); }
+          else onDataChanged();
+        }, err => {
+          console.error("Yazar veri çekme hatası:", err);
+          if (firstLoad) reject(err);
+        });
+      });
+    }
+
+    async function load() {
+      db.staff = db.staff || [];
+      db.authors = db.authors || [];
+      await Promise.all([loadStaff(), loadAuthors()]);
+    }
+
+    // Tek bir yazarın dokümanını, sunucudaki en güncel haliyle güvenli
+    // şekilde günceller (iki kişi farklı yazarları aynı anda düzenlese bile
+    // artık birbirini hiç etkilemez, çünkü her yazar ayrı doküman). fn iki
+    // kez çağrılır (anlık ekran güncellemesi için yerel kopyaya, asıl kayıt
+    // için sunucudan taze okunan kopyaya) — bu yüzden fn içinde uid()/
+    // new Date() gibi her çağrıda farklı sonuç üretebilecek değerler
     // ÜRETİLMEMELİ, çağıran fonksiyon tarafından önceden hesaplanmalı.
-    async function mutate(fn) {
-      fn(db);
+    async function mutateAuthor(authorId, fn) {
+      const a = db.authors.find(x => x.id === authorId);
+      if (a) fn(a);
       render();
-      const ref = firestore.collection("crm").doc("main_db");
+      const ref = firestore.collection("authors").doc(authorId);
       try {
         await firestore.runTransaction(async tx => {
           const doc = await tx.get(ref);
-          const server = doc.exists ? doc.data() : { staff: [], authors: [] };
+          if (!doc.exists) return;
+          const server = doc.data();
           fn(server);
           tx.set(ref, server);
         });
@@ -1799,20 +1818,51 @@
       }
     }
 
-    function seed() {
-      const today = new Date();
-      const d = (off) => { const x = new Date(today); x.setDate(x.getDate() + off); return x.toISOString().slice(0, 10); };
-      const s1 = uid(), s2 = uid(), s3 = uid();
-      const data = {
-        staff: [
-          { id: s1, name: "Ayşe Yılmaz", role: "Editör" },
-          { id: s2, name: "Mehmet Kara", role: "Yayın Koordinatörü" },
-          { id: s3, name: "Selin Demir", role: "Pazarlama" }
-        ],
-        authors: []
-      };
-      return data;
+    async function createAuthor(authorData) {
+      db.authors.unshift(authorData);
+      render();
+      try {
+        await firestore.collection("authors").doc(authorData.id).set(authorData);
+      } catch (e) {
+        console.error("Kaydetme hatası:", e);
+        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+      }
     }
+
+    async function deleteAuthorDoc(authorId) {
+      db.authors = db.authors.filter(x => x.id !== authorId);
+      render();
+      try {
+        await firestore.collection("authors").doc(authorId).delete();
+      } catch (e) {
+        console.error("Silme hatası:", e);
+        alert("Veri silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+      }
+    }
+
+    // Personel listesi küçük ve az değiştiği için kendi ayrı dokümanında
+    // (crm/staff) tek parça tutuluyor. fn, {staff:[...]} şeklinde bir
+    // sarmalayıcı alır ve önceki mutate() ile aynı şekilde d.staff = ...
+    // atamasıyla kullanılabilir.
+    async function mutateStaff(fn) {
+      const wrapper = { staff: db.staff || [] };
+      fn(wrapper);
+      db.staff = wrapper.staff;
+      render();
+      const ref = firestore.collection("crm").doc("staff");
+      try {
+        await firestore.runTransaction(async tx => {
+          const doc = await tx.get(ref);
+          const server = { staff: doc.exists ? (doc.data().staff || []) : [] };
+          fn(server);
+          tx.set(ref, { staff: server.staff });
+        });
+      } catch (e) {
+        console.error("Kaydetme hatası:", e);
+        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+      }
+    }
+
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
     function staffName(id) { const s = (db.staff || []).find(x => x.id === id); return s ? s.name : ''; }
 
@@ -2405,22 +2455,25 @@
     // etkileme riski vardı. Bu, ilk açılışta eksik id'leri tek seferde
     // dolduran, hem yerel hem sunucu tarafını güncelleyen bir öz-onarım.
     function backfillPaymentIds() {
-      const assignments = [];
+      const byAuthor = {};
       db.authors.forEach(a => {
         (a.payments || []).forEach((p, idx) => {
-          if (!p.id) assignments.push({ authorId: a.id, idx, newId: uid() });
+          if (!p.id) {
+            byAuthor[a.id] = byAuthor[a.id] || [];
+            byAuthor[a.id].push({ idx, newId: uid() });
+          }
         });
       });
-      if (!assignments.length) return;
-      const apply = d => {
-        assignments.forEach(as => {
-          const a = d.authors.find(x => x.id === as.authorId);
-          const p = a && a.payments && a.payments[as.idx];
-          if (p && !p.id) p.id = as.newId;
-        });
-      };
-      apply(db);
-      mutate(apply);
+      Object.keys(byAuthor).forEach(authorId => {
+        const assignments = byAuthor[authorId];
+        const apply = author => {
+          assignments.forEach(as => {
+            const p = author.payments && author.payments[as.idx];
+            if (p && !p.id) p.id = as.newId;
+          });
+        };
+        mutateAuthor(authorId, apply);
+      });
     }
 
     function getPaymentBreakdown(authors) {
@@ -2774,11 +2827,12 @@
         package: g("f_package") || null
       };
       const newId = id || uid();
-      if (!id) { payload.id = newId; payload.created = new Date().toISOString().slice(0, 10); payload.logs = []; payload.addedBy = currentStaffId || "admin"; }
-      await mutate(d => {
-        if (id) { Object.assign(d.authors.find(x => x.id === id), payload); }
-        else { d.authors.unshift(payload); }
-      });
+      if (id) {
+        await mutateAuthor(id, a => Object.assign(a, payload));
+      } else {
+        payload.id = newId; payload.created = new Date().toISOString().slice(0, 10); payload.logs = []; payload.addedBy = currentStaffId || "admin";
+        await createAuthor(payload);
+      }
       closeModal(); render();
       if (id) openDrawer(id);
 
@@ -2804,7 +2858,7 @@
 
     async function delAuthor(id) {
       if (!(await customConfirm("Bu yazar ve tüm kayıtları silinsin mi?"))) return;
-      await mutate(d => { d.authors = d.authors.filter(x => x.id !== id); });
+      await deleteAuthorDoc(id);
       closeDrawer(); render();
     }
 
@@ -2838,8 +2892,7 @@
       if (currentStaffId) staffId = currentStaffId;
       const logEntry = { type: document.getElementById("l_type").value, date: document.getElementById("l_date").value, text, staffId };
 
-      await mutate(d => {
-        const a = d.authors.find(x => x.id === id);
+      await mutateAuthor(id, a => {
         a.logs = a.logs || [];
         a.logs.push(logEntry);
       });
@@ -2942,8 +2995,7 @@
           package: packageKey, method: methodKey || null
         });
       }
-      await mutate(d => {
-        const a = d.authors.find(x => x.id === id);
+      await mutateAuthor(id, a => {
         a.payments = a.payments || [];
         a.payments.push(...newPayments);
       });
@@ -2953,8 +3005,7 @@
     }
     async function delPayment(authorId, paymentId) {
       if (!(await customConfirm("Ödeme silinsin mi?"))) return;
-      await mutate(d => {
-        const a = d.authors.find(x => x.id === authorId);
+      await mutateAuthor(authorId, a => {
         a.payments = a.payments.filter(p => p.id !== paymentId);
       });
       if (document.getElementById("drawer").classList.contains("open")) openDrawer(authorId);
@@ -2962,8 +3013,7 @@
     }
     async function markPaymentPaid(authorId, paymentId) {
       if (!(await customConfirm("Bu taksit/ödeme ödendi olarak işaretlensin mi?", "Evet, Ödendi"))) return;
-      await mutate(d => {
-        const a = d.authors.find(x => x.id === authorId);
+      await mutateAuthor(authorId, a => {
         const p = a.payments.find(x => x.id === paymentId);
         if (p) p.status = "Ödendi";
       });
@@ -2993,8 +3043,7 @@
       const vatIncluded = document.getElementById("ep_vatIncluded").value === "true";
       const notes = document.getElementById("ep_notes").value.trim();
 
-      await mutate(d => {
-        const a = d.authors.find(x => x.id === authorId);
+      await mutateAuthor(authorId, a => {
         const p = a.payments.find(x => x.id === paymentId);
         p.amount = amount; p.date = date; p.status = status; p.vatIncluded = vatIncluded; p.notes = notes;
       });
@@ -3064,8 +3113,7 @@
           name, size: file.size, date: new Date().toISOString().slice(0, 10), type,
           isChunked: true, fileId: fileId, totalChunks: totalChunks
         };
-        await mutate(d => {
-          const a = d.authors.find(x => x.id === id);
+        await mutateAuthor(id, a => {
           a.files = a.files || [];
           a.files.push(fileMeta);
         });
@@ -3086,8 +3134,7 @@
           firestore.collection("crm_files").doc(`${f.fileId}_${i}`).delete().catch(e=>console.log(e));
         }
       }
-      await mutate(d => {
-        const da = d.authors.find(x => x.id === authorId);
+      await mutateAuthor(authorId, da => {
         da.files.splice(idx, 1);
       });
       openDrawer(authorId); render();
@@ -3209,12 +3256,12 @@
       if (!name) { alert('Ad Soyad zorunlu.'); return; }
       const role = document.getElementById('st_role').value.trim();
       const newStaff = { id: uid(), name, role };
-      await mutate(d => { d.staff = d.staff || []; d.staff.push(newStaff); });
+      await mutateStaff(d => { d.staff = d.staff || []; d.staff.push(newStaff); });
       render();
     }
     async function delStaff(id) {
       if (!(await customConfirm('Bu ekip üyesi silinsin mi? Görüşme kayıtlarındaki referanslar kalacaktır.'))) return;
-      await mutate(d => { d.staff = (d.staff || []).filter(x => x.id !== id); });
+      await mutateStaff(d => { d.staff = (d.staff || []).filter(x => x.id !== id); });
       render();
     }
 
@@ -3244,10 +3291,31 @@
       a.download = "odemeler-" + new Date().toISOString().slice(0, 10) + ".csv";
       a.click();
     }
+    // Not: dosyadaki yazarları/personeli yazar (var olanların üzerine
+    // yazar) ama dosyada OLMAYAN, sunucuda hâlâ duran yazarları silmez.
     function importData(e) {
       const f = e.target.files[0]; if (!f) return;
       const r = new FileReader();
-      r.onload = () => { try { db = JSON.parse(r.result); save(); render(); alert("Yedek yüklendi."); } catch { alert("Geçersiz dosya."); } };
+      r.onload = async () => {
+        try {
+          const imported = JSON.parse(r.result);
+          const authors = imported.authors || [];
+          const staffList = imported.staff || [];
+
+          const CHUNK = 450;
+          for (let i = 0; i < authors.length; i += CHUNK) {
+            const batch = firestore.batch();
+            authors.slice(i, i + CHUNK).forEach(a => {
+              batch.set(firestore.collection("authors").doc(a.id), a);
+            });
+            await batch.commit();
+          }
+          await firestore.collection("crm").doc("staff").set({ staff: staffList });
+          alert("Yedek yüklendi.");
+        } catch (err) {
+          alert("Geçersiz dosya veya yükleme hatası: " + err.message);
+        }
+      };
       r.readAsText(f); e.target.value = "";
     }
 
@@ -3386,7 +3454,7 @@
         if (d && d.name) {
           const clean = str => str.toLowerCase().replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ç/g, 'c').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/\s+/g, '');
           const newStaffMember = { id: uid(), name: d.name, role: "Personel" };
-          await mutate(state => {
+          await mutateStaff(state => {
             state.staff = state.staff || [];
             if (!state.staff.find(s => clean(s.name) === clean(d.name))) {
               state.staff.push(newStaffMember);
