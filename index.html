@@ -1051,6 +1051,20 @@
 </head>
 
 <body>
+  <!-- BAKIM BİLDİRİMİ: Kaldırmak için "modal open" sınıfındaki "open"
+       kelimesini silip yeniden yayınlayın. -->
+  <div id="maintenanceNotice" class="modal open" style="z-index:99999;">
+    <div class="box" style="max-width:440px;text-align:center;">
+      <div style="font-size:44px;margin-bottom:12px;">🛠️</div>
+      <h2 style="margin:0 0 12px;">Planlı Bakım Bildirimi</h2>
+      <p style="color:var(--muted);font-size:14px;line-height:1.7;margin:0 0 20px;">
+        Sistemde planlı bir teknik güncelleme çalışması yapılmaktadır.<br><br>
+        <b style="color:var(--amber)">Bu süre zarfında yeni yazar/veri girişi yapmamanızı rica ederiz.</b><br><br>
+        Verilerinizi görüntülemeye devam edebilirsiniz.
+      </p>
+      <button class="btn" style="width:100%" onclick="document.getElementById('maintenanceNotice').classList.remove('open')">Anladım, Devam Et</button>
+    </div>
+  </div>
   <div id="loginScreen" class="login-screen">
     <div class="login-box">
       <!-- SOL PANEL (BRANDING) -->
@@ -1425,6 +1439,41 @@
       <div class="actions">
         <button class="btn ghost" onclick="closePayModal()">Vazgeç</button>
         <button class="btn" onclick="savePayment()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT PAYMENT MODAL -->
+  <div class="modal" id="editPaymentModal">
+    <div class="box">
+      <h2>Ödemeyi Düzenle</h2>
+      <input type="hidden" id="ep_authorId">
+      <input type="hidden" id="ep_paymentId">
+      <div class="row2">
+        <div><label>Tutar (₺)</label><input type="number" id="ep_amount"></div>
+        <div><label>Tarih</label><input type="date" id="ep_date"></div>
+      </div>
+      <div class="row2">
+        <div>
+          <label>Durum</label>
+          <select id="ep_status">
+            <option value="Ödendi">Ödendi</option>
+            <option value="Bekliyor">Bekliyor</option>
+            <option value="İptal">İptal</option>
+          </select>
+        </div>
+        <div>
+          <label>KDV</label>
+          <select id="ep_vatIncluded">
+            <option value="true">Dahil</option>
+            <option value="false">Hariç</option>
+          </select>
+        </div>
+      </div>
+      <label>Not</label><input id="ep_notes">
+      <div class="actions">
+        <button class="btn ghost" onclick="closeEditPaymentModal()">Vazgeç</button>
+        <button class="btn" onclick="saveEditPayment()">Kaydet</button>
       </div>
     </div>
   </div>
@@ -2328,14 +2377,129 @@
       return html;
     }
 
+    function getPaymentAlerts() {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const overdue = [], upcoming = [];
+      db.authors.forEach(a => {
+        (a.payments || []).forEach((p, idx) => {
+          if (p.status !== "Bekliyor") return;
+          const d = new Date(p.date);
+          const days = Math.round((d - today) / 864e5);
+          const item = { author: a, payment: p, idx, days };
+          if (days < 0) overdue.push(item);
+          else if (days <= 7) upcoming.push(item);
+        });
+      });
+      overdue.sort((x, y) => x.days - y.days);
+      upcoming.sort((x, y) => x.days - y.days);
+      return { overdue, upcoming };
+    }
+    function vatPortion(p) {
+      if (p.vatIncluded === false) return 0;
+      return Math.round(p.amount - p.amount / 1.2);
+    }
+
+    // Eski ödeme kayıtlarında (bu güncellemeden önce eklenmiş) sabit bir id
+    // yoktu, sil/düzenle/ödendi-işaretle işlemleri dizideki sıra numarasına
+    // (index) göre çalışıyordu — eşzamanlı bir değişiklikte yanlış satırı
+    // etkileme riski vardı. Bu, ilk açılışta eksik id'leri tek seferde
+    // dolduran, hem yerel hem sunucu tarafını güncelleyen bir öz-onarım.
+    function backfillPaymentIds() {
+      const assignments = [];
+      db.authors.forEach(a => {
+        (a.payments || []).forEach((p, idx) => {
+          if (!p.id) assignments.push({ authorId: a.id, idx, newId: uid() });
+        });
+      });
+      if (!assignments.length) return;
+      const apply = d => {
+        assignments.forEach(as => {
+          const a = d.authors.find(x => x.id === as.authorId);
+          const p = a && a.payments && a.payments[as.idx];
+          if (p && !p.id) p.id = as.newId;
+        });
+      };
+      apply(db);
+      mutate(apply);
+    }
+
+    function getPaymentBreakdown(authors) {
+      const byPackage = {}, byMethod = {};
+      authors.forEach(a => (a.payments || []).forEach(p => {
+        if (p.status !== "Ödendi") return;
+        const pkgLabel = p.package && PACKAGES[p.package] ? PACKAGES[p.package].label : "Diğer/Paketsiz";
+        byPackage[pkgLabel] = (byPackage[pkgLabel] || 0) + p.amount;
+        const methodLabel = p.method && PAYMENT_METHODS[p.method] ? PAYMENT_METHODS[p.method].label : "Diğer";
+        byMethod[methodLabel] = (byMethod[methodLabel] || 0) + p.amount;
+      }));
+      return { byPackage, byMethod };
+    }
+
+    function renderBreakdownBars(dataObj, colors) {
+      const entries = Object.entries(dataObj).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+      if (!entries.length) return `<div class="empty" style="padding:8px 0">Veri yok</div>`;
+      const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
+      return entries.map(([label, val], i) => {
+        const pct = Math.round(val / total * 100);
+        const color = colors[i % colors.length];
+        return `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span>${escapeHtml(label)}</span>
+        <span style="color:var(--muted)">${val.toLocaleString('tr-TR')} ₺ (%${pct})</span>
+      </div>
+      <div style="background:var(--panel-2);border-radius:6px;height:8px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:6px"></div>
+      </div>
+    </div>`;
+      }).join('');
+    }
+
+    function printReceipt(authorId, paymentId) {
+      const a = db.authors.find(x => x.id === authorId);
+      const p = a && a.payments && a.payments.find(x => x.id === paymentId);
+      if (!a || !p) return;
+      const vat = vatPortion(p);
+      const net = p.amount - vat;
+      const win = window.open('', '_blank', 'width=650,height=800');
+      if (!win) { alert('Makbuz penceresi açılamadı. Tarayıcınız açılır pencereleri engelliyor olabilir.'); return; }
+      win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Makbuz</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 40px; color: #222; }
+      h1 { font-size: 20px; border-bottom: 2px solid #7c6cff; padding-bottom: 10px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+      td { padding: 8px 0; border-bottom: 1px solid #eee; }
+      td:first-child { color: #666; width: 40%; }
+      .total { font-size: 18px; font-weight: bold; }
+      button { margin-top: 30px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
+      @media print { button { display: none; } }
+    </style></head><body>
+      <h1>Ödeme Makbuzu</h1>
+      <table>
+        <tr><td>Yazar</td><td>${escapeHtml(a.name)}</td></tr>
+        <tr><td>Tarih</td><td>${fmtDate(p.date)}</td></tr>
+        <tr><td>Açıklama</td><td>${escapeHtml(p.notes) || '—'}</td></tr>
+        <tr><td>Net Tutar</td><td>${net.toLocaleString('tr-TR')} ₺</td></tr>
+        <tr><td>KDV (%20)</td><td>${vat.toLocaleString('tr-TR')} ₺</td></tr>
+        <tr><td>Toplam</td><td class="total">${p.amount.toLocaleString('tr-TR')} ₺</td></tr>
+        <tr><td>Durum</td><td>${escapeHtml(p.status)}</td></tr>
+      </table>
+      <button onclick="window.print()">Yazdır / PDF Kaydet</button>
+    </body></html>`);
+      win.document.close();
+    }
+
     function viewAccounting() {
+      backfillPaymentIds();
       const t = searchTerm();
       const match = a => !t || (a.name + " " + (a.work || "")).toLowerCase().includes(t);
       const contracted = db.authors.filter(a => (a.status === "sozlesme" || a.status === "yayinda") && match(a));
+      // Sözleşmesi bitip arşivlenen ama ödeme geçmişi olan yazarlar da listede kalsın.
+      const archivedWithPayments = db.authors.filter(a => a.status !== "sozlesme" && a.status !== "yayinda" && (a.payments || []).length > 0 && match(a));
+      const displayAuthors = [...contracted, ...archivedWithPayments];
 
-      let totalPaid = 0, totalPending = 0;
-      contracted.forEach(a => (a.payments || []).forEach(p => {
-        if (p.status === "Ödendi") totalPaid += p.amount;
+      let totalPaid = 0, totalPending = 0, totalVat = 0;
+      displayAuthors.forEach(a => (a.payments || []).forEach(p => {
+        if (p.status === "Ödendi") { totalPaid += p.amount; totalVat += vatPortion(p); }
         else if (p.status === "Bekliyor") totalPending += p.amount;
       }));
 
@@ -2343,7 +2507,27 @@
     <div class="card stat"><div class="n">${contracted.length}</div><div class="l">Sözleşmeli yazar</div></div>
     <div class="card stat"><div class="n">${totalPaid.toLocaleString('tr-TR')} ₺</div><div class="l">Tahsil edilen</div><span class="chip" style="background:rgba(55,201,138,.15);color:#37c98a">Ödendi</span></div>
     <div class="card stat"><div class="n">${totalPending.toLocaleString('tr-TR')} ₺</div><div class="l">Bekleyen ödeme</div><span class="chip" style="background:rgba(244,183,64,.15);color:#f4b740">Bekliyor</span></div>
+    <div class="card stat"><div class="n">${totalVat.toLocaleString('tr-TR')} ₺</div><div class="l">Tahsilattaki KDV</div><span class="chip" style="background:rgba(169,155,255,.15);color:#a99bff">%20 KDV</span></div>
   </div>`;
+
+      html += `<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+    <button class="btn ghost" onclick="exportPaymentsCSV()">📥 Ödemeleri CSV İndir</button>
+  </div>`;
+
+      const alerts = getPaymentAlerts();
+      if (alerts.overdue.length || alerts.upcoming.length) {
+        const items = [...alerts.overdue, ...alerts.upcoming];
+        html += `<div class="card" style="margin-bottom:16px">
+    <h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">🔔 Vadesi Gelen Taksitler ${alerts.overdue.length ? `<span class="badge" style="background:rgba(242,97,122,.2);color:#f2617a">${alerts.overdue.length} gecikmiş</span>` : ""}</h4>
+    ${items.map(item => {
+          const lbl = item.days < 0 ? `${-item.days} gün gecikti` : item.days === 0 ? "Bugün" : `${item.days} gün sonra`;
+          const col = item.days < 0 ? "var(--red)" : item.days <= 2 ? "var(--amber)" : "var(--muted)";
+          return `<div class="mini" onclick="openDrawer('${item.author.id}')" style="display:flex;justify-content:space-between;align-items:center">
+      <div><span class="mn">${escapeHtml(item.author.name)}</span><div class="ms">${item.payment.amount.toLocaleString('tr-TR')} ₺${item.payment.notes ? " • " + escapeHtml(item.payment.notes) : ""}</div></div>
+      <span style="color:${col};font-weight:600;font-size:12px">${lbl}</span></div>`;
+        }).join("")}
+  </div>`;
+      }
 
       const monthly = getMonthlyRevenue(6);
       const thisMonth = monthly[monthly.length - 1].total;
@@ -2364,28 +2548,45 @@
     <div style="height:220px"><canvas id="monthlyRevenueChart"></canvas></div>
   </div>`;
 
-      if (!contracted.length) return html + `<div class="empty">Sözleşmeli yazar bulunamadı.</div>`;
+      const breakdown = getPaymentBreakdown(displayAuthors);
+      html += `<div class="grid" style="grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="card">
+      <h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">📦 Pakete Göre Tahsilat</h4>
+      ${renderBreakdownBars(breakdown.byPackage, ['#7c6cff', '#4aa8ff', '#37c98a', '#9aa1b2'])}
+    </div>
+    <div class="card">
+      <h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">💳 Ödeme Şekline Göre Tahsilat</h4>
+      ${renderBreakdownBars(breakdown.byMethod, ['#f4b740', '#37c98a', '#a99bff', '#9aa1b2'])}
+    </div>
+  </div>`;
+
+      if (!displayAuthors.length) return html + `<div class="empty">Sözleşmeli yazar bulunamadı.</div>`;
 
       const STATUS_COLORS = { "Ödendi": "#37c98a", "Bekliyor": "#f4b740", "İptal": "#9aa1b2" };
 
-      html += contracted.map(a => {
+      html += displayAuthors.map(a => {
         const payments = (a.payments || []).slice().sort((p, q) => new Date(p.date) - new Date(q.date));
         const paid = payments.filter(p => p.status === "Ödendi");
         const pending = payments.filter(p => p.status === "Bekliyor");
         const paidSum = paid.reduce((s, p) => s + p.amount, 0);
         const pendingSum = pending.reduce((s, p) => s + p.amount, 0);
+        const isOtherStatus = a.status !== "sozlesme" && a.status !== "yayinda";
 
+        const canManagePayments = currentRole === 'admin' || currentRole === 'muhasebe';
         const rows = payments.map(p => {
-          const realIdx = a.payments.indexOf(p);
           const col = STATUS_COLORS[p.status] || "#9aa1b2";
-          const markPaidBtn = p.status === "Bekliyor" ? `<button class="btn ghost" style="padding:4px 10px;font-size:12px;color:#37c98a;border-color:#37c98a" onclick="markPaymentPaid('${a.id}', ${realIdx})">✓ Ödendi</button>` : '';
-          const delBtn = currentRole === 'admin' ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delPayment('${a.id}', ${realIdx})" title="Sil">🗑</button>` : '';
+          const vat = vatPortion(p);
+          const addedByLabel = p.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(p.addedBy) || "");
+          const receiptBtn = `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="printReceipt('${a.id}', '${p.id}')" title="Makbuz">🧾</button>`;
+          const markPaidBtn = p.status === "Bekliyor" ? `<button class="btn ghost" style="padding:4px 10px;font-size:12px;color:#37c98a;border-color:#37c98a" onclick="markPaymentPaid('${a.id}', '${p.id}')">✓ Ödendi</button>` : '';
+          const editBtn = canManagePayments ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="openEditPaymentModal('${a.id}', '${p.id}')" title="Düzenle">✏️</button>` : '';
+          const delBtn = canManagePayments ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delPayment('${a.id}', '${p.id}')" title="Sil">🗑</button>` : '';
           return `<tr style="border-bottom:1px solid var(--line)">
         <td style="padding:8px">${fmtDate(p.date)}</td>
-        <td style="padding:8px;font-weight:600">${p.amount.toLocaleString('tr-TR')} ₺</td>
+        <td style="padding:8px;font-weight:600">${p.amount.toLocaleString('tr-TR')} ₺<div style="font-weight:400;font-size:11px;color:var(--muted)">KDV: ${vat.toLocaleString('tr-TR')} ₺</div></td>
         <td style="padding:8px"><span class="badge" style="background:${col}22;color:${col}">${escapeHtml(p.status)}</span></td>
-        <td style="padding:8px;color:var(--muted);font-size:12px">${escapeHtml(p.notes) || '—'}</td>
-        <td style="padding:8px;text-align:right"><div style="display:flex;gap:6px;justify-content:flex-end">${markPaidBtn}${delBtn}</div></td>
+        <td style="padding:8px;color:var(--muted);font-size:12px">${escapeHtml(p.notes) || '—'}${addedByLabel ? `<div style="font-size:11px;opacity:.7">${escapeHtml(addedByLabel)} ekledi</div>` : ''}</td>
+        <td style="padding:8px;text-align:right"><div style="display:flex;gap:6px;justify-content:flex-end">${receiptBtn}${markPaidBtn}${editBtn}${delBtn}</div></td>
       </tr>`;
         }).join('');
 
@@ -2394,7 +2595,7 @@
         <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="openDrawer('${a.id}')">
           <div class="avatar" style="background:${avatarColor(a.name)}">${escapeHtml(initials(a.name))}</div>
           <div>
-            <div style="font-weight:600;font-size:15px">${escapeHtml(a.name)}</div>
+            <div style="font-weight:600;font-size:15px">${escapeHtml(a.name)} ${isOtherStatus ? `<span class="badge" style="background:${STATUS[a.status].color}22;color:${STATUS[a.status].color};font-size:10px;vertical-align:middle">${STATUS[a.status].label}</span>` : ''}</div>
             <div style="color:var(--muted);font-size:12px">${escapeHtml(a.work) || "—"}</div>
           </div>
         </div>
@@ -2712,6 +2913,11 @@
       const baseDate = new Date(document.getElementById("p_date").value);
       const status = document.getElementById("p_status").value;
       const notes = document.getElementById("p_notes").value.trim();
+      const methodKey = document.getElementById("p_method").value;
+      const method = PAYMENT_METHODS[methodKey];
+      const vatIncluded = method ? method.vatIncluded : true;
+      const addedBy = currentStaffId || "admin";
+      const packageKey = document.getElementById("p_package").value || null;
 
       const newPayments = [];
       if (installments > 1) {
@@ -2724,14 +2930,16 @@
           let instStatus = i === 0 ? status : "Bekliyor";
           let amt = (i === installments - 1) ? (instAmount + remainder) : instAmount;
           newPayments.push({
-            amount: amt, date: d.toISOString().slice(0, 10),
-            status: instStatus, notes: instNotes
+            id: uid(), amount: amt, date: d.toISOString().slice(0, 10),
+            status: instStatus, notes: instNotes, vatIncluded, addedBy,
+            package: packageKey, method: methodKey || null
           });
         }
       } else {
         newPayments.push({
-          amount: totalAmount, date: document.getElementById("p_date").value,
-          status: status, notes: notes
+          id: uid(), amount: totalAmount, date: document.getElementById("p_date").value,
+          status: status, notes: notes, vatIncluded, addedBy,
+          package: packageKey, method: methodKey || null
         });
       }
       await mutate(d => {
@@ -2743,21 +2951,55 @@
       if (document.getElementById("drawer").classList.contains("open")) openDrawer(id);
       render();
     }
-    async function delPayment(authorId, idx) {
+    async function delPayment(authorId, paymentId) {
       if (!(await customConfirm("Ödeme silinsin mi?"))) return;
       await mutate(d => {
         const a = d.authors.find(x => x.id === authorId);
-        a.payments.splice(idx, 1);
+        a.payments = a.payments.filter(p => p.id !== paymentId);
       });
       if (document.getElementById("drawer").classList.contains("open")) openDrawer(authorId);
       render();
     }
-    async function markPaymentPaid(authorId, idx) {
+    async function markPaymentPaid(authorId, paymentId) {
       if (!(await customConfirm("Bu taksit/ödeme ödendi olarak işaretlensin mi?", "Evet, Ödendi"))) return;
       await mutate(d => {
         const a = d.authors.find(x => x.id === authorId);
-        a.payments[idx].status = "Ödendi";
+        const p = a.payments.find(x => x.id === paymentId);
+        if (p) p.status = "Ödendi";
       });
+      render();
+    }
+    function openEditPaymentModal(authorId, paymentId) {
+      const a = db.authors.find(x => x.id === authorId);
+      const p = a && a.payments && a.payments.find(x => x.id === paymentId);
+      if (!p) return;
+      document.getElementById("ep_authorId").value = authorId;
+      document.getElementById("ep_paymentId").value = paymentId;
+      document.getElementById("ep_amount").value = p.amount;
+      document.getElementById("ep_date").value = p.date;
+      document.getElementById("ep_status").value = p.status;
+      document.getElementById("ep_vatIncluded").value = p.vatIncluded === false ? "false" : "true";
+      document.getElementById("ep_notes").value = p.notes || "";
+      document.getElementById("editPaymentModal").classList.add("open");
+    }
+    function closeEditPaymentModal() { document.getElementById("editPaymentModal").classList.remove("open"); }
+    async function saveEditPayment() {
+      const authorId = document.getElementById("ep_authorId").value;
+      const paymentId = document.getElementById("ep_paymentId").value;
+      const amount = parseFloat(document.getElementById("ep_amount").value);
+      if (!amount) { alert("Tutar zorunlu."); return; }
+      const date = document.getElementById("ep_date").value;
+      const status = document.getElementById("ep_status").value;
+      const vatIncluded = document.getElementById("ep_vatIncluded").value === "true";
+      const notes = document.getElementById("ep_notes").value.trim();
+
+      await mutate(d => {
+        const a = d.authors.find(x => x.id === authorId);
+        const p = a.payments.find(x => x.id === paymentId);
+        p.amount = amount; p.date = date; p.status = status; p.vatIncluded = vatIncluded; p.notes = notes;
+      });
+      closeEditPaymentModal();
+      if (document.getElementById("drawer").classList.contains("open")) openDrawer(authorId);
       render();
     }
 
@@ -2905,6 +3147,14 @@
 
       const addForm = "";
 
+      const backupHtml = currentRole === "admin" ? `
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 8px;font-size:14px">💾 Yedekleme</h3>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:12px">Tüm yazar, personel ve ödeme verisini bir JSON dosyası olarak bilgisayarınıza indirir. Önemli bir değişiklik yapmadan önce almanız önerilir.</div>
+      <button class="btn ghost" onclick="exportData()">⬇️ Yedek Al (JSON İndir)</button>
+    </div>
+  ` : "";
+
       const pendingApprovalHtml = currentRole === "admin" ? `
     <div class="card" style="margin-bottom:16px;border-color:var(--amber)">
       <h3 style="margin:0 0 12px;font-size:14px;color:var(--amber)">👥 Kullanıcı Onay Yönetimi</h3>
@@ -2913,7 +3163,7 @@
     </div>
   ` : "";
 
-      if (!staff.length) return pendingApprovalHtml + addForm + `<div class="empty">Henüz ekip üyesi eklenmemiş.</div>`;
+      if (!staff.length) return backupHtml + pendingApprovalHtml + addForm + `<div class="empty">Henüz ekip üyesi eklenmemiş.</div>`;
 
       const cards = stats.map(s => {
         const recentHtml = s.recentLogs.map(l => `<div style="font-size:11px;color:var(--muted);padding:3px 0;border-bottom:1px dashed var(--line)">${fmtDate(l.date)} • ${escapeHtml(l.authorName)} • <span style="color:var(--txt)">${escapeHtml(l.text.slice(0, 50))}${l.text.length > 50 ? '...' : ''}</span></div>`).join('');
@@ -2938,7 +3188,7 @@
     </div>`;
       }).join('');
 
-      return pendingApprovalHtml + addForm + cards;
+      return backupHtml + pendingApprovalHtml + addForm + cards;
     }
 
     async function addStaff() {
@@ -2961,6 +3211,24 @@
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "mst-crm-yedek-" + new Date().toISOString().slice(0, 10) + ".json";
+      a.click();
+    }
+    function exportPaymentsCSV() {
+      const rows = [["Yazar", "Tarih", "Tutar", "KDV", "Durum", "Not", "Ekleyen"]];
+      db.authors.forEach(a => {
+        (a.payments || []).forEach(p => {
+          const addedByLabel = p.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(p.addedBy) || "");
+          rows.push([a.name, p.date, p.amount, vatPortion(p), p.status, p.notes || "", addedByLabel]);
+        });
+      });
+      const csv = rows.map(r => r.map(cell => {
+        const s = String(cell === undefined || cell === null ? "" : cell);
+        return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(";")).join("\r\n");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "odemeler-" + new Date().toISOString().slice(0, 10) + ".csv";
       a.click();
     }
     function importData(e) {
