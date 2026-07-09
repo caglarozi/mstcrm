@@ -1664,20 +1664,40 @@
 
     let storageOK = true;
 
-    async function load() {
-      try {
-        const doc = await firestore.collection("crm").doc("main_db").get();
-
-        if (doc.exists) {
-          db = doc.data();
-        } else {
-          db = seed();
-          await save();
+    function load() {
+      return new Promise((resolve, reject) => {
+        try {
+          let firstLoad = true;
+          firestore.collection("crm").doc("main_db").onSnapshot(doc => {
+            if (doc.exists) {
+              db = doc.data();
+            } else {
+              if (firstLoad) {
+                db = seed();
+                save();
+              }
+            }
+            if (!firstLoad) {
+              render();
+              // Çekmece açıksa güncelle
+              const drawer = document.getElementById("drawer");
+              if (drawer && drawer.classList.contains("open")) {
+                 const match = drawer.innerHTML.match(/openAuthorModal\('([^']+)'\)/);
+                 if (match && match[1]) openDrawer(match[1]);
+              }
+            } else {
+              firstLoad = false;
+              resolve();
+            }
+          }, err => {
+            console.error("Firebase veri çekme hatası:", err);
+            if (firstLoad) reject(err);
+          });
+        } catch (e) {
+          console.error("Firebase başlatma hatası:", e);
+          if (firstLoad) reject(e);
         }
-      } catch (e) {
-        console.error("Firebase veri çekme hatası:", e);
-        alert("Bağlantı çok yavaş veya veritabanına ulaşılamadı. Lütfen sayfayı yenileyin.");
-      }
+      });
     }
 
     async function save() {
