@@ -1558,10 +1558,44 @@
     let currentStaffId = null;
     let isRegistering = false;
 
+    // load() içindeki Firestore dinleyicileri, kullanıcı onaylı şekilde
+    // giriş yapmadan önce başlatılırsa güvenlik kuralları "izin yok"
+    // hatası verir. Token'ı bekletmemize rağmen bu, ID token'ın Firestore
+    // SDK'sına tam yayılması birkaç yüz milisaniye sürebildiği için hâlâ
+    // görülebiliyor — bu yüzden ilk denemede "izin yok" alırsa kısa bir
+    // bekleme ile birkaç kez daha deniyoruz, gerçek bir yetki sorununu
+    // (örn. onaysız kullanıcı) birkaç saniyede ayırt ediyoruz.
+    let dataLoaded = false;
+    async function ensureDataLoaded() {
+      if (dataLoaded) return;
+      dataLoaded = true;
+      const maxAttempts = 4;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          await load();
+          return;
+        } catch (e) {
+          console.error(`Veri yükleme hatası (deneme ${attempt}/${maxAttempts}):`, e);
+          if (attempt < maxAttempts) {
+            await new Promise(r => setTimeout(r, 700));
+          } else {
+            dataLoaded = false;
+            alert("Veriler yüklenemedi. Lütfen sayfayı yenileyin.");
+          }
+        }
+      }
+    }
+
     function setupAuthListener() {
       auth.onAuthStateChanged(async user => {
         if (isRegistering) return; // Kayıt sırasında onAuthStateChanged devreye girme
         if (user) {
+          // onAuthStateChanged "user" ile tetiklenmiş olması, Firestore
+          // SDK'sının bir sonraki isteğe kimlik token'ını iliştirmeye tam
+          // hazır olduğu anlamına gelmeyebiliyor (özellikle admin girişinde,
+          // onay kontrolü GET'i olmadığı için bu "ısınma" adımı eksik
+          // kalıyordu). Token'ı burada açıkça bekleyerek bu yarışı kapatıyoruz.
+          try { await user.getIdToken(); } catch (e) { console.error("Token hatası:", e); }
           const u = user.email.split("@")[0].toLowerCase();
           const clean = str => str.toLowerCase().replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ç/g, 'c').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/\s+/g, '');
 
@@ -1587,6 +1621,7 @@
             }
           }
 
+          await ensureDataLoaded();
           const stf = db.staff.find(s => clean(s.name) === clean(u) || clean(s.name).includes(clean(u)));
           currentStaffId = stf ? stf.id : null;
           document.getElementById("loginError").style.display = "none";
@@ -3482,7 +3517,15 @@
       const loginFormHtml = document.getElementById("loginScreen").innerHTML;
       document.getElementById("loginScreen").innerHTML = `<div style="text-align:center;color:#fff"><div style="font-size:32px;margin-bottom:14px;animation:spin 1s linear infinite">⏳</div><div style="font-size:15px;color:var(--muted)">Bulut veritabanına (Firebase) bağlanılıyor...</div><style>@keyframes spin { 100% { transform:rotate(360deg); } }</style></div>`;
 
-      await load();
+      // Firestore kuralları girişi zorunlu kıldığı için, kimlik doğrulama
+      // durumu netleşmeden (Firebase Auth önceki oturumu geri yüklerken)
+      // veri okumaya kalkışmak "izin yok" hatasına ve sonsuza kadar bu
+      // ekranda takılı kalmaya yol açabiliyordu. Önce SADECE ilk oturum
+      // durumunu bekliyoruz; asıl veri yüklemesi setupAuthListener()
+      // içinde, kullanıcı onaylı şekilde giriş yaptığında tetikleniyor.
+      await new Promise(resolve => {
+        const unsub = auth.onAuthStateChanged(() => { unsub(); resolve(); });
+      });
 
       document.getElementById("loginScreen").innerHTML = loginFormHtml;
       setupAuthListener();
