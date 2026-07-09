@@ -46,8 +46,16 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Tüm CRM verisi (yazarlar, personel, görüşme logları, ödemeler)
+    // Eski tek-doküman CRM verisi (geçiş sürecinde yedek olarak tutuluyor)
+    // ve personelin taşındığı küçük doküman (crm/staff)
     match /crm/{docId} {
+      allow read, write: if isApproved();
+    }
+
+    // Yazarlar — her yazar artık kendi ayrı dokümanında (tek dev doküman
+    // yerine). Taşıma script'i de bu koleksiyona yazdığı için bu kural
+    // migration çalışmadan önce yayınlanmış olmalı.
+    match /authors/{authorId} {
       allow read, write: if isApproved();
     }
 

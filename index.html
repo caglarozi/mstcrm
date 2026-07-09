@@ -3155,6 +3155,19 @@
     </div>
   ` : "";
 
+      const migrationHtml = currentRole === "admin" ? `
+    <div class="card" style="margin-bottom:16px;border-color:var(--brand)">
+      <h3 style="margin:0 0 8px;font-size:14px">🔧 Veritabanı Taşıma (Bir Kerelik)</h3>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:12px">
+        Yazarları ve personeli, performans ve büyüme için tek dokümandan ayrı dokümanlara kopyalar.
+        <b style="color:var(--txt)">Mevcut veriye hiç dokunmaz, sadece yeni bir yere kopyalar</b> — orijinal veri (crm/main_db) olduğu gibi kalır.
+        Bu, birden fazla kez çalıştırılsa da güvenlidir (üzerine yazar, kaybetmez).
+      </div>
+      <button class="btn ghost" onclick="runMigrationToSeparateDocs()">▶️ Taşımayı Çalıştır</button>
+      <div id="migrationResult" style="margin-top:12px;font-size:13px;line-height:1.6"></div>
+    </div>
+  ` : "";
+
       const pendingApprovalHtml = currentRole === "admin" ? `
     <div class="card" style="margin-bottom:16px;border-color:var(--amber)">
       <h3 style="margin:0 0 12px;font-size:14px;color:var(--amber)">👥 Kullanıcı Onay Yönetimi</h3>
@@ -3163,7 +3176,7 @@
     </div>
   ` : "";
 
-      if (!staff.length) return backupHtml + pendingApprovalHtml + addForm + `<div class="empty">Henüz ekip üyesi eklenmemiş.</div>`;
+      if (!staff.length) return backupHtml + migrationHtml + pendingApprovalHtml + addForm + `<div class="empty">Henüz ekip üyesi eklenmemiş.</div>`;
 
       const cards = stats.map(s => {
         const recentHtml = s.recentLogs.map(l => `<div style="font-size:11px;color:var(--muted);padding:3px 0;border-bottom:1px dashed var(--line)">${fmtDate(l.date)} • ${escapeHtml(l.authorName)} • <span style="color:var(--txt)">${escapeHtml(l.text.slice(0, 50))}${l.text.length > 50 ? '...' : ''}</span></div>`).join('');
@@ -3188,7 +3201,7 @@
     </div>`;
       }).join('');
 
-      return backupHtml + pendingApprovalHtml + addForm + cards;
+      return backupHtml + migrationHtml + pendingApprovalHtml + addForm + cards;
     }
 
     async function addStaff() {
@@ -3236,6 +3249,55 @@
       const r = new FileReader();
       r.onload = () => { try { db = JSON.parse(r.result); save(); render(); alert("Yedek yüklendi."); } catch { alert("Geçersiz dosya."); } };
       r.readAsText(f); e.target.value = "";
+    }
+
+    // Tek dev dokümandan ayrı dokümanlara geçiş — SADECE kopyalar, crm/main_db
+    // dokümanına hiç dokunmaz/silmez. Bu yüzden birden fazla kez çalıştırılsa
+    // bile güvenlidir. Kod tarafı henüz bu yeni koleksiyonu okumuyor; bu adım
+    // sadece veriyi hazırlar, uygulamanın davranışını değiştirmez.
+    async function runMigrationToSeparateDocs() {
+      if (currentRole !== 'admin') { alert('Bu işlemi sadece admin çalıştırabilir.'); return; }
+      if (!(await customConfirm('Yazarlar ve personel ayrı dokümanlara kopyalanacak. Mevcut veri (crm/main_db) hiç değişmeyecek/silinmeyecek, sadece yeni bir yere kopyalanacak. Devam edilsin mi?', 'Evet, Taşımayı Başlat'))) return;
+
+      const resultEl = document.getElementById('migrationResult');
+      resultEl.innerHTML = '⏳ Taşıma çalışıyor, lütfen bekleyin...';
+
+      try {
+        const mainDoc = await firestore.collection('crm').doc('main_db').get();
+        if (!mainDoc.exists) { resultEl.innerHTML = '❌ Ana veri (crm/main_db) bulunamadı.'; return; }
+        const data = mainDoc.data();
+        const authors = data.authors || [];
+        const staffList = data.staff || [];
+
+        const CHUNK = 450;
+        for (let i = 0; i < authors.length; i += CHUNK) {
+          const batch = firestore.batch();
+          authors.slice(i, i + CHUNK).forEach(a => {
+            batch.set(firestore.collection('authors').doc(a.id), a);
+          });
+          await batch.commit();
+        }
+        await firestore.collection('crm').doc('staff').set({ staff: staffList });
+
+        const check = await firestore.collection('authors').get();
+        const staffCheck = await firestore.collection('crm').doc('staff').get();
+        const migratedStaffCount = staffCheck.exists ? (staffCheck.data().staff || []).length : 0;
+
+        const ok = check.size === authors.length && migratedStaffCount === staffList.length;
+        if (ok) {
+          resultEl.innerHTML = `✅ <b style="color:#37c98a">Taşıma tamamlandı ve doğrulandı.</b><br>
+        Yazar: ${authors.length} → ${check.size} kopyalandı.<br>
+        Personel: ${staffList.length} → ${migratedStaffCount} kopyalandı.<br>
+        <b>Orijinal veri (crm/main_db) hiç değiştirilmedi, olduğu gibi duruyor.</b>`;
+        } else {
+          resultEl.innerHTML = `⚠️ <b style="color:#f2617a">Sayılar eşleşmiyor, lütfen bana bildirin.</b><br>
+        Yazar: ${authors.length} kaynak / ${check.size} kopyalandı.<br>
+        Personel: ${staffList.length} kaynak / ${migratedStaffCount} kopyalandı.<br>
+        Orijinal veri etkilenmedi, hiçbir şey silinmedi.`;
+        }
+      } catch (e) {
+        resultEl.innerHTML = '❌ Hata: ' + escapeHtml(e.message) + '<br>Orijinal veri etkilenmedi, hiçbir şey silinmedi.';
+      }
     }
 
 
