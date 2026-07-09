@@ -1204,7 +1204,10 @@
           onmouseout="this.style.background='rgba(242,97,122,0.1)'">Çıkış Yap</button>
       </div>
       <div class="side-foot" style="padding:10px 16px">
-        <div style="font-size:11px;color:var(--muted);text-align:center">Mst CRM • v1.0</div>
+        <a href="CrmYedek.doc" download="CrmYedek.doc" style="text-decoration:none; display:flex; justify-content:center; margin-bottom: 12px;" title="Word Yedeği İndir">
+          <button style="width:48px; height:48px; background:rgba(255, 255, 255, 0.05); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid rgba(255, 255, 255, 0.2); border-radius:14px; font-size:22px; cursor:pointer; display:grid; place-items:center; transition:all 0.3s ease; box-shadow:0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.1);" onmouseover="this.style.background='rgba(255, 255, 255, 0.15)'; this.style.transform='translateY(-2px)'; this.style.borderColor='rgba(255, 255, 255, 0.3)';" onmouseout="this.style.background='rgba(255, 255, 255, 0.05)'; this.style.transform='translateY(0)'; this.style.borderColor='rgba(255, 255, 255, 0.2)';">📄</button>
+        </a>
+        <div style="font-size:11px;color:var(--muted);text-align:center">Mst CRM v1.0</div>
       </div>
     </aside>
 
@@ -1476,6 +1479,7 @@
     let db = { staff: [], authors: [] };
     let currentView = "dashboard";
     let filterStatus = "all";
+    let filterDate = "all";
     let filterFile = "Sözleşme";
     let currentRole = "admin";
     let currentStaffId = null;
@@ -1828,7 +1832,7 @@
       // Ortak bölümler: Takip uyarıları ve Son etkileşimler
       const followList = a.filter(x => { const d = daysUntil(x.followup); return d !== null && d <= 3; })
         .sort((x, y) => daysUntil(x.followup) - daysUntil(y.followup));
-      let follow = `<div class="card"><h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">🔔 Bugün ilgilenmen gerekenler ${overdue ? `<span class="badge" style="background:rgba(242,97,122,.2);color:#f2617a">${overdue} gecikmiş</span>` : ""}</h4>`;
+      let follow = `<div class="card" style="display:flex; flex-direction:column; max-height:450px;"><h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px; flex-shrink:0;">🔔 Bugün ilgilenmen gerekenler ${overdue ? `<span class="badge" style="background:rgba(242,97,122,.2);color:#f2617a">${overdue} gecikmiş</span>` : ""}</h4><div style="overflow-y:auto; padding-right:4px;">`;
       if (!followList.length) follow += `<div class="empty">Yaklaşan takip yok. 🎉</div>`;
       else follow += followList.map(x => {
         const d = daysUntil(x.followup);
@@ -1838,13 +1842,13 @@
       <div><span class="mn">${x.name}</span><div class="ms">${x.work || "—"} • ${STATUS[x.status].label}</div></div>
       <span style="color:${col};font-weight:600;font-size:12px">${lbl}</span></div>`;
       }).join("");
-      follow += `</div>`;
+      follow += `</div></div>`;
 
       const acts = [];
       a.forEach(x => (x.logs || []).forEach(l => acts.push({ ...l, name: x.name, id: x.id })));
       acts.sort((p, q) => new Date(q.date) - new Date(p.date));
-      let recent = `<div class="card"><h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">🕑 Son etkileşimler</h4><div class="timeline">`;
-      recent += acts.slice(0, 6).map(l => `<div class="tl"><div class="tt">${fmtDate(l.date)} • ${l.name}</div><div class="tx"><span class="type">${l.type}</span>${l.text}</div></div>`).join("") || `<div class="empty">Kayıt yok</div>`;
+      let recent = `<div class="card" style="display:flex; flex-direction:column; max-height:450px;"><h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px; flex-shrink:0;">🕑 Son etkileşimler</h4><div class="timeline" style="overflow-y:auto; padding-right:4px;">`;
+      recent += acts.slice(0, 50).map(l => `<div class="tl"><div class="tt">${fmtDate(l.date)} • ${l.name}</div><div class="tx"><span class="type">${l.type}</span>${l.text}</div></div>`).join("") || `<div class="empty">Kayıt yok</div>`;
       recent += `</div></div>`;
 
       // PERSONEL GÖRÜNÜMÜ
@@ -1936,15 +1940,18 @@
     }
 
     function viewAuthors() {
+      const list = filteredAuthors();
+
       const counts = { all: db.authors.length };
       Object.keys(STATUS).forEach(s => counts[s] = db.authors.filter(a => a.status === s).length);
+
+      let bar = `<div class="toolbar" style="gap:10px; align-items:center; flex-wrap:wrap;">`;
       const allActive = filterStatus === 'all';
       const allStyle = allActive ? `background: rgba(255,255,255,0.08); border-color: #fff; color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.15);` : ``;
-      let bar = `<div class="toolbar" style="gap:10px">
-        <span class="pill ${allActive ? 'active' : ''}" style="${allStyle}" onclick="setFilter('all')" onmouseover="this.style.borderColor='#fff'" onmouseout="if(!${allActive}) this.style.borderColor='var(--line)'">
-          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--txt);margin-right:8px;box-shadow:0 0 6px rgba(255,255,255,0.5)"></span>
+      bar += `<span class="pill ${allActive ? 'active' : ''}" style="${allStyle}" onclick="setFilter('all')" onmouseover="this.style.borderColor='#fff'" onmouseout="if(!${allActive}) this.style.borderColor='var(--line)'">
           Tümü (${counts.all})
         </span>`;
+        
       bar += Object.entries(STATUS).map(([k, v]) => {
         const isActive = filterStatus === k;
         const style = isActive ? `background: ${v.color}18; border-color: ${v.color}; color: ${v.color}; box-shadow: 0 0 14px ${v.color}33; text-shadow: 0 0 12px ${v.color}44;` : ``;
@@ -1953,11 +1960,112 @@
           ${v.label} (${counts[k]})
         </span>`;
       }).join("");
+      
+      const dfStyle = filterDate !== 'all' ? `background: rgba(74, 168, 255, 0.15); border-color: #4aa8ff; color: #4aa8ff; margin-left: auto;` : `margin-left: auto; border: 1px solid rgba(255,255,255,0.15);`;
+      bar += `<button class="btn ${filterDate !== 'all' ? '' : 'ghost'}" style="${dfStyle}" onclick="openDateFilterModal()">📅 Tarih: ${filterDate === 'all' ? 'Tümü' : filterDate}</button>`;
+      
       bar += `</div>`;
-      const list = filteredAuthors();
+      
       if (!list.length) return bar + `<div class="empty">Kayıt bulunamadı.</div>`;
-      const cards = list.map(authorCard).join("");
-      return bar + `<div class="grid authors">${cards}</div>`;
+      
+      const getAuthorDate = (a) => {
+        let latestDate = a.created || "Bilinmeyen Tarih";
+        if (a.logs && a.logs.length > 0) {
+          const maxLogDate = a.logs.map(l => l.date).reduce((x, y) => x > y ? x : y);
+          if (maxLogDate > latestDate || latestDate === "Bilinmeyen Tarih") {
+            latestDate = maxLogDate;
+          }
+        }
+        return latestDate;
+      };
+
+      const groups = {};
+      list.forEach(a => {
+         const d = getAuthorDate(a);
+         if (!groups[d]) groups[d] = [];
+         groups[d].push(a);
+      });
+
+      const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+      
+      const datesToRender = filterDate === 'all' ? sortedDates : (groups[filterDate] ? [filterDate] : []);
+
+      let htmlOutput = bar;
+
+      if (datesToRender.length === 0) {
+         htmlOutput += `<div class="empty">Bu tarihte kayıt bulunamadı.</div>`;
+      } else {
+          datesToRender.forEach(date => {
+            htmlOutput += `<h2 style="margin: 24px 0 12px; color: var(--blue); font-size: 16px; border-bottom: 1px solid rgba(74, 168, 255, 0.3); padding-bottom: 8px;">📅 ${date} Tarihli İşlemler</h2>`;
+            htmlOutput += `<div class="grid authors">`;
+            htmlOutput += groups[date].map(authorCard).join("");
+            htmlOutput += `</div>`;
+          });
+      }
+
+      return htmlOutput;
+    }
+
+    function openDateFilterModal() {
+      const list = filteredAuthors();
+      const getAuthorDate = (a) => {
+        let latestDate = a.created || "Bilinmeyen Tarih";
+        if (a.logs && a.logs.length > 0) {
+          const maxLogDate = a.logs.map(l => l.date).reduce((x, y) => x > y ? x : y);
+          if (maxLogDate > latestDate || latestDate === "Bilinmeyen Tarih") {
+            latestDate = maxLogDate;
+          }
+        }
+        return latestDate;
+      };
+
+      const groups = {};
+      list.forEach(a => {
+         const d = getAuthorDate(a);
+         if (!groups[d]) groups[d] = [];
+         groups[d].push(a);
+      });
+      const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+
+      let content = `
+        <div class="box" style="max-width: 320px; padding: 20px;">
+          <h2 style="margin-top:0; font-size:16px;">📅 Tarih Filtresi</h2>
+          <div style="display:flex; flex-direction:column; gap: 8px; max-height:400px; overflow-y:auto; padding-right:4px;">
+            <button class="btn ${filterDate === 'all' ? 'primary' : 'ghost'}" style="${filterDate === 'all' ? '' : 'justify-content:flex-start;'} width:100%;" onclick="setDateFilter('all'); closeDateFilterModal();">
+              Tüm Tarihler
+            </button>
+      `;
+      
+      sortedDates.forEach(d => {
+        const isActive = filterDate === d;
+        const style = isActive ? `background: rgba(74, 168, 255, 0.15); border-color: #4aa8ff; color: #4aa8ff;` : `justify-content:flex-start;`;
+        content += `<button class="btn ${isActive ? '' : 'ghost'}" style="${style} width:100%;" onclick="setDateFilter('${d}'); closeDateFilterModal();">
+          ${d} (${groups[d].length})
+        </button>`;
+      });
+      
+      content += `
+          </div>
+          <div class="actions" style="margin-top: 16px;">
+            <button class="btn ghost" style="width:100%" onclick="closeDateFilterModal()">Kapat</button>
+          </div>
+        </div>
+      `;
+      
+      let m = document.getElementById("dateFilterModal");
+      if (!m) {
+        m = document.createElement("div");
+        m.className = "modal";
+        m.id = "dateFilterModal";
+        document.body.appendChild(m);
+      }
+      m.innerHTML = content;
+      m.classList.add("open");
+    }
+
+    function closeDateFilterModal() {
+      const m = document.getElementById("dateFilterModal");
+      if(m) m.classList.remove("open");
     }
 
     function authorCard(a) {
@@ -1989,6 +2097,7 @@
     }
 
     function setFilter(s) { filterStatus = s; render(); }
+    function setDateFilter(d) { filterDate = d; render(); }
     function setFileFilter(s) { filterFile = s; render(); }
     let filterContract = "all";
     function setContractFilter(s) { filterContract = s; render(); }
@@ -2000,17 +2109,23 @@
       const yayinda = db.authors.filter(a => a.status === "yayinda" && match(a));
       const toplam = sozlesme.length + yayinda.length;
 
-      const TYPES = ["Tümü", "Aktif Sözleşme", "Yayında"];
-      const counts = { "Tümü": toplam, "Aktif Sözleşme": sozlesme.length, "Yayında": yayinda.length };
-      const COLORS = { "Tümü": "#9aa1b2", "Aktif Sözleşme": "#a99bff", "Yayında": "#37c98a" };
+      const TYPES = ["Aktif Sözleşme", "Yayında"];
+      const counts = { "Aktif Sözleşme": sozlesme.length, "Yayında": yayinda.length };
+      const COLORS = { "Aktif Sözleşme": "#a99bff", "Yayında": "#37c98a" };
 
       let bar = `<div class="toolbar" style="margin-top:-8px;margin-bottom:20px;gap:10px">`;
+      
+      const allActive = filterContract === 'all';
+      const allStyle = allActive ? `background: rgba(255,255,255,0.08); border-color: #fff; color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.15);` : ``;
+      bar += `<span class="pill ${allActive ? 'active' : ''}" style="${allStyle}" onclick="setContractFilter('all')" onmouseover="this.style.borderColor='#fff'" onmouseout="if(!${allActive}) this.style.borderColor='var(--line)'">
+          Tümü (${toplam})
+        </span>`;
+
       TYPES.forEach(ft => {
         const c = COLORS[ft];
-        const isActive = filterContract === ft || (filterContract === 'all' && ft === 'Tümü');
+        const isActive = filterContract === ft;
         const style = isActive ? `background: ${c}15; border-color: ${c}; color: ${c}; box-shadow: 0 0 14px ${c}40;` : ``;
-        const setVal = ft === 'Tümü' ? 'all' : ft;
-        bar += `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setContractFilter('${setVal}')" onmouseover="this.style.borderColor='${c}'" onmouseout="if(!${isActive}) this.style.borderColor='rgba(255,255,255,0.08)'">
+        bar += `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setContractFilter('${ft}')" onmouseover="this.style.borderColor='${c}'" onmouseout="if(!${isActive}) this.style.borderColor='rgba(255,255,255,0.08)'">
           <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:8px;box-shadow:0 0 8px ${c}"></span>
           ${ft} (${counts[ft]})
         </span>`;
@@ -2123,13 +2238,19 @@
       if (!['all', 'overdue', 'today', 'upcoming'].includes(filterStatus)) filterStatus = 'all';
 
       const filterTabs = [
-        { id: 'all', label: 'Tümü', count: list.length, color: '#fff' },
         { id: 'overdue', label: 'Gecikenler', count: overdue.length, color: '#f2617a' },
         { id: 'today', label: 'Bugün', count: today.length, color: '#f4b740' },
         { id: 'upcoming', label: 'Gelecek', count: upcoming.length, color: '#4aa8ff' }
       ];
 
       let bar = `<div class="toolbar" style="margin-top:-8px;margin-bottom:20px;gap:10px">`;
+      
+      const allActive = filterStatus === 'all';
+      const allStyle = allActive ? `background: rgba(255,255,255,0.08); border-color: #fff; color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.15);` : ``;
+      bar += `<span class="pill ${allActive ? 'active' : ''}" style="${allStyle}" onclick="setFilter('all')" onmouseover="this.style.borderColor='#fff'" onmouseout="if(!${allActive}) this.style.borderColor='var(--line)'">
+          Tümü (${list.length})
+        </span>`;
+
       filterTabs.forEach(t => {
         const isActive = filterStatus === t.id;
         const style = isActive ? `background: ${t.color}15; border-color: ${t.color}; color: ${t.color}; box-shadow: 0 0 14px ${t.color}40;` : ``;
