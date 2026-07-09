@@ -1,0 +1,64 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Uygulamadaki sabit admin hesabı (admin@crm.com) — index.html içinde de
+    // aynı e-posta özel olarak admin kabul ediliyor (bkz. setupAuthListener).
+    function isBootstrapAdmin() {
+      return isSignedIn() && request.auth.token.email == 'admin@crm.com';
+    }
+
+    function isAdmin() {
+      return isBootstrapAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true
+      );
+    }
+
+    function isApproved() {
+      return isBootstrapAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true
+      );
+    }
+
+    // Kullanıcı kayıt / onay sistemi
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+
+      // Kayıt olurken kullanıcı SADECE kendi dokümanını, daima
+      // "personel" + onaysız olarak oluşturabilir. Admin yetkisi ya da
+      // onay durumu asla kayıt anında client tarafından belirlenemez —
+      // yalnızca mevcut bir admin sonradan bu alanları güncelleyebilir.
+      allow create: if isSignedIn() && request.auth.uid == userId
+                    && request.resource.data.role == 'personel'
+                    && request.resource.data.approved == false;
+
+      allow update, delete: if isAdmin();
+    }
+
+    // Tüm CRM verisi (yazarlar, personel, görüşme logları, ödemeler)
+    match /crm/{docId} {
+      allow read, write: if isApproved();
+    }
+
+    // Parçalara ayrılmış (chunked) dosya yüklemeleri
+    match /crm_files/{chunkId} {
+      allow read, write: if isApproved();
+    }
+
+    // Tanımlanmamış her şeyi varsayılan olarak reddet
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

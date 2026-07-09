@@ -1626,26 +1626,19 @@
       try {
         const cred = await auth.createUserWithEmailAndPassword(email, p);
 
-        const usersSnapshot = await firestore.collection("users").limit(1).get();
-        const isFirstUser = usersSnapshot.empty;
-
-        const role = isFirstUser ? "admin" : "personel";
-        const approved = isFirstUser ? true : false;
-
+        // Güvenlik: rol/onay durumu artık her zaman "personel" + onaysız
+        // olarak oluşturulur. Firestore kuralları da bunu zorunlu kılıyor;
+        // yetki yükseltmesi sadece mevcut bir admin tarafından yapılabilir.
         await firestore.collection("users").doc(cred.user.uid).set({
           name: name,
           username: u,
           email: email,
-          approved: approved,
-          role: role,
+          approved: false,
+          role: "personel",
           createdAt: new Date().toISOString()
         });
         await auth.signOut();
-        if (isFirstUser) {
-          suc.innerText = "✅ Kayıt başarılı! İlk kullanıcı olduğunuz için otomatik admin yapıldınız. Giriş yapabilirsiniz.";
-        } else {
-          suc.innerText = "✅ Kayıt başarılı! Hesabınız admin onayından sonra aktif olacaktır.";
-        }
+        suc.innerText = "✅ Kayıt başarılı! Hesabınız admin onayından sonra aktif olacaktır.";
         suc.style.display = "block";
         btn.disabled = false;
         btn.innerText = "Kayıt Ol";
@@ -1709,6 +1702,30 @@
       }
     }
 
+    // İki kullanıcı aynı anda kayıt yaparsa birbirini ezmesin diye: save()
+    // gibi elindeki (bayat olabilecek) db'yi bütün olarak yazmak yerine,
+    // transaction içinde sunucudaki EN GÜNCEL veriyi okuyup aynı değişikliği
+    // ona uygular. fn iki kez çağrılır (anlık ekran güncellemesi için db'ye,
+    // asıl kayıt için sunucudan taze okunan kopyaya) — bu yüzden fn içinde
+    // uid()/new Date() gibi her çağrıda farklı sonuç üretebilecek değerler
+    // ÜRETİLMEMELİ, çağıran fonksiyon tarafından önceden hesaplanmalı.
+    async function mutate(fn) {
+      fn(db);
+      render();
+      const ref = firestore.collection("crm").doc("main_db");
+      try {
+        await firestore.runTransaction(async tx => {
+          const doc = await tx.get(ref);
+          const server = doc.exists ? doc.data() : { staff: [], authors: [] };
+          fn(server);
+          tx.set(ref, server);
+        });
+      } catch (e) {
+        console.error("Kaydetme hatası:", e);
+        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+      }
+    }
+
     function seed() {
       const today = new Date();
       const d = (off) => { const x = new Date(today); x.setDate(x.getDate() + off); return x.toISOString().slice(0, 10); };
@@ -1727,6 +1744,10 @@
     function staffName(id) { const s = (db.staff || []).find(x => x.id === id); return s ? s.name : ''; }
 
     /* ---------- Yardımcılar ---------- */
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
     function initials(n) { return n.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase(); }
     function avatarColor(n) {
       const colors = ["#7c6cff", "#4aa8ff", "#37c98a", "#f4b740", "#f2617a", "#a99bff", "#22c1c3"];
@@ -1863,7 +1884,7 @@
         const lbl = d < 0 ? `${-d} gün gecikti` : d === 0 ? "Bugün" : `${d} gün sonra`;
         const col = d < 0 ? "var(--red)" : d === 0 ? "var(--amber)" : "var(--muted)";
         return `<div class="mini" onclick="openDrawer('${x.id}')" style="display:flex;justify-content:space-between;align-items:center">
-      <div><span class="mn">${x.name}</span><div class="ms">${x.work || "—"} • ${STATUS[x.status].label}</div></div>
+      <div><span class="mn">${escapeHtml(x.name)}</span><div class="ms">${escapeHtml(x.work) || "—"} • ${STATUS[x.status].label}</div></div>
       <span style="color:${col};font-weight:600;font-size:12px">${lbl}</span></div>`;
       }).join("");
       follow += `</div></div>`;
@@ -1872,7 +1893,7 @@
       a.forEach(x => (x.logs || []).forEach(l => acts.push({ ...l, name: x.name, id: x.id })));
       acts.sort((p, q) => new Date(q.date) - new Date(p.date));
       let recent = `<div class="card" style="display:flex; flex-direction:column; max-height:450px;"><h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px; flex-shrink:0;">🕑 Son etkileşimler</h4><div class="timeline" style="overflow-y:auto; padding-right:4px;">`;
-      recent += acts.slice(0, 50).map(l => `<div class="tl"><div class="tt">${fmtDate(l.date)} • ${l.name}</div><div class="tx"><span class="type">${l.type}</span>${l.text}</div></div>`).join("") || `<div class="empty">Kayıt yok</div>`;
+      recent += acts.slice(0, 50).map(l => `<div class="tl"><div class="tt">${fmtDate(l.date)} • ${escapeHtml(l.name)}</div><div class="tx"><span class="type">${escapeHtml(l.type)}</span>${escapeHtml(l.text)}</div></div>`).join("") || `<div class="empty">Kayıt yok</div>`;
       recent += `</div></div>`;
 
       // PERSONEL GÖRÜNÜMÜ
@@ -2104,17 +2125,17 @@
 
       return `<div class="card author" onclick="openDrawer('${a.id}')">
     <div class="head">
-      <div class="avatar" style="background:${avatarColor(a.name)}">${initials(a.name)}</div>
+      <div class="avatar" style="background:${avatarColor(a.name)}">${escapeHtml(initials(a.name))}</div>
       <div style="flex:1">
-        <div class="name">${a.name}</div>
-        <div class="role">${a.work || "—"}</div>
+        <div class="name">${escapeHtml(a.name)}</div>
+        <div class="role">${escapeHtml(a.work) || "—"}</div>
       </div>
       <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:6px;">
-        <span style="font-size:11px; color:var(--muted); line-height:1;">(${adder})</span>
+        <span style="font-size:11px; color:var(--muted); line-height:1;">(${escapeHtml(adder)})</span>
         <span class="badge" style="background:${st.color}15;color:${st.color};border:1px solid ${st.color}44;box-shadow:0 0 10px ${st.color}22">${st.label}</span>
       </div>
     </div>
-    <div class="tags">${(a.genres || []).map(g => `<span class="tag">${g}</span>`).join("")}</div>
+    <div class="tags">${(a.genres || []).map(g => `<span class="tag">${escapeHtml(g)}</span>`).join("")}</div>
     <div class="meta-row">
       <div class="temp" title="İlgi düzeyi">${temp}</div>
       <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">${fl} ${waBtn(a.phone)}</div>
@@ -2231,8 +2252,8 @@
       listHtml += allFiles.map(f => {
         return `<tr style="border-bottom:1px solid var(--line)">
       <td style="padding:10px 8px">${fmtDate(f.date)}</td>
-      <td style="padding:10px 8px;font-weight:600;cursor:pointer;color:var(--blue)" onclick="openDrawer('${f.authorId}')">${f.authorName}</td>
-      <td style="padding:10px 8px;font-weight:600"><span class="badge" style="background:var(--panel-2);border:1px solid var(--line);margin-right:6px;font-size:11px;padding:2px 8px">${f.type || 'Diğer'}</span><a href="#" onclick="downloadFile('${f.authorId}', ${f.originalIndex});return false;" style="color:var(--brand);text-decoration:underline">${f.name}</a></td>
+      <td style="padding:10px 8px;font-weight:600;cursor:pointer;color:var(--blue)" onclick="openDrawer('${f.authorId}')">${escapeHtml(f.authorName)}</td>
+      <td style="padding:10px 8px;font-weight:600"><span class="badge" style="background:var(--panel-2);border:1px solid var(--line);margin-right:6px;font-size:11px;padding:2px 8px">${escapeHtml(f.type) || 'Diğer'}</span><a href="#" onclick="downloadFile('${f.authorId}', ${f.originalIndex});return false;" style="color:var(--brand);text-decoration:underline">${escapeHtml(f.name)}</a></td>
       <td style="padding:10px 8px;color:var(--muted)">${(f.size / 1024).toFixed(1)} KB</td>
       <td style="padding:10px 8px;text-align:right">
         ${currentRole === 'admin' ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delFile('${f.authorId}', ${f.originalIndex})" title="Sil">🗑</button>` : ''}
@@ -2302,13 +2323,13 @@
       const a = db.authors.find(x => x.id === id); if (!a) return;
       const st = STATUS[a.status];
       const logs = (a.logs || []).slice().sort((p, q) => new Date(q.date) - new Date(p.date));
-      const tl = logs.map(l => { const sn = staffName(l.staffId); return `<div class="tl"><div class="tt">${fmtDate(l.date)}${sn ? ` • <span style="color:var(--blue)">${sn}</span>` : ''}</div><div class="tx"><span class="type">${l.type}</span>${l.text}</div></div>`; }).join("") || `<div class="empty" style="padding:16px">Henüz görüşme kaydı yok.</div>`;
+      const tl = logs.map(l => { const sn = staffName(l.staffId); return `<div class="tl"><div class="tt">${fmtDate(l.date)}${sn ? ` • <span style="color:var(--blue)">${escapeHtml(sn)}</span>` : ''}</div><div class="tx"><span class="type">${escapeHtml(l.type)}</span>${escapeHtml(l.text)}</div></div>`; }).join("") || `<div class="empty" style="padding:16px">Henüz görüşme kaydı yok.</div>`;
 
       const authorFiles = (a.files || []).map((f, idx) => `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px dashed var(--line);">
           <div style="display:flex; flex-direction:column; gap:4px">
-            <div style="font-weight:600; font-size:13px"><a href="#" onclick="downloadFile('${a.id}', ${idx});return false;" style="color:var(--brand);text-decoration:none">${f.name}</a></div>
-            <div style="font-size:11px; color:var(--muted)">${fmtDate(f.date)} • <span style="color:var(--txt)">${f.type || 'Diğer'}</span> • ${(f.size / 1024).toFixed(1)} KB</div>
+            <div style="font-weight:600; font-size:13px"><a href="#" onclick="downloadFile('${a.id}', ${idx});return false;" style="color:var(--brand);text-decoration:none">${escapeHtml(f.name)}</a></div>
+            <div style="font-size:11px; color:var(--muted)">${fmtDate(f.date)} • <span style="color:var(--txt)">${escapeHtml(f.type) || 'Diğer'}</span> • ${(f.size / 1024).toFixed(1)} KB</div>
           </div>
           <button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delFile('${a.id}', ${idx})" title="Sil">🗑</button>
         </div>
@@ -2318,13 +2339,13 @@
     <div class="dh">
       <button class="close" onclick="closeDrawer()">×</button>
       <div style="display:flex;gap:14px;align-items:center">
-        <div class="avatar" style="width:54px;height:54px;font-size:20px;background:${avatarColor(a.name)}">${initials(a.name)}</div>
-        <div><div style="font-size:19px;font-weight:700">${a.name}</div>
-        <div style="color:var(--muted);font-size:13px">${a.work || "—"}</div></div>
+        <div class="avatar" style="width:54px;height:54px;font-size:20px;background:${avatarColor(a.name)}">${escapeHtml(initials(a.name))}</div>
+        <div><div style="font-size:19px;font-weight:700">${escapeHtml(a.name)}</div>
+        <div style="color:var(--muted);font-size:13px">${escapeHtml(a.work) || "—"}</div></div>
       </div>
       <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
         <span class="badge" style="background:${st.color}22;color:${st.color}">${st.label}</span>
-        ${(a.genres || []).map(g => `<span class="tag">${g}</span>`).join("")}
+        ${(a.genres || []).map(g => `<span class="tag">${escapeHtml(g)}</span>`).join("")}
       </div>
       <div style="margin-top:14px;display:flex;gap:8px">
         <button class="btn" style="flex:1" onclick="openLogModal('${a.id}')">+ Görüşme</button>
@@ -2335,16 +2356,16 @@
     </div>
     <div class="db">
       <div class="section"><h4>İletişim & Bilgi</h4>
-        <div class="kv"><span>E-posta</span><span>${a.email || "—"}</span></div>
-        <div class="kv"><span>Telefon</span><span style="display:flex;align-items:center;gap:8px">${a.phone || "—"} ${waBtn(a.phone)}</span></div>
-        <div class="kv"><span>Kaynak</span><span>${a.source || "—"}</span></div>
+        <div class="kv"><span>E-posta</span><span>${escapeHtml(a.email) || "—"}</span></div>
+        <div class="kv"><span>Telefon</span><span style="display:flex;align-items:center;gap:8px">${escapeHtml(a.phone) || "—"} ${waBtn(a.phone)}</span></div>
+        <div class="kv"><span>Kaynak</span><span>${escapeHtml(a.source) || "—"}</span></div>
         <div class="kv"><span>İlgi düzeyi</span><span>${"🔥".repeat(a.temp || 0) || "—"}</span></div>
         <div class="kv"><span>Görüşme tarihi</span><span>${fmtDate(a.interviewDate)}</span></div>
         <div class="kv"><span>Sonraki takip</span><span>${fmtDate(a.followup)}</span></div>
         <div class="kv"><span>İlk kayıt</span><span>${fmtDate(a.created)}</span></div>
       </div>
       <div class="section"><h4>Notlar</h4>
-        <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px;line-height:1.5;white-space:pre-wrap">${a.notes || "—"}</div>
+        <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px;line-height:1.5;white-space:pre-wrap">${escapeHtml(a.notes) || "—"}</div>
       </div>
 
       <div class="section"><h4>Dosyalar ve Belgeler (${(a.files || []).length})</h4>
@@ -2380,7 +2401,7 @@
       m.classList.add("open");
     }
     function closeModal() { document.getElementById("authorModal").classList.remove("open"); }
-    function saveAuthor() {
+    async function saveAuthor() {
       const g = v => document.getElementById(v).value.trim();
       const name = g("f_name");
       if (!name) { alert("Ad Soyad zorunlu."); return; }
@@ -2390,9 +2411,12 @@
         genres: g("f_genres").split(",").map(s => s.trim()).filter(Boolean),
         temp: +g("f_temp"), work: g("f_work"), interviewDate: g("f_interviewDate"), followup: g("f_followup"), source: g("f_source"), notes: g("f_notes")
       };
-      if (id) { Object.assign(db.authors.find(x => x.id === id), payload); }
-      else { payload.id = uid(); payload.created = new Date().toISOString().slice(0, 10); payload.logs = []; payload.addedBy = currentStaffId || "admin"; db.authors.unshift(payload); }
-      save(); closeModal(); render();
+      if (!id) { payload.id = uid(); payload.created = new Date().toISOString().slice(0, 10); payload.logs = []; payload.addedBy = currentStaffId || "admin"; }
+      await mutate(d => {
+        if (id) { Object.assign(d.authors.find(x => x.id === id), payload); }
+        else { d.authors.unshift(payload); }
+      });
+      closeModal(); render();
       if (id) openDrawer(id);
     }
     window.customConfirmResolve = null;
@@ -2409,7 +2433,8 @@
 
     async function delAuthor(id) {
       if (!(await customConfirm("Bu yazar ve tüm kayıtları silinsin mi?"))) return;
-      db.authors = db.authors.filter(x => x.id !== id); save(); closeDrawer(); render();
+      await mutate(d => { d.authors = d.authors.filter(x => x.id !== id); });
+      closeDrawer(); render();
     }
 
     /* ---------- Görüşme kaydı ---------- */
@@ -2420,7 +2445,7 @@
       document.getElementById("l_text").value = "";
       // Staff dropdown doldur
       const sel = document.getElementById("l_staff");
-      sel.innerHTML = '<option value="">— Seçiniz —</option>' + (db.staff || []).map(s => `<option value="${s.id}">${s.name} (${s.role})</option>`).join('');
+      sel.innerHTML = '<option value="">— Seçiniz —</option>' + (db.staff || []).map(s => `<option value="${s.id}">${escapeHtml(s.name)} (${escapeHtml(s.role)})</option>`).join('');
 
       if (currentStaffId) {
         sel.value = currentStaffId;
@@ -2434,17 +2459,20 @@
       document.getElementById("logModal").classList.add("open");
     }
     function closeLogModal() { document.getElementById("logModal").classList.remove("open"); }
-    function saveLog() {
+    async function saveLog() {
       const id = document.getElementById("l_authorId").value;
       const text = document.getElementById("l_text").value.trim();
       if (!text) { alert("Özet zorunlu."); return; }
       let staffId = document.getElementById("l_staff").value;
       if (currentStaffId) staffId = currentStaffId;
+      const logEntry = { type: document.getElementById("l_type").value, date: document.getElementById("l_date").value, text, staffId };
 
-      const a = db.authors.find(x => x.id === id);
-      a.logs = a.logs || [];
-      a.logs.push({ type: document.getElementById("l_type").value, date: document.getElementById("l_date").value, text, staffId });
-      save(); closeLogModal(); openDrawer(id); render();
+      await mutate(d => {
+        const a = d.authors.find(x => x.id === id);
+        a.logs = a.logs || [];
+        a.logs.push(logEntry);
+      });
+      closeLogModal(); openDrawer(id); render();
     }
 
     /* ---------- Ödeme Yönetimi ---------- */
@@ -2456,7 +2484,7 @@
         document.getElementById("p_authorId").value = "";
         const sel = document.getElementById("p_authorSelect");
         sel.innerHTML = `<option value="">-- Yazar Seçin --</option>` +
-          db.authors.map(a => `<option value="${a.id}">${a.name}</option>`).join("");
+          db.authors.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
         document.getElementById("p_authorSelectContainer").style.display = "block";
       }
       document.getElementById("p_amount").value = "";
@@ -2467,7 +2495,7 @@
       document.getElementById("payModal").classList.add("open");
     }
     function closePayModal() { document.getElementById("payModal").classList.remove("open"); }
-    function savePayment() {
+    async function savePayment() {
       let id = document.getElementById("p_authorId").value;
       if (!id) {
         id = document.getElementById("p_authorSelect").value;
@@ -2476,13 +2504,12 @@
       const totalAmount = parseFloat(document.getElementById("p_amount").value.trim());
       if (!totalAmount) { alert("Tutar zorunlu."); return; }
       const installments = parseInt(document.getElementById("p_installments").value) || 1;
-      const a = db.authors.find(x => x.id === id);
-      a.payments = a.payments || [];
 
       const baseDate = new Date(document.getElementById("p_date").value);
       const status = document.getElementById("p_status").value;
       const notes = document.getElementById("p_notes").value.trim();
 
+      const newPayments = [];
       if (installments > 1) {
         const instAmount = Math.floor(totalAmount / installments);
         const remainder = totalAmount - (instAmount * installments);
@@ -2492,26 +2519,32 @@
           let instNotes = notes + (notes ? " " : "") + `(${i + 1}/${installments}. Taksit)`;
           let instStatus = i === 0 ? status : "Bekliyor";
           let amt = (i === installments - 1) ? (instAmount + remainder) : instAmount;
-          a.payments.push({
+          newPayments.push({
             amount: amt, date: d.toISOString().slice(0, 10),
             status: instStatus, notes: instNotes
           });
         }
       } else {
-        a.payments.push({
+        newPayments.push({
           amount: totalAmount, date: document.getElementById("p_date").value,
           status: status, notes: notes
         });
       }
-      save(); closePayModal();
+      await mutate(d => {
+        const a = d.authors.find(x => x.id === id);
+        a.payments = a.payments || [];
+        a.payments.push(...newPayments);
+      });
+      closePayModal();
       if (document.getElementById("drawer").classList.contains("open")) openDrawer(id);
       render();
     }
     async function delPayment(authorId, idx) {
       if (!(await customConfirm("Ödeme silinsin mi?"))) return;
-      const a = db.authors.find(x => x.id === authorId);
-      a.payments.splice(idx, 1);
-      save();
+      await mutate(d => {
+        const a = d.authors.find(x => x.id === authorId);
+        a.payments.splice(idx, 1);
+      });
       if (document.getElementById("drawer").classList.contains("open")) openDrawer(authorId);
       render();
     }
@@ -2525,7 +2558,7 @@
         document.getElementById("fi_authorId").value = "";
         const sel = document.getElementById("fi_authorSelect");
         sel.innerHTML = `<option value="">-- Yazar Seçin --</option>` +
-          db.authors.map(a => `<option value="${a.id}">${a.name}</option>`).join("");
+          db.authors.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
         document.getElementById("fi_authorSelectContainer").style.display = "block";
       }
       document.getElementById("fi_file").value = "";
@@ -2573,14 +2606,15 @@
           });
         }
 
-        const a = db.authors.find(x => x.id === id);
-        a.files = a.files || [];
-        a.files.push({
+        const fileMeta = {
           name, size: file.size, date: new Date().toISOString().slice(0, 10), type,
           isChunked: true, fileId: fileId, totalChunks: totalChunks
+        };
+        await mutate(d => {
+          const a = d.authors.find(x => x.id === id);
+          a.files = a.files || [];
+          a.files.push(fileMeta);
         });
-
-        save();
         closeFileModal(); openDrawer(id); render();
       } catch (err) {
         console.error("Yükleme Hatası:", err);
@@ -2598,8 +2632,11 @@
           firestore.collection("crm_files").doc(`${f.fileId}_${i}`).delete().catch(e=>console.log(e));
         }
       }
-      a.files.splice(idx, 1);
-      save(); openDrawer(authorId); render();
+      await mutate(d => {
+        const da = d.authors.find(x => x.id === authorId);
+        da.files.splice(idx, 1);
+      });
+      openDrawer(authorId); render();
     }
     async function downloadFile(authorId, idx) {
       const a = db.authors.find(x => x.id === authorId);
@@ -2667,13 +2704,13 @@
       if (!staff.length) return pendingApprovalHtml + addForm + `<div class="empty">Henüz ekip üyesi eklenmemiş.</div>`;
 
       const cards = stats.map(s => {
-        const recentHtml = s.recentLogs.map(l => `<div style="font-size:11px;color:var(--muted);padding:3px 0;border-bottom:1px dashed var(--line)">${fmtDate(l.date)} • ${l.authorName} • <span style="color:var(--txt)">${l.text.slice(0, 50)}${l.text.length > 50 ? '...' : ''}</span></div>`).join('');
+        const recentHtml = s.recentLogs.map(l => `<div style="font-size:11px;color:var(--muted);padding:3px 0;border-bottom:1px dashed var(--line)">${fmtDate(l.date)} • ${escapeHtml(l.authorName)} • <span style="color:var(--txt)">${escapeHtml(l.text.slice(0, 50))}${l.text.length > 50 ? '...' : ''}</span></div>`).join('');
         return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-        <div class="avatar" style="background:${avatarColor(s.name)}">${initials(s.name)}</div>
+        <div class="avatar" style="background:${avatarColor(s.name)}">${escapeHtml(initials(s.name))}</div>
         <div style="flex:1">
-          <div style="font-weight:600;font-size:15px">${s.name}</div>
-          <div style="color:var(--muted);font-size:12px">${s.role || '—'}</div>
+          <div style="font-weight:600;font-size:15px">${escapeHtml(s.name)}</div>
+          <div style="color:var(--muted);font-size:12px">${escapeHtml(s.role) || '—'}</div>
         </div>
         <div style="text-align:right">
           <div style="font-size:20px;font-weight:700;color:var(--brand)">${s.totalLogs}</div>
@@ -2692,18 +2729,18 @@
       return pendingApprovalHtml + addForm + cards;
     }
 
-    function addStaff() {
+    async function addStaff() {
       const name = document.getElementById('st_name').value.trim();
       if (!name) { alert('Ad Soyad zorunlu.'); return; }
       const role = document.getElementById('st_role').value.trim();
-      db.staff = db.staff || [];
-      db.staff.push({ id: uid(), name, role });
-      save(); render();
+      const newStaff = { id: uid(), name, role };
+      await mutate(d => { d.staff = d.staff || []; d.staff.push(newStaff); });
+      render();
     }
     async function delStaff(id) {
       if (!(await customConfirm('Bu ekip üyesi silinsin mi? Görüşme kayıtlarındaki referanslar kalacaktır.'))) return;
-      db.staff = (db.staff || []).filter(x => x.id !== id);
-      save(); render();
+      await mutate(d => { d.staff = (d.staff || []).filter(x => x.id !== id); });
+      render();
     }
 
     /* ---------- Yedek al / yükle ---------- */
@@ -2743,8 +2780,8 @@
            <button class="btn ghost" style="padding:5px 10px;font-size:12px;color:var(--red)" onclick="rejectUser('${doc.id}')">❌ Reddet</button>`;
           html += `<div style="display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 16px">
         <div style="flex:1">
-          <div style="font-weight:600;font-size:14px">${d.name || '—'}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">@${d.username || d.email} • ${d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—'}</div>
+          <div style="font-weight:600;font-size:14px">${escapeHtml(d.name) || '—'}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">@${escapeHtml(d.username || d.email)} • ${d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—'}</div>
         </div>
         ${statusBadge}
         <div style="display:flex;gap:6px">${actions}</div>
@@ -2770,12 +2807,14 @@
 
         // Otomatik olarak Ekip'e de ekle
         if (d && d.name) {
-          db.staff = db.staff || [];
           const clean = str => str.toLowerCase().replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ç/g, 'c').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/\s+/g, '');
-          if (!db.staff.find(s => clean(s.name) === clean(d.name))) {
-            db.staff.push({ id: uid(), name: d.name, role: "Personel" });
-            await save();
-          }
+          const newStaffMember = { id: uid(), name: d.name, role: "Personel" };
+          await mutate(state => {
+            state.staff = state.staff || [];
+            if (!state.staff.find(s => clean(s.name) === clean(d.name))) {
+              state.staff.push(newStaffMember);
+            }
+          });
         }
 
         render();
