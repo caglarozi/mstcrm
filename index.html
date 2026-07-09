@@ -1847,16 +1847,23 @@
       }
 
       const isPersonel = currentRole === "personel";
+      const canSeeAccounting = currentRole === "admin" || currentRole === "muhasebe";
       const navTeam = document.querySelector('[data-view="team"]');
       if (navTeam) navTeam.style.display = isPersonel ? "none" : "block";
       const navPay = document.querySelector('[data-view="accounting"]');
-      if (navPay) navPay.style.display = "flex"; // Herkese açık
+      if (navPay) navPay.style.display = canSeeAccounting ? "flex" : "none";
 
       if (isPersonel && currentView === "team") {
         currentView = "dashboard";
         document.querySelectorAll(".nav button").forEach(x => x.classList.remove("active"));
         document.querySelector('[data-view="dashboard"]').classList.add("active");
         return render(); // Re-render with new view
+      }
+      if (!canSeeAccounting && currentView === "accounting") {
+        currentView = "dashboard";
+        document.querySelectorAll(".nav button").forEach(x => x.classList.remove("active"));
+        document.querySelector('[data-view="dashboard"]').classList.add("active");
+        return render();
       }
 
       // Arama çubuğu ve buton gösterimi
@@ -2964,6 +2971,7 @@
     }
 
 
+    const ROLE_LABELS = { personel: "Personel", muhasebe: "Muhasebe", admin: "Admin" };
     async function loadPendingUsers() {
       const area = document.getElementById("pendingUsersArea");
       if (!area) return;
@@ -2973,17 +2981,22 @@
           area.innerHTML = '<div class="empty">Henüz kayıt olan kullanıcı yok.</div>';
           return;
         }
-        let html = '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">';
-        let count = 0;
+        const pending = [];
+        const active = [];
         snap.forEach(doc => {
-          const d = doc.data();
-          if (d.approved === true) return; // Onaylananları gizle
-          count++;
+          const d = { id: doc.id, ...doc.data() };
+          (d.approved === true ? active : pending).push(d);
+        });
 
-          const statusBadge = '<span style="background:rgba(244,183,64,.15);color:var(--amber);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600">⏳ Onay Bekliyor</span>';
-          const actions = `<button class="btn" style="padding:5px 12px;font-size:12px" onclick="approveUser('${doc.id}')">✅ Onayla</button>
-           <button class="btn ghost" style="padding:5px 10px;font-size:12px;color:var(--red)" onclick="rejectUser('${doc.id}')">❌ Reddet</button>`;
-          html += `<div style="display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 16px">
+        let html = '';
+
+        if (pending.length) {
+          html += '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">';
+          pending.forEach(d => {
+            const statusBadge = '<span style="background:rgba(244,183,64,.15);color:var(--amber);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600">⏳ Onay Bekliyor</span>';
+            const actions = `<button class="btn" style="padding:5px 12px;font-size:12px" onclick="approveUser('${d.id}')">✅ Onayla</button>
+           <button class="btn ghost" style="padding:5px 10px;font-size:12px;color:var(--red)" onclick="rejectUser('${d.id}')">❌ Reddet</button>`;
+            html += `<div style="display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 16px">
         <div style="flex:1">
           <div style="font-weight:600;font-size:14px">${escapeHtml(d.name) || '—'}</div>
           <div style="font-size:12px;color:var(--muted);margin-top:2px">@${escapeHtml(d.username || d.email)} • ${d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—'}</div>
@@ -2991,16 +3004,45 @@
         ${statusBadge}
         <div style="display:flex;gap:6px">${actions}</div>
       </div>`;
-        });
-        if (count === 0) {
-          area.innerHTML = '<div class="empty">Henüz onay bekleyen kullanıcı yok.</div>';
-        } else {
+          });
           html += '</div>';
-          area.innerHTML = html;
         }
+
+        if (active.length) {
+          html += '<div style="font-size:11px;color:var(--muted);margin:18px 0 10px;text-transform:uppercase;letter-spacing:.5px">Aktif Kullanıcılar ve Rolleri</div>';
+          html += '<div style="display:flex;flex-direction:column;gap:10px">';
+          active.forEach(d => {
+            const role = d.role || 'personel';
+            const roleOptions = Object.keys(ROLE_LABELS).map(r =>
+              `<option value="${r}" ${role === r ? 'selected' : ''}>${ROLE_LABELS[r]}</option>`
+            ).join('');
+            html += `<div style="display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 16px">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:14px">${escapeHtml(d.name) || '—'}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">@${escapeHtml(d.username || d.email)}</div>
+        </div>
+        <select onchange="changeUserRole('${d.id}', this.value)" style="width:auto;padding:6px 10px;font-size:12px">${roleOptions}</select>
+      </div>`;
+          });
+          html += '</div>';
+        }
+
+        area.innerHTML = html || '<div class="empty">Henüz kullanıcı yok.</div>';
       } catch (e) {
         area.innerHTML = '<div class="empty" style="color:var(--red)">Kullanıcılar yüklenemedi: ' + e.message + '</div>';
       }
+    }
+    async function changeUserRole(userId, newRole) {
+      if (newRole === 'admin' && !(await customConfirm("Bu kullanıcıya tam yönetici (admin) yetkisi verilsin mi? Tüm verilere ve ayarlara erişebilir.", "Evet, Admin Yap"))) {
+        await loadPendingUsers();
+        return;
+      }
+      try {
+        await firestore.collection("users").doc(userId).update({ role: newRole });
+      } catch (e) {
+        alert('Rol güncellenemedi: ' + e.message);
+      }
+      await loadPendingUsers();
     }
 
     async function approveUser(userId) {
