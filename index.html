@@ -1821,7 +1821,11 @@
       const t = searchTerm();
       return db.authors.filter(a => {
         const hay = (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase();
-        return (!t || hay.includes(t)) && (filterStatus === "all" || a.status === filterStatus);
+        let statusMatch = (filterStatus === "all" || a.status === filterStatus);
+        if (currentView === "authors" && (a.status === "sozlesme" || a.status === "yayinda")) {
+          statusMatch = false;
+        }
+        return (!t || hay.includes(t)) && statusMatch;
       });
     }
 
@@ -1942,8 +1946,9 @@
     function viewAuthors() {
       const list = filteredAuthors();
 
-      const counts = { all: db.authors.length };
-      Object.keys(STATUS).forEach(s => counts[s] = db.authors.filter(a => a.status === s).length);
+      const visibleStatuses = Object.keys(STATUS).filter(s => s !== "sozlesme" && s !== "yayinda");
+      const counts = { all: db.authors.filter(a => a.status !== "sozlesme" && a.status !== "yayinda").length };
+      visibleStatuses.forEach(s => counts[s] = db.authors.filter(a => a.status === s).length);
 
       let bar = `<div class="toolbar" style="gap:10px; align-items:center; flex-wrap:wrap;">`;
       const allActive = filterStatus === 'all';
@@ -1952,7 +1957,8 @@
           Tümü (${counts.all})
         </span>`;
         
-      bar += Object.entries(STATUS).map(([k, v]) => {
+      bar += visibleStatuses.map(k => {
+        const v = STATUS[k];
         const isActive = filterStatus === k;
         const style = isActive ? `background: ${v.color}18; border-color: ${v.color}; color: ${v.color}; box-shadow: 0 0 14px ${v.color}33; text-shadow: 0 0 12px ${v.color}44;` : ``;
         return `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setFilter('${k}')" onmouseover="this.style.borderColor='${v.color}'" onmouseout="if(!${isActive}) this.style.borderColor='var(--line)'">
