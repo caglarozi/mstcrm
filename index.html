@@ -1189,7 +1189,7 @@
         <button data-view="dashboard" class="active">📊 Panel</button>
         <button data-view="authors">👤 Yazarlar</button>
         <button data-view="contracts">📕 Sözleşmeli Yazarlar</button>
-        <button data-view="files">📁 Dosyalar</button>
+        <button data-view="accounting">💰 Ödemeler</button>
         <button data-view="followups">🔔 Takip Listesi</button>
         <button data-view="team">👥 Ekip</button>
       </nav>
@@ -1283,8 +1283,8 @@
         <button class="btn"
           style="flex: 1; background: rgba(244, 67, 54, 0.85); color: #fff; border: 1px solid rgba(244, 67, 54, 0.4); border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;"
           onmouseover="this.style.background='rgba(244,67,54,1)'"
-          onmouseout="this.style.background='rgba(244,67,54,0.85)'" onclick="window.customConfirmResolve(true)">Evet,
-          Sil</button>
+          onmouseout="this.style.background='rgba(244,67,54,0.85)'" onclick="window.customConfirmResolve(true)"
+          id="customConfirmConfirmBtn">Evet, Sil</button>
       </div>
     </div>
   </div>
@@ -1297,7 +1297,7 @@
       <div class="row2">
         <div><label>Ad Soyad *</label><input id="f_name" placeholder="Örn. Elif Kaya"></div>
         <div><label>Durum</label>
-          <select id="f_status">
+          <select id="f_status" onchange="toggleFPackage()">
             <option value="aday">Aday</option>
             <option value="gorusuluyor">Görüşülüyor</option>
             <option value="degerlendirme">Değerlendirmede</option>
@@ -1306,6 +1306,18 @@
             <option value="arsiv">Arşiv</option>
           </select>
         </div>
+      </div>
+      <div class="row2" id="f_packageContainer" style="display:none">
+        <div>
+          <label>Paket</label>
+          <select id="f_package">
+            <option value="">-- Paket Seçin --</option>
+            <option value="vip">VIP Paket</option>
+            <option value="pro">Profesyonel Paket</option>
+            <option value="standart">Standart Paket</option>
+          </select>
+        </div>
+        <div></div>
       </div>
       <div class="row2">
         <div><label>E-posta</label><input id="f_email" placeholder="ornek@mail.com"></div>
@@ -1385,28 +1397,31 @@
   <!-- PAYMENT MODAL -->
   <div class="modal" id="payModal">
     <div class="box">
-      <h2>Ödeme / Avans Ekle</h2>
+      <h2>Ödeme Bilgisi</h2>
       <input type="hidden" id="p_authorId">
+      <input type="hidden" id="p_package">
       <div id="p_authorSelectContainer" style="display:none; margin-bottom: 12px">
         <label>Yazar Seçin</label>
         <select id="p_authorSelect"></select>
       </div>
-      <div class="row2">
-        <div><label>Toplam Tutar (₺)</label><input type="number" id="p_amount" placeholder="Örn: 5000"></div>
-        <div><label>Taksit Sayısı</label><input type="number" id="p_installments" value="1" min="1" max="24"></div>
+      <div id="p_noPackageWarning" style="display:none; margin-bottom:12px; padding:10px 12px; background:rgba(244,183,64,.12); border:1px solid rgba(244,183,64,.4); border-radius:8px; color:#f4b740; font-size:12px;">
+        ⚠️ Bu yazar için paket seçilmemiş, tutarı elle girin.
       </div>
-      <div class="row2">
-        <div><label>Başlangıç Tarihi</label><input type="date" id="p_date"></div>
-        <div>
-          <label>Durum</label>
-          <select id="p_status">
-            <option value="Ödendi">Ödendi</option>
-            <option value="Bekliyor">Bekliyor</option>
-            <option value="İptal">İptal</option>
-          </select>
-        </div>
+      <label>Ödeme Şekli</label>
+      <select id="p_method" onchange="applyPackage()">
+        <option value="">-- Seçin --</option>
+        <option value="taksit">Taksit</option>
+        <option value="nakit">Nakit (KDV hariç)</option>
+        <option value="pesin">Peşin Kredi Kartı</option>
+      </select>
+      <div id="p_installmentsContainer" style="display:none">
+        <label>Taksit Sayısı</label>
+        <input type="number" id="p_installments" value="1" min="1" max="6">
       </div>
-      <label>Açıklama</label><input id="p_notes" placeholder="Örn: Kaparo ödemesi">
+      <label>Toplam Tutar (₺)</label><input type="number" id="p_amount" placeholder="Örn: 5000">
+      <input type="hidden" id="p_date">
+      <input type="hidden" id="p_status" value="Ödendi">
+      <input type="hidden" id="p_notes">
       <div class="actions">
         <button class="btn ghost" onclick="closePayModal()">Vazgeç</button>
         <button class="btn" onclick="savePayment()">Kaydet</button>
@@ -1475,12 +1490,21 @@
       arsiv: { label: "Arşiv", color: "#5b6070" }
     };
     const PIPELINE = ["aday", "gorusuluyor", "degerlendirme", "sozlesme", "yayinda"];
+    const PACKAGES = {
+      vip: { label: "VIP Paket", withVat: 70800, noVat: 59000 },
+      pro: { label: "Profesyonel Paket", withVat: 42000, noVat: 35000 },
+      standart: { label: "Standart Paket", withVat: 24000, noVat: 20000 }
+    };
+    const PAYMENT_METHODS = {
+      taksit: { label: "Taksit", vatIncluded: true, installments: true },
+      nakit: { label: "Nakit", vatIncluded: false, installments: false },
+      pesin: { label: "Peşin Kredi Kartı", vatIncluded: true, installments: false }
+    };
 
     let db = { staff: [], authors: [] };
     let currentView = "dashboard";
     let filterStatus = "all";
     let filterDate = "all";
-    let filterFile = "Sözleşme";
     let currentRole = "admin";
     let currentStaffId = null;
     let isRegistering = false;
@@ -1795,7 +1819,7 @@
       contracts: ["Sözleşmeli Yazarlar", "Sözleşme yaptığımız yazarlar"],
       followups: ["Takip Listesi", "Yaklaşan ve geciken takipler"],
       team: ["Ekip", "Görüşmeciler ve ekip üyeleri"],
-      files: ["Dosyalar", "Tüm yüklenen dosya ve belgeler"]
+      accounting: ["Ödemeler", "Sözleşmeli yazarların ödeme takibi"]
     };
 
     /* ---------- Render ---------- */
@@ -1825,7 +1849,7 @@
       const isPersonel = currentRole === "personel";
       const navTeam = document.querySelector('[data-view="team"]');
       if (navTeam) navTeam.style.display = isPersonel ? "none" : "block";
-      const navPay = document.querySelector('[data-view="files"]');
+      const navPay = document.querySelector('[data-view="accounting"]');
       if (navPay) navPay.style.display = "flex"; // Herkese açık
 
       if (isPersonel && currentView === "team") {
@@ -1841,7 +1865,7 @@
         searchInput.style.display = "none";
       } else {
         searchInput.style.display = "block";
-        searchInput.placeholder = currentView === "team" ? "🔍 Ekip üyesi ara..." : currentView === "files" ? "🔍 Yazar, telefon veya dosya adı ara..." : "🔍 Yazar, telefon, tür, not ara...";
+        searchInput.placeholder = currentView === "team" ? "🔍 Ekip üyesi ara..." : currentView === "accounting" ? "🔍 Yazar veya eser ara..." : "🔍 Yazar, telefon, tür, not ara...";
       }
       document.getElementById("btnNewAuthor").style.display = currentView === "authors" ? "inline-block" : "none";
 
@@ -1852,7 +1876,7 @@
       }
       else if (currentView === "authors") c.innerHTML = viewAuthors();
       else if (currentView === "contracts") c.innerHTML = viewContracts();
-      else if (currentView === "files") c.innerHTML = viewFiles();
+      else if (currentView === "accounting") { c.innerHTML = viewAccounting(); setTimeout(initAccountingChart, 0); }
       else if (currentView === "followups") c.innerHTML = viewFollowups();
       else if (currentView === "team") { c.innerHTML = viewTeam(); if (currentRole === "admin") setTimeout(loadPendingUsers, 0); }
     }
@@ -1914,6 +1938,54 @@
 
     let chartStatus = null;
     let chartGenre = null;
+    let chartMonthlyRevenue = null;
+
+    function getMonthlyRevenue(monthsBack) {
+      const now = new Date();
+      const months = [];
+      for (let i = monthsBack - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({ key: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'), label: d.toLocaleDateString('tr-TR', { month: 'short', year: '2-digit' }), total: 0 });
+      }
+      const map = {};
+      months.forEach(m => map[m.key] = m);
+      db.authors.forEach(a => (a.payments || []).forEach(p => {
+        if (p.status !== "Ödendi" || !p.date) return;
+        const d = new Date(p.date);
+        const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        if (map[key]) map[key].total += p.amount;
+      }));
+      return months;
+    }
+
+    function initAccountingChart() {
+      if (typeof Chart === 'undefined') return;
+      const ctx = document.getElementById('monthlyRevenueChart');
+      if (!ctx) return;
+      const monthly = getMonthlyRevenue(6);
+      if (chartMonthlyRevenue) chartMonthlyRevenue.destroy();
+      chartMonthlyRevenue = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: monthly.map(m => m.label),
+          datasets: [{
+            label: 'Tahsil Edilen',
+            data: monthly.map(m => m.total),
+            backgroundColor: '#37c98a',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { color: '#9aa1b2', font: { family: 'Inter, sans-serif' }, callback: v => v.toLocaleString('tr-TR') }, grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } },
+            x: { ticks: { color: '#9aa1b2', font: { family: 'Inter, sans-serif' } }, grid: { display: false }, border: { display: false } }
+          }
+        }
+      });
+    }
 
     function initCharts() {
       if (typeof Chart === 'undefined') return;
@@ -2145,9 +2217,55 @@
 
     function setFilter(s) { filterStatus = s; render(); }
     function setDateFilter(d) { filterDate = d; render(); }
-    function setFileFilter(s) { filterFile = s; render(); }
     let filterContract = "all";
     function setContractFilter(s) { filterContract = s; render(); }
+    let filterPackage = "all";
+    function setPackageFilter(p) { filterPackage = p; render(); }
+    function openPackageFilterModal() {
+      const allContracted = db.authors.filter(a => a.status === "sozlesme" || a.status === "yayinda");
+      const PKG_TYPES = ["vip", "pro", "standart"];
+
+      let content = `
+        <div class="box" style="max-width: 320px; padding: 20px;">
+          <h2 style="margin-top:0; font-size:16px;">🔽 Paket Filtresi</h2>
+          <div style="display:flex; flex-direction:column; gap: 8px;">
+            <button class="btn ${filterPackage === 'all' ? 'primary' : 'ghost'}" style="${filterPackage === 'all' ? '' : 'justify-content:flex-start;'} width:100%;" onclick="setPackageFilter('all'); closePackageFilterModal();">
+              Tüm Paketler (${allContracted.length})
+            </button>
+      `;
+
+      PKG_TYPES.forEach(k => {
+        const pkg = PACKAGES[k];
+        const count = allContracted.filter(a => a.package === k).length;
+        const isActive = filterPackage === k;
+        const style = isActive ? `background: rgba(124,108,255,.15); border-color: var(--brand); color: var(--brand);` : `justify-content:flex-start;`;
+        content += `<button class="btn ${isActive ? '' : 'ghost'}" style="${style} width:100%;" onclick="setPackageFilter('${k}'); closePackageFilterModal();">
+          ${pkg.label} (${count})
+        </button>`;
+      });
+
+      content += `
+          </div>
+          <div class="actions" style="margin-top: 16px;">
+            <button class="btn ghost" style="width:100%" onclick="closePackageFilterModal()">Kapat</button>
+          </div>
+        </div>
+      `;
+
+      let m = document.getElementById("packageFilterModal");
+      if (!m) {
+        m = document.createElement("div");
+        m.className = "modal";
+        m.id = "packageFilterModal";
+        document.body.appendChild(m);
+      }
+      m.innerHTML = content;
+      m.classList.add("open");
+    }
+    function closePackageFilterModal() {
+      const m = document.getElementById("packageFilterModal");
+      if (m) m.classList.remove("open");
+    }
 
     function viewContracts() {
       const t = searchTerm();
@@ -2177,15 +2295,22 @@
           ${ft} (${counts[ft]})
         </span>`;
       });
+
+      const allContracted = [...sozlesme, ...yayinda];
+      const pkgLabel = filterPackage === 'all' ? 'Tümü' : PACKAGES[filterPackage].label;
+      const pkgBtnStyle = filterPackage !== 'all' ? `background: rgba(124,108,255,.15); border-color: var(--brand); color: var(--brand); margin-left:auto;` : `margin-left:auto; border: 1px solid rgba(255,255,255,0.15);`;
+      bar += `<button class="btn ${filterPackage !== 'all' ? '' : 'ghost'}" style="${pkgBtnStyle}" onclick="openPackageFilterModal()">🔽 Paket: ${pkgLabel}</button>`;
       bar += `</div>`;
 
       let html = `<p class="sub" style="color:var(--muted);margin-top:-8px">Sözleşme yaptığınız tüm yazarlar burada toplanır. Toplam <b>${toplam}</b> sözleşmeli yazar.</p>`;
       html += bar;
 
       let displayList = [];
-      if (filterContract === 'all') displayList = [...sozlesme, ...yayinda];
+      if (filterContract === 'all') displayList = allContracted;
       else if (filterContract === 'Aktif Sözleşme') displayList = sozlesme;
       else if (filterContract === 'Yayında') displayList = yayinda;
+
+      if (filterPackage !== 'all') displayList = displayList.filter(a => a.package === filterPackage);
 
       if (displayList.length) {
         html += `<div class="grid authors">${displayList.map(authorCard).join("")}</div>`;
@@ -2196,73 +2321,93 @@
       return html;
     }
 
-    function viewFiles() {
-      let allFiles = [];
-      db.authors.forEach(a => {
-        (a.files || []).forEach((f, idx) => {
-          allFiles.push({ ...f, authorId: a.id, authorName: a.name, authorPhone: a.phone, originalIndex: idx });
-        });
-      });
-
+    function viewAccounting() {
       const t = searchTerm();
-      if (t) {
-        allFiles = allFiles.filter(f => (f.authorName + " " + (f.authorPhone || "") + " " + (f.name || "")).toLowerCase().includes(t));
-      }
+      const match = a => !t || (a.name + " " + (a.work || "")).toLowerCase().includes(t);
+      const contracted = db.authors.filter(a => (a.status === "sozlesme" || a.status === "yayinda") && match(a));
 
-      const FILE_TYPES = ["Sözleşme", "Dekont", "Kapak", "Diğer"];
-      const counts = {};
-      FILE_TYPES.forEach(ft => counts[ft] = allFiles.filter(f => (f.type || "Diğer") === ft).length);
+      let totalPaid = 0, totalPending = 0;
+      contracted.forEach(a => (a.payments || []).forEach(p => {
+        if (p.status === "Ödendi") totalPaid += p.amount;
+        else if (p.status === "Bekliyor") totalPending += p.amount;
+      }));
 
-      const FT_COLORS = { "Sözleşme": "#a99bff", "Dekont": "#37c98a", "Kapak": "#f2617a", "Diğer": "#9aa1b2" };
-      let bar = `<div class="toolbar" style="margin-top:-8px;margin-bottom:20px;gap:10px">`;
-      FILE_TYPES.forEach(ft => {
-        const c = FT_COLORS[ft] || "#9aa1b2";
-        const isActive = filterFile === ft;
-        const style = isActive ? `background: ${c}15; border-color: ${c}; color: ${c}; box-shadow: 0 0 14px ${c}40;` : ``;
-        bar += `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setFileFilter('${ft}')" onmouseover="this.style.borderColor='${c}'" onmouseout="if(!${isActive}) this.style.borderColor='rgba(255,255,255,0.08)'">
-          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:8px;box-shadow:0 0 8px ${c}"></span>
-          ${ft} (${counts[ft]})
-        </span>`;
-      });
-      bar += `</div>`;
-
-      if (filterFile !== 'all') {
-        allFiles = allFiles.filter(f => (f.type || "Diğer") === filterFile);
-      }
-
-      allFiles.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-      let html = bar + `<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
-    <button class="btn" onclick="openFileModal()">+ Yeni Dosya Yükle</button>
+      let html = `<div class="grid stats" style="margin-bottom:16px">
+    <div class="card stat"><div class="n">${contracted.length}</div><div class="l">Sözleşmeli yazar</div></div>
+    <div class="card stat"><div class="n">${totalPaid.toLocaleString('tr-TR')} ₺</div><div class="l">Tahsil edilen</div><span class="chip" style="background:rgba(55,201,138,.15);color:#37c98a">Ödendi</span></div>
+    <div class="card stat"><div class="n">${totalPending.toLocaleString('tr-TR')} ₺</div><div class="l">Bekleyen ödeme</div><span class="chip" style="background:rgba(244,183,64,.15);color:#f4b740">Bekliyor</span></div>
   </div>`;
 
-      if (allFiles.length === 0) {
-        return html + `<div class="empty">Dosya kaydı bulunamadı.</div>`;
-      }
+      const monthly = getMonthlyRevenue(6);
+      const thisMonth = monthly[monthly.length - 1].total;
+      const lastMonth = monthly.length > 1 ? monthly[monthly.length - 2].total : 0;
+      const diff = thisMonth - lastMonth;
+      const pct = lastMonth > 0 ? Math.round((diff / lastMonth) * 100) : (thisMonth > 0 ? 100 : 0);
+      const trendColor = diff >= 0 ? '#37c98a' : '#f2617a';
+      const trendArrow = diff >= 0 ? '▲' : '▼';
 
-      let listHtml = `<div class="card"><table style="width:100%;text-align:left;border-collapse:collapse;font-size:14px">
-    <tr style="border-bottom:1px solid var(--line);color:var(--muted)">
-      <th style="padding:10px 8px;font-weight:600">Tarih</th>
-      <th style="padding:10px 8px;font-weight:600">Yazar</th>
-      <th style="padding:10px 8px;font-weight:600">Dosya Adı</th>
-      <th style="padding:10px 8px;font-weight:600">Boyut</th>
-      <th></th>
-    </tr>`;
+      html += `<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <h4 style="margin:0;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">📈 Aylık Gelir (Tahsil Edilen)</h4>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px;font-weight:700">${thisMonth.toLocaleString('tr-TR')} ₺ <span style="font-weight:400;font-size:12px;color:var(--muted)">bu ay</span></span>
+        <span style="font-size:12px;font-weight:600;color:${trendColor}">${trendArrow} %${Math.abs(pct)} geçen aya göre</span>
+      </div>
+    </div>
+    <div style="height:220px"><canvas id="monthlyRevenueChart"></canvas></div>
+  </div>`;
 
-      listHtml += allFiles.map(f => {
-        return `<tr style="border-bottom:1px solid var(--line)">
-      <td style="padding:10px 8px">${fmtDate(f.date)}</td>
-      <td style="padding:10px 8px;font-weight:600;cursor:pointer;color:var(--blue)" onclick="openDrawer('${f.authorId}')">${escapeHtml(f.authorName)}</td>
-      <td style="padding:10px 8px;font-weight:600"><span class="badge" style="background:var(--panel-2);border:1px solid var(--line);margin-right:6px;font-size:11px;padding:2px 8px">${escapeHtml(f.type) || 'Diğer'}</span><a href="#" onclick="downloadFile('${f.authorId}', ${f.originalIndex});return false;" style="color:var(--brand);text-decoration:underline">${escapeHtml(f.name)}</a></td>
-      <td style="padding:10px 8px;color:var(--muted)">${(f.size / 1024).toFixed(1)} KB</td>
-      <td style="padding:10px 8px;text-align:right">
-        ${currentRole === 'admin' ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delFile('${f.authorId}', ${f.originalIndex})" title="Sil">🗑</button>` : ''}
-      </td>
-    </tr>`;
+      if (!contracted.length) return html + `<div class="empty">Sözleşmeli yazar bulunamadı.</div>`;
+
+      const STATUS_COLORS = { "Ödendi": "#37c98a", "Bekliyor": "#f4b740", "İptal": "#9aa1b2" };
+
+      html += contracted.map(a => {
+        const payments = (a.payments || []).slice().sort((p, q) => new Date(p.date) - new Date(q.date));
+        const paid = payments.filter(p => p.status === "Ödendi");
+        const pending = payments.filter(p => p.status === "Bekliyor");
+        const paidSum = paid.reduce((s, p) => s + p.amount, 0);
+        const pendingSum = pending.reduce((s, p) => s + p.amount, 0);
+
+        const rows = payments.map(p => {
+          const realIdx = a.payments.indexOf(p);
+          const col = STATUS_COLORS[p.status] || "#9aa1b2";
+          const markPaidBtn = p.status === "Bekliyor" ? `<button class="btn ghost" style="padding:4px 10px;font-size:12px;color:#37c98a;border-color:#37c98a" onclick="markPaymentPaid('${a.id}', ${realIdx})">✓ Ödendi</button>` : '';
+          const delBtn = currentRole === 'admin' ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delPayment('${a.id}', ${realIdx})" title="Sil">🗑</button>` : '';
+          return `<tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:8px">${fmtDate(p.date)}</td>
+        <td style="padding:8px;font-weight:600">${p.amount.toLocaleString('tr-TR')} ₺</td>
+        <td style="padding:8px"><span class="badge" style="background:${col}22;color:${col}">${escapeHtml(p.status)}</span></td>
+        <td style="padding:8px;color:var(--muted);font-size:12px">${escapeHtml(p.notes) || '—'}</td>
+        <td style="padding:8px;text-align:right"><div style="display:flex;gap:6px;justify-content:flex-end">${markPaidBtn}${delBtn}</div></td>
+      </tr>`;
+        }).join('');
+
+        return `<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="openDrawer('${a.id}')">
+          <div class="avatar" style="background:${avatarColor(a.name)}">${escapeHtml(initials(a.name))}</div>
+          <div>
+            <div style="font-weight:600;font-size:15px">${escapeHtml(a.name)}</div>
+            <div style="color:var(--muted);font-size:12px">${escapeHtml(a.work) || "—"}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:20px;text-align:right">
+          <div><div style="font-size:11px;color:var(--muted)">Ödenen</div><div style="font-weight:700;color:#37c98a">${paidSum.toLocaleString('tr-TR')} ₺</div></div>
+          <div><div style="font-size:11px;color:var(--muted)">Bekleyen</div><div style="font-weight:700;color:#f4b740">${pendingSum.toLocaleString('tr-TR')} ₺</div></div>
+          <div><div style="font-size:11px;color:var(--muted)">Taksit</div><div style="font-weight:700">${paid.length}/${payments.length}</div></div>
+          <button class="btn ghost" style="padding:6px 10px" onclick="openPayModal('${a.id}')" title="Ödeme Ekle">+ Ödeme</button>
+        </div>
+      </div>
+      ${payments.length ? `<table style="width:100%;text-align:left;border-collapse:collapse;font-size:13px">
+        <tr style="border-bottom:1px solid var(--line);color:var(--muted)">
+          <th style="padding:8px;font-weight:600">Tarih</th><th style="padding:8px;font-weight:600">Tutar</th><th style="padding:8px;font-weight:600">Durum</th><th style="padding:8px;font-weight:600">Not</th><th></th>
+        </tr>
+        ${rows}
+      </table>` : `<div class="empty" style="padding:12px 0">Henüz ödeme kaydı yok.</div>`}
+    </div>`;
       }).join('');
 
-      listHtml += `</table></div>`;
-      return html + listHtml;
+      return html;
     }
 
 
@@ -2393,36 +2538,54 @@
         g("f_genres").value = (a.genres || []).join(", "); g("f_temp").value = a.temp || 3;
         g("f_work").value = a.work || ""; g("f_interviewDate").value = a.interviewDate || ""; g("f_followup").value = a.followup || ""; g("f_source").value = a.source || "Diğer";
         g("f_notes").value = a.notes || "";
+        g("f_package").value = a.package || "";
       } else {
         document.getElementById("modalTitle").textContent = "Yeni Yazar";
         ["f_id", "f_name", "f_email", "f_phone", "f_genres", "f_work", "f_interviewDate", "f_followup", "f_notes"].forEach(v => g(v).value = "");
-        g("f_status").value = "aday"; g("f_temp").value = "3"; g("f_source").value = "E-posta başvurusu";
+        g("f_status").value = "aday"; g("f_temp").value = "3"; g("f_source").value = "E-posta başvurusu"; g("f_package").value = "";
       }
+      toggleFPackage();
       m.classList.add("open");
     }
     function closeModal() { document.getElementById("authorModal").classList.remove("open"); }
+    function toggleFPackage() {
+      const show = document.getElementById("f_status").value === "sozlesme";
+      document.getElementById("f_packageContainer").style.display = show ? "grid" : "none";
+    }
     async function saveAuthor() {
       const g = v => document.getElementById(v).value.trim();
       const name = g("f_name");
       if (!name) { alert("Ad Soyad zorunlu."); return; }
       const id = g("f_id");
+      const oldAuthor = id ? db.authors.find(x => x.id === id) : null;
+      const wasContracted = oldAuthor ? oldAuthor.status === "sozlesme" : false;
       const payload = {
         name, status: g("f_status"), email: g("f_email"), phone: g("f_phone"),
         genres: g("f_genres").split(",").map(s => s.trim()).filter(Boolean),
-        temp: +g("f_temp"), work: g("f_work"), interviewDate: g("f_interviewDate"), followup: g("f_followup"), source: g("f_source"), notes: g("f_notes")
+        temp: +g("f_temp"), work: g("f_work"), interviewDate: g("f_interviewDate"), followup: g("f_followup"), source: g("f_source"), notes: g("f_notes"),
+        package: g("f_package") || null
       };
-      if (!id) { payload.id = uid(); payload.created = new Date().toISOString().slice(0, 10); payload.logs = []; payload.addedBy = currentStaffId || "admin"; }
+      const newId = id || uid();
+      if (!id) { payload.id = newId; payload.created = new Date().toISOString().slice(0, 10); payload.logs = []; payload.addedBy = currentStaffId || "admin"; }
       await mutate(d => {
         if (id) { Object.assign(d.authors.find(x => x.id === id), payload); }
         else { d.authors.unshift(payload); }
       });
       closeModal(); render();
       if (id) openDrawer(id);
+
+      // Yazar yeni sözleşmeli olduysa (durum ilk kez "Sözleşme"ye geçtiyse)
+      // ödeme şekli sorulması için ödeme ekranı otomatik açılır; formda
+      // seçilen paket buraya otomatik taşınır.
+      if (payload.status === "sozlesme" && !wasContracted) {
+        openPayModal(newId);
+      }
     }
     window.customConfirmResolve = null;
-    async function customConfirm(message) {
+    async function customConfirm(message, confirmLabel) {
       return new Promise(resolve => {
         document.getElementById("customConfirmMessage").textContent = message;
+        document.getElementById("customConfirmConfirmBtn").textContent = confirmLabel || "Evet, Sil";
         document.getElementById("customConfirmModal").classList.add("open");
         window.customConfirmResolve = function (result) {
           document.getElementById("customConfirmModal").classList.remove("open");
@@ -2477,9 +2640,11 @@
 
     /* ---------- Ödeme Yönetimi ---------- */
     function openPayModal(authorId) {
+      let author = null;
       if (authorId) {
         document.getElementById("p_authorId").value = authorId;
         document.getElementById("p_authorSelectContainer").style.display = "none";
+        author = db.authors.find(x => x.id === authorId);
       } else {
         document.getElementById("p_authorId").value = "";
         const sel = document.getElementById("p_authorSelect");
@@ -2487,14 +2652,46 @@
           db.authors.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
         document.getElementById("p_authorSelectContainer").style.display = "block";
       }
+      // Paket artık burada seçilmiyor: yazarın kaydındaki paketi kullanılır.
+      const pkgKey = (author && author.package && PACKAGES[author.package]) ? author.package : "";
+      document.getElementById("p_package").value = pkgKey;
+      document.getElementById("p_noPackageWarning").style.display = (author && !pkgKey) ? "block" : "none";
+      document.getElementById("p_method").value = "";
       document.getElementById("p_amount").value = "";
       document.getElementById("p_installments").value = "1";
+      document.getElementById("p_installmentsContainer").style.display = "none";
       document.getElementById("p_date").value = new Date().toISOString().slice(0, 10);
       document.getElementById("p_notes").value = "";
       document.getElementById("p_status").value = "Ödendi";
+      applyPackage();
       document.getElementById("payModal").classList.add("open");
     }
     function closePayModal() { document.getElementById("payModal").classList.remove("open"); }
+    function applyPackage() {
+      const key = document.getElementById("p_package").value;
+      const methodKey = document.getElementById("p_method").value;
+      const method = PAYMENT_METHODS[methodKey];
+      const amountEl = document.getElementById("p_amount");
+
+      if (key && PACKAGES[key]) {
+        const pkg = PACKAGES[key];
+        const vatIncluded = method ? method.vatIncluded : true;
+        amountEl.value = vatIncluded ? pkg.withVat : pkg.noVat;
+        amountEl.readOnly = true;
+        document.getElementById("p_notes").value = pkg.label + (method ? " (" + method.label + ")" : "");
+      } else {
+        amountEl.readOnly = false;
+      }
+
+      const instEl = document.getElementById("p_installments");
+      const instContainer = document.getElementById("p_installmentsContainer");
+      if (method && method.installments) {
+        instContainer.style.display = "block";
+      } else {
+        instEl.value = "1";
+        instContainer.style.display = "none";
+      }
+    }
     async function savePayment() {
       let id = document.getElementById("p_authorId").value;
       if (!id) {
@@ -2503,7 +2700,7 @@
       }
       const totalAmount = parseFloat(document.getElementById("p_amount").value.trim());
       if (!totalAmount) { alert("Tutar zorunlu."); return; }
-      const installments = parseInt(document.getElementById("p_installments").value) || 1;
+      const installments = Math.min(6, parseInt(document.getElementById("p_installments").value) || 1);
 
       const baseDate = new Date(document.getElementById("p_date").value);
       const status = document.getElementById("p_status").value;
@@ -2546,6 +2743,14 @@
         a.payments.splice(idx, 1);
       });
       if (document.getElementById("drawer").classList.contains("open")) openDrawer(authorId);
+      render();
+    }
+    async function markPaymentPaid(authorId, idx) {
+      if (!(await customConfirm("Bu taksit/ödeme ödendi olarak işaretlensin mi?", "Evet, Ödendi"))) return;
+      await mutate(d => {
+        const a = d.authors.find(x => x.id === authorId);
+        a.payments[idx].status = "Ödendi";
+      });
       render();
     }
 
