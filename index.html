@@ -1900,18 +1900,36 @@
     }
     function fmtDate(s) { if (!s) return "—"; const d = new Date(s); return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" }); }
     function daysUntil(s) { if (!s) return null; return Math.round((new Date(s) - new Date().setHours(0, 0, 0, 0)) / 864e5); }
-    function toWaLink(phone) {
+    function toWaLink(phone, text) {
       if (!phone) return "";
       let p = phone.replace(/\D/g, "");
       if (p.startsWith("0")) p = "90" + p.substring(1);
       else if (p.length === 10 && p.startsWith("5")) p = "90" + p;
-      return "https://api.whatsapp.com/send?phone=" + p;
+      let url = "https://api.whatsapp.com/send?phone=" + p;
+      if (text) url += "&text=" + encodeURIComponent(text);
+      return url;
     }
-    function waBtn(phone) {
+    function waBtn(phone, text) {
       if (!phone) return "";
-      return `<a href="${toWaLink(phone)}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;justify-content:center;background:#25D366;color:#fff;border-radius:50%;width:26px;height:26px;text-decoration:none;box-shadow:0 2px 5px rgba(37,211,102,0.4);transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="WhatsApp ile Mesaj Gönder">
+      return `<a href="${toWaLink(phone, text)}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;justify-content:center;background:#25D366;color:#fff;border-radius:50%;width:26px;height:26px;text-decoration:none;box-shadow:0 2px 5px rgba(37,211,102,0.4);transition:transform 0.2s;flex-shrink:0;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="WhatsApp ile Mesaj Gönder">
         <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
       </a>`;
+    }
+
+    /* ---------- WhatsApp hazır mesaj şablonları ---------- */
+    function paymentReminderText(authorName, amount, days) {
+      const when = days < 0 ? `${-days} gün önce vadesi geçen` : days === 0 ? "bugün vadesi gelen" : `${days} gün sonra vadesi gelecek`;
+      return `Merhaba ${authorName}, ${amount.toLocaleString('tr-TR')} ₺ tutarındaki ${when} ödemenizi hatırlatmak isteriz. Bilgilerinize sunarız, teşekkür ederiz.`;
+    }
+    function followupReminderText(authorName) {
+      return `Merhaba ${authorName}, sizinle görüşmemizin üzerinden bir süre geçti. Müsait olduğunuzda bizimle iletişime geçebilir misiniz? Teşekkür ederiz.`;
+    }
+    function contractConfirmText(authorName, packageLabel) {
+      return `Merhaba ${authorName}, sözleşme sürecinizi tamamladık${packageLabel ? " ve " + packageLabel + "ni onayladık" : ""}. Bizimle çalışmayı tercih ettiğiniz için teşekkür ederiz, en kısa sürede sizinle iletişime geçeceğiz.`;
+    }
+    function receiptWaText(authorName, payment, vat) {
+      const net = payment.amount - vat;
+      return `Merhaba ${authorName}, ödeme makbuzunuz:\nTarih: ${fmtDate(payment.date)}\nNet Tutar: ${net.toLocaleString('tr-TR')} ₺\nKDV: ${vat.toLocaleString('tr-TR')} ₺\nToplam: ${payment.amount.toLocaleString('tr-TR')} ₺\nDurum: ${payment.status}\nTeşekkür ederiz.`;
     }
 
     /* ---------- Profil dropdown kapat ---------- */
@@ -2034,9 +2052,9 @@
         const d = daysUntil(x.followup);
         const lbl = d < 0 ? `${-d} gün gecikti` : d === 0 ? "Bugün" : `${d} gün sonra`;
         const col = d < 0 ? "var(--red)" : d === 0 ? "var(--amber)" : "var(--muted)";
-        return `<div class="mini" onclick="openDrawer('${x.id}')" style="display:flex;justify-content:space-between;align-items:center">
+        return `<div class="mini" onclick="openDrawer('${x.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
       <div><span class="mn">${escapeHtml(x.name)}</span><div class="ms">${escapeHtml(x.work) || "—"} • ${STATUS[x.status].label}</div></div>
-      <span style="color:${col};font-weight:600;font-size:12px">${lbl}</span></div>`;
+      <div style="display:flex;align-items:center;gap:8px">${waBtn(x.phone, followupReminderText(x.name))}<span style="color:${col};font-weight:600;font-size:12px">${lbl}</span></div></div>`;
       }).join("");
       follow += `</div></div>`;
 
@@ -2534,6 +2552,7 @@
       if (!a || !p) return;
       const vat = vatPortion(p);
       const net = p.amount - vat;
+      const waUrl = a.phone ? toWaLink(a.phone, receiptWaText(a.name, p, vat)) : '';
       const win = window.open('', '_blank', 'width=650,height=800');
       if (!win) { alert('Makbuz penceresi açılamadı. Tarayıcınız açılır pencereleri engelliyor olabilir.'); return; }
       win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Makbuz</title>
@@ -2544,8 +2563,9 @@
       td { padding: 8px 0; border-bottom: 1px solid #eee; }
       td:first-child { color: #666; width: 40%; }
       .total { font-size: 18px; font-weight: bold; }
-      button { margin-top: 30px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
-      @media print { button { display: none; } }
+      button, a.wa-btn { margin-top: 30px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
+      a.wa-btn { display: inline-block; margin-left: 10px; background: #25D366; color: #fff; text-decoration: none; border-radius: 6px; }
+      @media print { button, a.wa-btn { display: none; } }
     </style></head><body>
       <h1>Ödeme Makbuzu</h1>
       <table>
@@ -2557,7 +2577,7 @@
         <tr><td>Toplam</td><td class="total">${p.amount.toLocaleString('tr-TR')} ₺</td></tr>
         <tr><td>Durum</td><td>${escapeHtml(p.status)}</td></tr>
       </table>
-      <button onclick="window.print()">Yazdır / PDF Kaydet</button>
+      <button onclick="window.print()">Yazdır / PDF Kaydet</button>${waUrl ? `<a class="wa-btn" href="${waUrl}" target="_blank">WhatsApp'tan Gönder</a>` : ''}
     </body></html>`);
       win.document.close();
     }
@@ -2596,9 +2616,10 @@
     ${items.map(item => {
           const lbl = item.days < 0 ? `${-item.days} gün gecikti` : item.days === 0 ? "Bugün" : `${item.days} gün sonra`;
           const col = item.days < 0 ? "var(--red)" : item.days <= 2 ? "var(--amber)" : "var(--muted)";
-          return `<div class="mini" onclick="openDrawer('${item.author.id}')" style="display:flex;justify-content:space-between;align-items:center">
+          const reminderText = paymentReminderText(item.author.name, item.payment.amount, item.days);
+          return `<div class="mini" onclick="openDrawer('${item.author.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
       <div><span class="mn">${escapeHtml(item.author.name)}</span><div class="ms">${item.payment.amount.toLocaleString('tr-TR')} ₺${item.payment.notes ? " • " + escapeHtml(item.payment.notes) : ""}</div></div>
-      <span style="color:${col};font-weight:600;font-size:12px">${lbl}</span></div>`;
+      <div style="display:flex;align-items:center;gap:8px">${waBtn(item.author.phone, reminderText)}<span style="color:${col};font-weight:600;font-size:12px">${lbl}</span></div></div>`;
         }).join("")}
   </div>`;
       }
@@ -2785,6 +2806,7 @@
       <div class="section"><h4>İletişim & Bilgi</h4>
         <div class="kv"><span>E-posta</span><span>${escapeHtml(a.email) || "—"}</span></div>
         <div class="kv"><span>Telefon</span><span style="display:flex;align-items:center;gap:8px">${escapeHtml(a.phone) || "—"} ${waBtn(a.phone)}</span></div>
+        ${(a.phone && (a.status === "sozlesme" || a.status === "yayinda")) ? `<div class="kv"><span>Sözleşme Mesajı</span><span><a href="${toWaLink(a.phone, contractConfirmText(a.name, a.package && PACKAGES[a.package] ? PACKAGES[a.package].label : ''))}" target="_blank" style="color:var(--brand);text-decoration:underline;font-size:12px">📱 Onay Mesajı Gönder</a></span></div>` : ''}
         <div class="kv"><span>Kaynak</span><span>${escapeHtml(a.source) || "—"}</span></div>
         <div class="kv"><span>İlgi düzeyi</span><span>${"🔥".repeat(a.temp || 0) || "—"}</span></div>
         <div class="kv"><span>Görüşme tarihi</span><span>${fmtDate(a.interviewDate)}</span></div>

@@ -1,0 +1,25 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      ".git/**",
+      ".claude/**",
+      "server.js",
+      "package.json",
+      "netlify.toml",
+      "firestore.rules",
+      "test-*.js",
+      "_check.js",
+      "CrmYedek.doc",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
