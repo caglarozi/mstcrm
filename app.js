@@ -3355,7 +3355,7 @@
           normalizePhone(author.phone) === normalizedPhone
         );
         if (duplicate) {
-          alert("Bu telefon numarası zaten \"" + duplicate.name + "\" adlı yazarda kayıtlı. Aynı numara ikinci kez kaydedilemez.");
+          alert("⚠️ Bu numara ile daha önce zaten görüşülmüş! (\"" + duplicate.name + "\" adlı yazarda kayıtlı.) Aynı numara ikinci kez kaydedilemez.");
           return;
         }
       }
