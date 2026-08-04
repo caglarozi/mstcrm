@@ -1998,6 +1998,14 @@
       if (authorsGroupBy === 'staff') {
         const dateFiltered = filterDate === 'all' ? list : list.filter(a => getAuthorDate(a) === filterDate);
 
+        // Kayıt hangi görüşmeciye yazılacak: o gün görüşme (log) ekleyen
+        // personel varsa görüşmeyi yapan o kişidir; yoksa kaydı ekleyen.
+        const ownerFor = (a, date) => {
+          const dayLogs = (a.logs || []).filter(l => l.date === date && l.staffId);
+          if (dayLogs.length) return dayLogs[dayLogs.length - 1].staffId;
+          return a.addedBy || 'admin';
+        };
+
         const byDate = {};
         dateFiltered.forEach(a => {
           const d = getAuthorDate(a);
@@ -2024,7 +2032,7 @@
           const dayAuthors = byDate[date];
           const byStaff = {};
           dayAuthors.forEach(a => {
-            const key = a.addedBy || 'admin';
+            const key = ownerFor(a, date);
             (byStaff[key] = byStaff[key] || []).push(a);
           });
           // Sütun sırası: ekip listesi sırası, sonra Sistem Yöneticisi, sonra eşleşmeyenler
@@ -2042,7 +2050,7 @@
             const shown = items.slice(0, remaining);
             rendered += shown.length;
             // O günün istatistikleri: görüşmecinin o gün eklediği/işlem gördüğü tüm kayıtlar
-            const dayAll = (allByDate[date] || []).filter(a => (a.addedBy || 'admin') === key);
+            const dayAll = (allByDate[date] || []).filter(a => ownerFor(a, date) === key);
             const olumlu = dayAll.filter(a => a.status === 'sozlesme' || a.status === 'yayinda').length;
             const olumsuz = dayAll.filter(a => a.status === 'arsiv').length;
             const devam = dayAll.length - olumlu - olumsuz;
