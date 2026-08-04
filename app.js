@@ -976,6 +976,10 @@
       if (!diffs.length) return null;
       return Math.round(diffs.reduce((s, d) => s + d, 0) / diffs.length);
     }
+    function normalizePhone(phone) {
+      const digits = (phone || "").replace(/\D/g, "");
+      return digits.length >= 10 ? digits.slice(-10) : digits;
+    }
     function toWaLink(phone, text) {
       if (!phone) return "";
       let p = phone.replace(/\D/g, "");
@@ -3342,6 +3346,19 @@
       const name = g("f_name");
       if (!name) { alert("Ad Soyad zorunlu."); return; }
       const id = g("f_id");
+      const phone = g("f_phone");
+      if (phone) {
+        const normalizedPhone = normalizePhone(phone);
+        const duplicate = db.authors.find(author =>
+          author.id !== id &&
+          author.phone &&
+          normalizePhone(author.phone) === normalizedPhone
+        );
+        if (duplicate) {
+          alert("Bu telefon numarası zaten \"" + duplicate.name + "\" adlı yazarda kayıtlı. Aynı numara ikinci kez kaydedilemez.");
+          return;
+        }
+      }
       const oldAuthor = id ? db.authors.find(x => x.id === id) : null;
       const wasContracted = oldAuthor ? oldAuthor.status === "sozlesme" : false;
       const status = g("f_status");
