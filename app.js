@@ -1333,9 +1333,20 @@
     }
 
     function searchTerm() { return document.getElementById("search").value.toLowerCase().trim(); }
+    // Personel yalnızca kendi görüşmelerini görür: kaydı kendisi eklemiş ya da
+    // en az bir görüşmesini (log) kendisi yapmış olmalı. Admin ve muhasebe
+    // tüm kayıtları görür. Ekip eşleşmesi olmayan personel hiçbirini göremez.
+    function canSeeAuthor(a) {
+      if (currentRole !== "personel") return true;
+      if (!currentStaffId) return false;
+      if (a.addedBy === currentStaffId) return true;
+      return (a.logs || []).some(l => l.staffId === currentStaffId);
+    }
+    function visibleAuthors() { return (db.authors || []).filter(canSeeAuthor); }
+
     function filteredAuthors() {
       const t = searchTerm();
-      return db.authors.filter(a => {
+      return visibleAuthors().filter(a => {
         const hay = (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase();
         let statusMatch = (filterStatus === "all" || a.status === filterStatus);
         if (currentView === "authors" && (a.status === "sozlesme" || a.status === "yayinda")) {
@@ -1346,7 +1357,7 @@
     }
 
     function viewDashboard() {
-      const a = db.authors;
+      const a = visibleAuthors();
       const overdue = a.filter(x => x.status !== "sozlesme" && x.status !== "yayinda" && x.status !== "arsiv" && daysUntil(x.followup) !== null && daysUntil(x.followup) < 0).length;
 
       // Ortak bölümler: Takip uyarıları ve Son etkileşimler
@@ -1782,7 +1793,7 @@
       }
       const map = {};
       months.forEach(m => map[m.key] = m);
-      db.authors.forEach(a => (a.payments || []).forEach(p => {
+      visibleAuthors().forEach(a => (a.payments || []).forEach(p => {
         if (p.status !== "Ödendi" || !p.date) return;
         const d = new Date(p.date);
         const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
@@ -1809,7 +1820,7 @@
       months.forEach(m => map[m.key] = m);
 
       let overdueTotal = 0, overdueCount = 0, laterTotal = 0, laterCount = 0;
-      db.authors.forEach(a => (a.payments || []).forEach(p => {
+      visibleAuthors().forEach(a => (a.payments || []).forEach(p => {
         if (p.status !== "Bekliyor" || !p.date || !p.amount) return;
         if (p.date < todayKey) { overdueTotal += p.amount; overdueCount++; return; }
         const key = p.date.slice(0, 7);
@@ -1885,7 +1896,7 @@
       // Status Chart Data
       const statusCounts = {};
       Object.keys(STATUS).forEach(k => statusCounts[k] = 0);
-      db.authors.forEach(a => { if (statusCounts[a.status] !== undefined) statusCounts[a.status]++; });
+      visibleAuthors().forEach(a => { if (statusCounts[a.status] !== undefined) statusCounts[a.status]++; });
 
       const ctxStatus = document.getElementById('statusChart');
       if (ctxStatus) {
@@ -1914,7 +1925,7 @@
 
       // Genre Chart Data
       const genreCounts = {};
-      db.authors.forEach(a => {
+      visibleAuthors().forEach(a => {
         (a.genres || []).forEach(g => {
           genreCounts[g] = (genreCounts[g] || 0) + 1;
         });
@@ -1952,8 +1963,8 @@
       const list = filteredAuthors();
 
       const visibleStatuses = Object.keys(STATUS).filter(s => s !== "sozlesme" && s !== "yayinda");
-      const counts = { all: db.authors.filter(a => a.status !== "sozlesme" && a.status !== "yayinda").length };
-      visibleStatuses.forEach(s => counts[s] = db.authors.filter(a => a.status === s).length);
+      const counts = { all: visibleAuthors().filter(a => a.status !== "sozlesme" && a.status !== "yayinda").length };
+      visibleStatuses.forEach(s => counts[s] = visibleAuthors().filter(a => a.status === s).length);
 
       let bar = `<div class="toolbar" style="gap:10px; align-items:center; flex-wrap:wrap;">`;
       const allActive = filterStatus === 'all';
@@ -2014,7 +2025,7 @@
         // İstatistik kaynağı: filtre bağımsız TÜM kayıtlar (yazarlar listesi
         // sözleşme/yayında olanları gizlediği için görünen listeden sayılamaz).
         const allByDate = {};
-        db.authors.forEach(a => {
+        visibleAuthors().forEach(a => {
           const d = getAuthorDate(a);
           (allByDate[d] = allByDate[d] || []).push(a);
         });
@@ -2250,7 +2261,7 @@
     let filterPackage = "all";
     function setPackageFilter(p) { filterPackage = p; render(); }
     function openPackageFilterModal() {
-      const allContracted = db.authors.filter(a => a.status === "sozlesme" || a.status === "yayinda");
+      const allContracted = visibleAuthors().filter(a => a.status === "sozlesme" || a.status === "yayinda");
       const PKG_TYPES = ["vip", "pro", "standart"];
 
       let content = `
@@ -2299,8 +2310,8 @@
       const t = searchTerm();
       const match = a => !t || (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase().includes(t);
       const getCDate = a => new Date(getContractDate(a) || 0).getTime();
-      const sozlesme = db.authors.filter(a => a.status === "sozlesme" && match(a)).sort((x, y) => getCDate(y) - getCDate(x));
-      const yayinda = db.authors.filter(a => a.status === "yayinda" && match(a)).sort((x, y) => getCDate(y) - getCDate(x));
+      const sozlesme = visibleAuthors().filter(a => a.status === "sozlesme" && match(a)).sort((x, y) => getCDate(y) - getCDate(x));
+      const yayinda = visibleAuthors().filter(a => a.status === "yayinda" && match(a)).sort((x, y) => getCDate(y) - getCDate(x));
       const toplam = sozlesme.length + yayinda.length;
 
       const TYPES = ["Aktif Sözleşme", "Yayında"];
@@ -2358,7 +2369,7 @@
     function getPaymentAlerts() {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const overdue = [], upcoming = [];
-      db.authors.forEach(a => {
+      visibleAuthors().forEach(a => {
         (a.payments || []).forEach((p, idx) => {
           if (p.status !== "Bekliyor") return;
           const d = new Date(p.date);
@@ -2485,9 +2496,9 @@
     function getAccountingAuthors() {
       const t = searchTerm();
       const match = a => !t || (a.name + " " + (a.work || "")).toLowerCase().includes(t);
-      const contracted = db.authors.filter(a => (a.status === "sozlesme" || a.status === "yayinda") && match(a));
+      const contracted = visibleAuthors().filter(a => (a.status === "sozlesme" || a.status === "yayinda") && match(a));
       // Sözleşmesi bitip arşivlenen ama ödeme geçmişi olan yazarlar da listede kalsın.
-      const archivedWithPayments = db.authors.filter(a => a.status !== "sozlesme" && a.status !== "yayinda" && (a.payments || []).length > 0 && match(a));
+      const archivedWithPayments = visibleAuthors().filter(a => a.status !== "sozlesme" && a.status !== "yayinda" && (a.payments || []).length > 0 && match(a));
       return { contracted, displayAuthors: [...contracted, ...archivedWithPayments] };
     }
 
@@ -2680,7 +2691,7 @@
 
       // Gelir artık ayrı bir liste değil, Ödemeler'deki (yazar ödemeleri)
       // "Ödendi" durumundaki kayıtlardan hesaplanıyor.
-      const paidPayments = db.authors.flatMap(a =>
+      const paidPayments = visibleAuthors().flatMap(a =>
         (a.payments || []).filter(p => p.status === "Ödendi").map(p => ({ ...p, authorName: a.name, authorId: a.id }))
       );
 
@@ -3200,7 +3211,7 @@
       return !phoneLogs.some(l => !UNREACHED_CALL_RE.test(l.text || ""));
     }
     function getUnreachedAuthors() {
-      return db.authors.filter(a => {
+      return visibleAuthors().filter(a => {
         if (a.status === "sozlesme" || a.status === "yayinda" || a.status === "arsiv") return false;
         return unreachedCallStatus(a.logs) === true;
       });
@@ -3211,7 +3222,7 @@
       const matchSearch = a =>
         !t || (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase().includes(t);
 
-      const list = db.authors.filter(a => {
+      const list = visibleAuthors().filter(a => {
         if (a.status === "sozlesme" || a.status === "yayinda" || a.status === "arsiv") return false;
         if (!matchSearch(a)) return false;
         const hasFollowup = a.followup && a.followup.trim();
@@ -3620,7 +3631,7 @@
         document.getElementById("p_authorId").value = "";
         const sel = document.getElementById("p_authorSelect");
         sel.innerHTML = `<option value="">-- Yazar Seçin --</option>` +
-          db.authors.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
+          visibleAuthors().map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
         document.getElementById("p_authorSelectContainer").style.display = "block";
       }
       // Paket artık burada seçilmiyor: yazarın kaydındaki paketi kullanılır.
@@ -3837,7 +3848,7 @@
         document.getElementById("fi_authorId").value = "";
         const sel = document.getElementById("fi_authorSelect");
         sel.innerHTML = `<option value="">-- Yazar Seçin --</option>` +
-          db.authors.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
+          visibleAuthors().map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
         document.getElementById("fi_authorSelectContainer").style.display = "block";
       }
       document.getElementById("fi_file").value = "";
@@ -4217,7 +4228,7 @@
     }
     function exportPaymentsCSV() {
       const rows = [["Yazar", "Tarih", "Hizmet", "Tutar", "KDV", "Durum", "Not", "Ekleyen"]];
-      db.authors.forEach(a => {
+      visibleAuthors().forEach(a => {
         (a.payments || []).forEach(p => {
           const addedByLabel = p.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(p.addedBy) || "");
           rows.push([a.name, p.date, p.serviceName || "", p.amount, vatPortion(p), p.status, p.notes || "", addedByLabel]);
@@ -4227,7 +4238,7 @@
     }
     function exportFullBackupExcel() {
       const rows = [["Ad", "Telefon", "E-posta", "Tür", "Durum", "Paket", "Sözleşme Tarihi", "Ödeme Şekli", "Toplam Tahsilat", "Bekleyen Tutar", "Kayıt Tarihi", "Notlar"]];
-      db.authors.forEach(a => {
+      visibleAuthors().forEach(a => {
         const payments = a.payments || [];
         const totalPaid = payments.filter(p => p.status === "Ödendi").reduce((s, p) => s + (p.amount || 0), 0);
         const totalPending = payments.filter(p => p.status === "Bekliyor").reduce((s, p) => s + (p.amount || 0), 0);
@@ -4477,7 +4488,7 @@
     }
 
     function buildChatContext() {
-      const all = db.authors || [];
+      const all = visibleAuthors();
       const authors = all.map(a => {
         const payments = a.payments || [];
         const totalPaid = payments.filter(p => p.status === "Ödendi").reduce((s, p) => s + (p.amount || 0), 0);
