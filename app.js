@@ -1993,58 +1993,82 @@
         return latestDate;
       };
 
-      // Görüşmeciye göre grupla: her personelin ekledikleri yan yana ayrı sütunlarda
+      // Görüşmeciye göre grupla: günlük bölümler halinde, her günün altında
+      // o gün kayıt ekleyen görüşmecilerin sütunları yan yana gösterilir.
       if (authorsGroupBy === 'staff') {
         const dateFiltered = filterDate === 'all' ? list : list.filter(a => getAuthorDate(a) === filterDate);
-        const byStaff = {};
-        dateFiltered.forEach(a => {
-          const key = a.addedBy || 'admin';
-          (byStaff[key] = byStaff[key] || []).push(a);
-        });
-        // Sütun sırası: ekip listesi sırası, sonra Sistem Yöneticisi, sonra eşleşmeyenler
-        const orderedKeys = [];
-        (db.staff || []).forEach(s => { if (byStaff[s.id]) orderedKeys.push(s.id); });
-        if (byStaff['admin'] && !orderedKeys.includes('admin')) orderedKeys.push('admin');
-        Object.keys(byStaff).forEach(k => { if (!orderedKeys.includes(k)) orderedKeys.push(k); });
 
-        if (!orderedKeys.length) return bar + `<div class="empty">Bu tarihte kayıt bulunamadı.</div>`;
+        const byDate = {};
+        dateFiltered.forEach(a => {
+          const d = getAuthorDate(a);
+          (byDate[d] = byDate[d] || []).push(a);
+        });
+        // İstatistik kaynağı: filtre bağımsız TÜM kayıtlar (yazarlar listesi
+        // sözleşme/yayında olanları gizlediği için görünen listeden sayılamaz).
+        const allByDate = {};
+        db.authors.forEach(a => {
+          const d = getAuthorDate(a);
+          (allByDate[d] = allByDate[d] || []).push(a);
+        });
+
+        const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+        if (!dates.length) return bar + `<div class="empty">Bu tarihte kayıt bulunamadı.</div>`;
+
+        const chip = (label, val, color) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${color};background:${color}18;border:1px solid ${color}44;border-radius:20px;padding:2px 8px;white-space:nowrap"><b>${val}</b> ${label}</span>`;
 
         let staffHtml = bar;
-        let truncated = 0;
-        staffHtml += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;align-items:start;margin-top:16px">`;
-        orderedKeys.forEach(key => {
-          const gName = key === 'admin' ? 'Sistem Yöneticisi' : (staffName(key) || 'Personel');
-          const items = byStaff[key].slice().sort((a, b) => getAuthorDate(b).localeCompare(getAuthorDate(a)));
-          const shown = items.slice(0, authorsRenderLimit);
-          truncated += items.length - shown.length;
-          // İstatistikler görünen listeden değil, görüşmecinin TÜM kayıtlarından
-          // hesaplanır (yazarlar listesi sözleşme/yayında olanları gizlediği için).
-          const allOfStaff = db.authors.filter(a => (a.addedBy || 'admin') === key);
-          const olumlu = allOfStaff.filter(a => a.status === 'sozlesme' || a.status === 'yayinda').length;
-          const olumsuz = allOfStaff.filter(a => a.status === 'arsiv').length;
-          const devam = allOfStaff.length - olumlu - olumsuz;
-          // Başarı oranı sonuçlanmış görüşmeler üzerinden: olumlu / (olumlu + olumsuz).
-          // Devam edenler henüz sonuçlanmadığı için orana katılmaz.
-          const sonuclanan = olumlu + olumsuz;
-          const basari = sonuclanan > 0 ? Math.round(olumlu / sonuclanan * 100) : null;
-          const chip = (label, val, color) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${color};background:${color}18;border:1px solid ${color}44;border-radius:20px;padding:2px 8px;white-space:nowrap"><b>${val}</b> ${label}</span>`;
-          staffHtml += `<div>
-            <h2 style="margin:0 0 8px;display:flex;align-items:center;gap:8px;font-size:15px;color:var(--txt);border-bottom:2px solid ${avatarColor(gName)};padding-bottom:8px">
-              <span class="avatar" style="background:${avatarColor(gName)};width:26px;height:26px;font-size:11px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%">${escapeHtml(initials(gName))}</span>
-              ${escapeHtml(gName)} <span style="color:var(--muted);font-weight:400;font-size:13px">(${items.length})</span>
-            </h2>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
-              ${chip('görüşme', allOfStaff.length, '#4aa8ff')}
-              ${chip('olumlu', olumlu, '#37c98a')}
-              ${chip('olumsuz', olumsuz, '#ef5350')}
-              ${chip('devam eden', devam, '#f4b740')}
-              ${basari !== null ? chip('başarı', '%' + basari, '#a78bfa') : ''}
-            </div>
-            <div style="display:flex;flex-direction:column;gap:12px">${shown.map(authorCard).join("")}</div>
-          </div>`;
-        });
-        staffHtml += `</div>`;
-        if (truncated > 0) staffHtml += `<div style="display:flex;justify-content:center;margin:20px 0"><button class="btn ghost" onclick="showMoreAuthors()">Daha Fazla Göster (${truncated} kayıt daha)</button></div>`;
+        let rendered = 0;
+        const totalInScope = dateFiltered.length;
+        for (const date of dates) {
+          if (rendered >= authorsRenderLimit) break;
+          const dayAuthors = byDate[date];
+          const byStaff = {};
+          dayAuthors.forEach(a => {
+            const key = a.addedBy || 'admin';
+            (byStaff[key] = byStaff[key] || []).push(a);
+          });
+          // Sütun sırası: ekip listesi sırası, sonra Sistem Yöneticisi, sonra eşleşmeyenler
+          const orderedKeys = [];
+          (db.staff || []).forEach(s => { if (byStaff[s.id]) orderedKeys.push(s.id); });
+          if (byStaff['admin'] && !orderedKeys.includes('admin')) orderedKeys.push('admin');
+          Object.keys(byStaff).forEach(k => { if (!orderedKeys.includes(k)) orderedKeys.push(k); });
+
+          staffHtml += `<h2 style="margin: 24px 0 12px; color: var(--blue); font-size: 16px; border-bottom: 1px solid rgba(74, 168, 255, 0.3); padding-bottom: 8px;">${icon('calendar', 15)} ${date} Tarihli İşlemler</h2>`;
+          staffHtml += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;align-items:start">`;
+          orderedKeys.forEach(key => {
+            const gName = key === 'admin' ? 'Sistem Yöneticisi' : (staffName(key) || 'Personel');
+            const items = byStaff[key];
+            const remaining = Math.max(0, authorsRenderLimit - rendered);
+            const shown = items.slice(0, remaining);
+            rendered += shown.length;
+            // O günün istatistikleri: görüşmecinin o gün eklediği/işlem gördüğü tüm kayıtlar
+            const dayAll = (allByDate[date] || []).filter(a => (a.addedBy || 'admin') === key);
+            const olumlu = dayAll.filter(a => a.status === 'sozlesme' || a.status === 'yayinda').length;
+            const olumsuz = dayAll.filter(a => a.status === 'arsiv').length;
+            const devam = dayAll.length - olumlu - olumsuz;
+            // Başarı oranı sonuçlanmış görüşmeler üzerinden: olumlu / (olumlu + olumsuz)
+            const sonuclanan = olumlu + olumsuz;
+            const basari = sonuclanan > 0 ? Math.round(olumlu / sonuclanan * 100) : null;
+            staffHtml += `<div>
+              <h3 style="margin:0 0 8px;display:flex;align-items:center;gap:8px;font-size:14px;color:var(--txt);border-bottom:2px solid ${avatarColor(gName)};padding-bottom:8px">
+                <span class="avatar" style="background:${avatarColor(gName)};width:24px;height:24px;font-size:10px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%">${escapeHtml(initials(gName))}</span>
+                ${escapeHtml(gName)}
+              </h3>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+                ${chip('görüşme', dayAll.length, '#4aa8ff')}
+                ${chip('olumlu', olumlu, '#37c98a')}
+                ${chip('olumsuz', olumsuz, '#ef5350')}
+                ${chip('devam eden', devam, '#f4b740')}
+                ${basari !== null ? chip('başarı', '%' + basari, '#a78bfa') : ''}
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px">${shown.map(authorCard).join("")}</div>
+            </div>`;
+          });
+          staffHtml += `</div>`;
+        }
+        if (rendered < totalInScope) {
+          staffHtml += `<div style="display:flex;justify-content:center;margin:20px 0"><button class="btn ghost" onclick="showMoreAuthors()">Daha Fazla Göster (${totalInScope - rendered} kayıt daha)</button></div>`;
+        }
         return staffHtml;
       }
 
