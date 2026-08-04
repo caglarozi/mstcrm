@@ -2067,7 +2067,7 @@
                 ${chip('olumlu', olumlu, '#37c98a')}
                 ${chip('olumsuz', olumsuz, '#ef5350')}
                 ${chip('devam eden', devam, '#f4b740')}
-                ${basari !== null ? chip('başarı', '%' + basari, '#a78bfa') : ''}
+                ${basari !== null ? chip('başarı', '%' + basari, '#a78bfa') : chip('başarı', '%—', '#9aa1b2')}
               </div>
               <div style="display:flex;flex-direction:column;gap:12px">${shown.map(authorCard).join("")}</div>
             </div>`;
