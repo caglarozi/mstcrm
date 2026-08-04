@@ -3,1054 +3,50 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Mst CRM — Yazar İlişkileri Yönetimi</title>
-  <style>
-    :root {
-      --bg: #0f1117;
-      --panel: #171a23;
-      --panel-2: #1e222d;
-      --line: #2a2f3d;
-      --txt: #e7e9ee;
-      --muted: #9aa1b2;
-      --brand: #7c6cff;
-      --brand-2: #a99bff;
-      --green: #37c98a;
-      --amber: #f4b740;
-      --red: #f2617a;
-      --blue: #4aa8ff;
-      --radius: 14px;
-      --shadow: 0 8px 30px rgba(0, 0, 0, .35);
-    }
-
-    * {
-      box-sizing: border-box
-    }
-
-    body {
-      margin: 0;
-      font-family: "Segoe UI", system-ui, sans-serif;
-      background: linear-gradient(145deg, var(--bg) 0%, #151821 100%);
-      background-attachment: fixed;
-      color: var(--txt);
-      font-size: 14px
-    }
-
-    a {
-      color: inherit
-    }
-
-    button {
-      font-family: inherit;
-      cursor: pointer
-    }
-
-    .app {
-      display: grid;
-      grid-template-columns: 230px 1fr;
-      min-height: 100vh
-    }
-
-    /* Sidebar */
-    .side {
-      background: rgba(23, 26, 35, 0.45);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-right: 1px solid rgba(42, 47, 61, 0.5);
-      padding: 20px 14px;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      z-index: 40;
-    }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-weight: 700;
-      font-size: 18px;
-      margin: 4px 6px 22px
-    }
-
-    .logo .mark {
-      width: 30px;
-      height: 30px;
-      border-radius: 9px;
-      display: grid;
-      place-items: center;
-      overflow: hidden
-    }
-
-    .logo .mark img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      filter: invert(1);
-      mix-blend-mode: screen
-    }
-
-    .nav {
-      display: flex;
-      flex-direction: column;
-      gap: 4px
-    }
-
-    .nav button {
-      display: flex;
-      align-items: center;
-      gap: 11px;
-      width: 100%;
-      text-align: left;
-      background: none;
-      border: 1px solid transparent;
-      color: var(--muted);
-      padding: 10px 12px;
-      border-radius: 10px;
-      font-size: 14px;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .nav button:hover {
-      background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      color: var(--txt)
-    }
-
-    .nav button.active {
-      background: rgba(124, 108, 255, 0.15);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border: 1px solid var(--brand);
-      color: #fff;
-      box-shadow: 0 0 16px rgba(124, 108, 255, 0.4), inset 4px 0 0 var(--brand);
-      font-weight: 600;
-      text-shadow: 0 0 8px rgba(124, 108, 255, 0.6);
-      transform: translateY(-1px);
-    }
-
-    .side-foot {
-      position: absolute;
-      bottom: 16px;
-      left: 14px;
-      right: 14px;
-      font-size: 11px;
-      color: var(--muted)
-    }
-
-    .side-foot button {
-      width: 100%;
-      margin-bottom: 6px;
-      background: rgba(30, 34, 45, 0.4);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: var(--txt);
-      padding: 8px;
-      border-radius: 9px;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .side-foot button:hover {
-      background: rgba(45, 50, 68, 0.5);
-      border-color: rgba(255, 255, 255, 0.15);
-      transform: translateY(-1px);
-    }
-
-    /* Main */
-    .main {
-      padding: 26px 30px;
-      overflow: auto
-    }
-
-    .topbar {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 22px;
-      position: sticky;
-      top: 0;
-      background: rgba(15, 17, 23, 0.75);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid transparent;
-      /* İstenirse çizgi eklenebilir */
-      z-index: 50;
-      padding: 16px 0;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
-      /* Hafif gölge */
-    }
-
-    .topbar h1 {
-      font-size: 22px;
-      margin: 0;
-      font-weight: 700
-    }
-
-    .topbar .sub {
-      color: var(--muted);
-      font-size: 13px
-    }
-
-    .spacer {
-      flex: 1
-    }
-
-    .search {
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 9px 13px;
-      color: var(--txt);
-      min-width: 140px;
-      flex: 1 1 200px;
-      max-width: 300px
-    }
-
-    .btn {
-      background: rgba(108, 92, 231, 0.25);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(108, 92, 231, 0.4);
-      color: #fff;
-      padding: 10px 16px;
-      border-radius: 10px;
-      font-weight: 600;
-      box-shadow: 0 4px 16px rgba(108, 92, 231, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.15);
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .btn:hover {
-      background: rgba(108, 92, 231, 0.35);
-      border-color: rgba(108, 92, 231, 0.6);
-      box-shadow: 0 6px 20px rgba(108, 92, 231, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.25);
-      transform: translateY(-1px);
-    }
-
-    .btn.ghost {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: none;
-      color: var(--txt);
-    }
-
-    .btn.ghost:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-
-    /* Cards / stats */
-    .grid {
-      display: grid;
-      gap: 16px
-    }
-
-    .stats {
-      grid-template-columns: repeat(4, 1fr)
-    }
-
-    .card {
-      background: rgba(23, 26, 35, 0.45);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: var(--radius);
-      padding: 18px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-    }
-
-    .stat .n {
-      font-size: 28px;
-      font-weight: 700
-    }
-
-    .stat .l {
-      color: var(--muted);
-      font-size: 13px;
-      margin-top: 2px
-    }
-
-    .stat .chip {
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 20px;
-      display: inline-block;
-      margin-top: 8px
-    }
-
-    /* Author list */
-    .toolbar {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
-      align-items: center
-    }
-
-    .pill {
-      cursor: pointer;
-      background: rgba(30, 34, 45, 0.4);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: var(--txt);
-      padding: 7px 15px;
-      border-radius: 20px;
-      font-size: 13px;
-      display: inline-flex;
-      align-items: center;
-      font-weight: 500;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .pill:hover {
-      background: rgba(45, 50, 68, 0.5);
-      border-color: rgba(255, 255, 255, 0.15);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-    }
-
-    .pill.active {
-      /* Aktif state JS'den gelir, cam efektiyle birleşir */
-      transform: translateY(-1px);
-    }
-
-    .authors {
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr))
-    }
-
-    .author {
-      cursor: pointer;
-      transition: transform .12s, border-color .12s
-    }
-
-    .author:hover {
-      transform: translateY(-2px);
-      border-color: var(--brand)
-    }
-
-    .author .head {
-      display: flex;
-      align-items: center;
-      gap: 12px
-    }
-
-    .avatar {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      display: grid;
-      place-items: center;
-      font-weight: 700;
-      color: #fff;
-      flex: none
-    }
-
-    .author .name {
-      font-weight: 600;
-      font-size: 15px
-    }
-
-    .author .role {
-      color: var(--muted);
-      font-size: 12px
-    }
-
-    .tags {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-top: 12px
-    }
-
-    .tag {
-      font-size: 11px;
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      padding: 3px 9px;
-      border-radius: 20px;
-      color: var(--muted)
-    }
-
-    .status-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      display: inline-block;
-      box-shadow: 0 0 6px currentColor;
-    }
-
-    .badge {
-      font-size: 11px;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-weight: 600
-    }
-
-    .meta-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 14px;
-      font-size: 12px;
-      color: var(--muted)
-    }
-
-    .temp {
-      display: flex;
-      gap: 3px
-    }
-
-    .temp span {
-      width: 16px;
-      height: 5px;
-      border-radius: 3px;
-      background: var(--line)
-    }
-
-    /* Pipeline */
-    .pipe {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 14px;
-      align-items: start
-    }
-
-    .col {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 12px;
-      min-height: 120px
-    }
-
-    .col h3 {
-      margin: 0 0 12px;
-      font-size: 13px;
-      display: flex;
-      justify-content: space-between;
-      color: var(--muted)
-    }
-
-    .col .count {
-      background: var(--panel-2);
-      padding: 1px 9px;
-      border-radius: 20px
-    }
-
-    .mini {
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      margin-bottom: 9px;
-      cursor: pointer;
-      font-size: 13px
-    }
-
-    .mini:hover {
-      border-color: var(--brand)
-    }
-
-    .mini .mn {
-      font-weight: 600
-    }
-
-    .mini .ms {
-      color: var(--muted);
-      font-size: 11px;
-      margin-top: 3px
-    }
-
-    /* Detail drawer */
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, .55);
-      display: none;
-      z-index: 40
-    }
-
-    .overlay.open {
-      display: block
-    }
-
-    .drawer {
-      position: fixed;
-      top: 0;
-      right: 0;
-      height: 100vh;
-      width: 520px;
-      max-width: 94vw;
-      background: rgba(18, 20, 28, 0.7);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border-left: 1px solid rgba(255, 255, 255, 0.08);
-      z-index: 50;
-      transform: translateX(100%);
-      transition: transform .25s;
-      overflow: auto;
-      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
-    }
-
-    .drawer.open {
-      transform: translateX(0)
-    }
-
-    .drawer .dh {
-      padding: 22px 24px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      position: sticky;
-      top: 0;
-      background: rgba(18, 20, 28, 0.4);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      z-index: 2
-    }
-
-    .drawer .db {
-      padding: 22px 24px
-    }
-
-    .close {
-      background: none;
-      border: none;
-      color: var(--muted);
-      font-size: 22px;
-      float: right
-    }
-
-    .section {
-      margin-bottom: 22px
-    }
-
-    .section h4 {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: .5px;
-      color: var(--muted);
-      margin: 0 0 10px
-    }
-
-    .kv {
-      display: flex;
-      justify-content: space-between;
-      padding: 7px 0;
-      border-bottom: 1px dashed var(--line);
-      font-size: 13px
-    }
-
-    .kv span:first-child {
-      color: var(--muted)
-    }
-
-    .timeline {
-      position: relative;
-      padding-left: 18px
-    }
-
-    .timeline::before {
-      content: "";
-      position: absolute;
-      left: 5px;
-      top: 4px;
-      bottom: 4px;
-      width: 2px;
-      background: var(--line)
-    }
-
-    .tl {
-      position: relative;
-      margin-bottom: 14px
-    }
-
-    .tl::before {
-      content: "";
-      position: absolute;
-      left: -16px;
-      top: 4px;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--brand)
-    }
-
-    .tl .tt {
-      font-size: 12px;
-      color: var(--muted)
-    }
-
-    .tl .tx {
-      font-size: 13px;
-      margin-top: 2px
-    }
-
-    .tl .type {
-      font-size: 10px;
-      padding: 1px 7px;
-      border-radius: 20px;
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      margin-right: 6px
-    }
-
-    .msg-preview {
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 12px;
-      font-size: 13px;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      margin-top: 8px;
-      max-height: 160px;
-      overflow: auto
-    }
-
-
-
-    .input-group {
-      display: flex;
-      gap: 8px;
-      align-items: end
-    }
-
-    .input-group input {
-      flex: 1
-    }
-
-    .input-group button {
-      white-space: nowrap;
-      flex: none
-    }
-
-    /* Modal / forms */
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.25);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      display: none;
-      place-items: center;
-      z-index: 60
-    }
-
-    .modal.open {
-      display: grid
-    }
-
-    .modal .box {
-      background: rgba(255, 255, 255, 0.04);
-      backdrop-filter: blur(48px);
-      -webkit-backdrop-filter: blur(48px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.1);
-      border-radius: 24px;
-      width: 520px;
-      max-width: 94vw;
-      max-height: 90vh;
-      overflow: auto;
-      padding: 32px
-    }
-
-    .modal h2 {
-      margin: 0 0 18px;
-      font-size: 18px
-    }
-
-    label {
-      display: block;
-      font-size: 12px;
-      color: var(--muted);
-      margin: 12px 0 6px
-    }
-
-    input,
-    select,
-    textarea {
-      width: 100%;
-      background: rgba(255, 255, 255, 0.04);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 10px;
-      padding: 12px 14px;
-      color: var(--txt);
-      font-family: inherit;
-      font-size: 14px;
-      transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
-    }
-    
-    input[type="file"] {
-      padding: 8px 14px;
-    }
-
-    input[type="file"]::file-selector-button {
-      background: rgba(108, 92, 231, 0.25);
-      border: 1px solid rgba(108, 92, 231, 0.4);
-      color: #fff;
-      padding: 6px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-right: 12px;
-      font-weight: 500;
-      transition: all 0.2s;
-    }
-
-    input[type="file"]::file-selector-button:hover {
-      background: rgba(108, 92, 231, 0.4);
-    }
-
-    option {
-      background: var(--panel-2);
-      color: var(--txt);
-    }
-
-    input:focus,
-    select:focus,
-    textarea:focus {
-      outline: none;
-      background: rgba(255, 255, 255, 0.08);
-      border-color: var(--brand);
-      box-shadow: 0 0 0 4px rgba(108, 92, 231, 0.2);
-    }
-
-    textarea {
-      resize: vertical;
-      min-height: 70px
-    }
-
-    .row2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px
-    }
-
-    .actions {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-      margin-top: 20px
-    }
-
-    .empty {
-      color: var(--muted);
-      text-align: center;
-      padding: 40px;
-      font-size: 13px
-    }
-
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: rgba(154, 161, 178, 0.25);
-      border-radius: 20px;
-      border: 2px solid transparent;
-      background-clip: padding-box;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(154, 161, 178, 0.5);
-      border: 2px solid transparent;
-      background-clip: padding-box;
-    }
-
-    .login-screen {
-      position: fixed;
-      inset: 0;
-      background: var(--bg);
-      display: grid;
-      place-items: center;
-      z-index: 9999;
-      padding: 20px;
-    }
-
-    .login-box {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      width: 100%;
-      max-width: 900px;
-      display: grid;
-      grid-template-columns: 1fr 1.1fr;
-      box-shadow: var(--shadow);
-      overflow: hidden;
-    }
-
-    .login-left {
-      padding: 60px 40px;
-      background: radial-gradient(circle at 100% 50%, rgba(124, 108, 255, 0.05) 0%, transparent 50%), var(--panel);
-      position: relative;
-      border-right: 1px solid var(--line);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      overflow: hidden;
-    }
-
-    .login-left::before {
-      content: "";
-      position: absolute;
-      width: 400px;
-      height: 400px;
-      border-radius: 50%;
-      border: 1px solid rgba(124, 108, 255, 0.08);
-      top: -100px;
-      right: -100px;
-    }
-
-    .login-left::after {
-      content: "";
-      position: absolute;
-      width: 500px;
-      height: 500px;
-      border-radius: 50%;
-      border: 1px solid rgba(124, 108, 255, 0.05);
-      bottom: -150px;
-      right: -150px;
-    }
-
-    .login-right {
-      padding: 60px 50px;
-      background: var(--panel);
-    }
-
-    @media (max-width: 768px) {
-      .login-box {
-        grid-template-columns: 1fr;
-      }
-
-      .login-left {
-        display: none;
-      }
-
-      .login-right {
-        padding: 40px 30px;
-      }
-    }
-
-    #profileDropdown.open {
-      display: block !important
-    }
-
-    #topProfileArea:hover {
-      opacity: .85
-    }
-
-    /* --- EKLENEN ANİMASYON VE EFEKTLER --- */
-
-    /* Animasyonlar */
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(15px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    /* Genel Geçişler (Transitions) */
-    .btn,
-    .pill,
-    button,
-    .mini,
-    .card,
-    .author,
-    input,
-    textarea,
-    select {
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    /* Kart ve Yazar Efektleri */
-    .card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
-      border-color: var(--brand-2);
-    }
-
-    .author:hover {
-      transform: translateY(-4px) scale(1.02);
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-      background: var(--panel-2);
-      border-color: var(--brand);
-    }
-
-    /* Mini görev/yazı efekti */
-    .mini:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
-      border-color: var(--brand);
-    }
-
-    /* Buton Tıklama (Active) Efekti */
-    .btn:active,
-    .pill:active,
-    .nav button:active {
-      transform: scale(0.95);
-    }
-
-    /* Input Odaklanma (Focus) Efekti */
-    input:focus,
-    textarea:focus,
-    select:focus {
-      outline: none;
-      border-color: var(--brand);
-      box-shadow: 0 0 0 3px rgba(124, 108, 255, 0.25);
-      transform: translateY(-1px);
-    }
-
-    /* Sayfa içi Fade-in Uygulaması */
-    .main>div,
-    .login-box {
-      animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-
-    /* Drawer Animasyon Geliştirmesi */
-    .drawer {
-      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    /* Mobile Responsiveness */
-    @media (max-width: 768px) {
-      .app {
-        grid-template-columns: 1fr;
-      }
-
-      #mobileMenuBtn {
-        display: block !important;
-      }
-
-      .side {
-        position: fixed;
-        top: 0;
-        left: 0;
-        height: 100vh;
-        width: 260px;
-        background: rgba(18, 20, 28, 0.95);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        z-index: 1000;
-        transform: translateX(-100%);
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
-        display: flex;
-        flex-direction: column;
-        padding-top: 20px;
-      }
-
-      .side.open {
-        transform: translateX(0);
-        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
-      }
-
-      .logo {
-        margin: 0 10px 20px 10px;
-      }
-
-      .nav {
-        flex-direction: column;
-        overflow-x: hidden;
-      }
-
-      .nav button {
-        width: 100%;
-        white-space: normal;
-      }
-
-      .side-foot {
-        display: block;
-        position: static;
-        margin-top: auto;
-        padding: 20px 10px;
-      }
-
-      .main {
-        padding: 16px;
-      }
-
-      .topbar {
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 12px;
-      }
-
-      .topbar>div:first-of-type {
-        display: flex;
-        align-items: center;
-      }
-
-      .search {
-        order: 3;
-        width: 100%;
-        max-width: 100%;
-        margin-top: 8px;
-      }
-
-      #btnNewAuthor {
-        order: 4;
-        width: 100%;
-      }
-
-      #viewTitle,
-      #viewSub {
-        display: none !important;
-      }
-
-      #topProfileArea {
-        display: none !important;
-      }
-
-      #mobileProfileArea {
-        display: block !important;
-      }
-
-      .spacer {
-        display: none;
-      }
-
-      .stats {
-        grid-template-columns: 1fr 1fr;
-      }
-
-      .pipe {
-        grid-template-columns: 1fr;
-      }
-
-      .authors {
-        grid-template-columns: 1fr;
-      }
-
-      .drawer {
-        width: 100%;
-      }
-
-      .row2 {
-        grid-template-columns: 1fr;
-      }
-
-      .modal .box {
-        padding: 20px;
-      }
-    }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Martel+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0B1849">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Mst CRM">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
+  <!-- Noise/Grain Film Overlay -->
+  <div class="noise-overlay"></div>
+  <!-- MST INTRO SCREEN (ULTRA-PREMIUM ENTERPRISE EDITION) -->
+  <div id="mstIntroScreen" onclick="dismissMstIntro()"
+    style="position:fixed; inset:0; z-index:99999; background:#07090e; display:none; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; user-select:none; overflow:hidden; transition:opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);">
+    
+    <!-- Ambient glowing light orbs -->
+    <div style="position:absolute; width:500px; height:500px; border-radius:50%; background:radial-gradient(circle, rgba(9, 105, 218, 0.25) 0%, rgba(0,0,0,0) 70%); top:50%; left:50%; transform:translate(-50%, -50%); pointer-events:none; animation: introOrbPulse 3s infinite alternate ease-in-out;"></div>
+    
+    <div style="position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; text-align:center; animation: introPulse 1.6s ease-out forwards;">
+      <!-- Metallic glass logo card -->
+      <div style="width:110px; height:145px; border-radius:24px; background:rgba(255, 255, 255, 0.04); border:1px solid rgba(255, 255, 255, 0.12); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); padding:12px; box-shadow:0 0 50px rgba(9, 105, 218, 0.45), inset 0 0 20px rgba(255, 255, 255, 0.08); display:flex; align-items:center; justify-content:center; margin-bottom:28px; animation: introLogoPop 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;">
+        <img src="logo-dark.png" alt="MST Logo" style="width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 0 25px rgba(59,130,246,0.8)); mix-blend-mode:screen;">
+      </div>
+
+      <h1 style="font-family:'Montserrat', sans-serif; font-size:38px; font-weight:800; background:linear-gradient(135deg, #ffffff 0%, #93c5fd 60%, #3b82f6 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:3px; margin:0 0 10px 0; text-shadow:0 10px 30px rgba(9,105,218,0.5);">MST CRM</h1>
+      <p style="color:#94a3b8; font-size:12px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; margin:0 0 36px 0;">YAZAR İLİŞKİLERİ & ESER YÖNETİM SİSTEMİ</p>
+      
+      <!-- Progress Bar & Status Text -->
+      <div style="width:240px; display:flex; flex-direction:column; align-items:center; gap:10px;">
+        <div style="width:100%; height:4px; background:rgba(255,255,255,0.08); border-radius:10px; overflow:hidden; position:relative; box-shadow:inset 0 1px 2px rgba(0,0,0,0.5);">
+          <div style="width:0%; height:100%; background:linear-gradient(90deg, #0969da, #38bdf8, #60a5fa); border-radius:10px; animation: introBar 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; box-shadow:0 0 12px #38bdf8;"></div>
+        </div>
+        <span style="font-size:11px; color:#64748b; font-weight:600; letter-spacing:0.5px;">Sistem Modülleri Yükleniyor...</span>
+      </div>
+    </div>
+  </div>
+
   <div id="loginScreen" class="login-screen">
     <div class="login-box">
       <!-- SOL PANEL (BRANDING) -->
@@ -1058,14 +54,14 @@
         <div>
           <div style="display:flex; align-items:center; gap:12px; margin-bottom: 40px; position:relative; z-index:2;">
             <div class="mark"
-              style="width:40px; height:40px; border-radius:10px; display:grid; place-items:center; overflow:hidden; background:rgba(255,255,255,0.05);">
-              <img src="logo.jpeg" alt="Logo"
-                style="width:100%; height:100%; object-fit:contain; filter:invert(1); mix-blend-mode:screen;">
+              style="width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:#ffffff; padding:3px; flex-shrink:0; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+              <img src="logo-dark.png" alt="Logo"
+                style="width:100%; height:100%; object-fit:contain;">
             </div>
-            <div style="font-size:18px; font-weight:700; color:#fff;">Mst CRM</div>
+            <div style="font-size:18px; font-weight:700; color:var(--txt);">Mst CRM</div>
           </div>
           <h1
-            style="font-size:32px; font-weight:800; color:#fff; line-height:1.2; margin-bottom:16px; position:relative; z-index:2;">
+            style="font-size:32px; font-weight:800; color:var(--txt); line-height:1.2; margin-bottom:16px; position:relative; z-index:2;">
             Yazar ilişkileri ve<br>eser yönetim paneli</h1>
           <p
             style="color:var(--muted); font-size:15px; line-height:1.5; max-width:280px; position:relative; z-index:2;">
@@ -1077,7 +73,15 @@
 
       <!-- SAĞ PANEL (FORM) -->
       <div class="login-right">
-        <h2 style="font-size:24px; font-weight:700; color:#fff; margin:0 0 6px 0;">Giriş yap</h2>
+        <!-- Masaüstünde .login-left zaten marka/logoyu gösteriyor; mobilde
+             .login-left tamamen gizlendiği için (bkz. styles.css @768px)
+             giriş ekranında hiç logo/marka görünmüyordu — bu satır sadece
+             mobilde görünen kompakt bir marka başlığı ekliyor. -->
+        <div class="login-mobile-brand">
+          <span class="mark"><img src="logo-dark.png" alt="Logo"></span>
+          <span>Mst CRM</span>
+        </div>
+        <h2 style="font-size:24px; font-weight:700; color:var(--txt); margin:0 0 6px 0;">Giriş yap</h2>
         <p style="color:var(--muted); font-size:14px; margin:0 0 30px 0;">Hesabınla panele eriş.</p>
 
         <!-- Sekme Başlıkları -->
@@ -1114,6 +118,11 @@
               </svg>
             </span>
           </div>
+
+          <label style="display:flex; align-items:center; gap:8px; margin:0 0 16px 0; cursor:pointer; user-select:none; color:var(--muted); font-size:13px;">
+            <input type="checkbox" id="loginRemember" checked style="width:16px; height:16px; cursor:pointer; accent-color:var(--brand);">
+            Beni hatırla
+          </label>
 
           <div id="loginError" style="color:var(--red);font-size:12px;margin-bottom:12px;display:none">Kullanıcı adı
             veya şifre hatalı.</div>
@@ -1184,29 +193,21 @@
   <div class="app" style="display:none">
     <!-- SIDEBAR -->
     <aside class="side">
-      <div class="logo"><span class="mark"><img src="logo.jpeg" alt="Logo"></span> Mst CRM</div>
+      <div class="logo"><span class="mark"><img src="logo-dark.png" alt="Logo"></span> Mst CRM</div>
       <nav class="nav">
-        <button data-view="dashboard" class="active">📊 Panel</button>
-        <button data-view="authors">👤 Yazarlar</button>
-        <button data-view="contracts">📕 Sözleşmeli Yazarlar</button>
-        <button data-view="accounting">💰 Ödemeler</button>
-        <button data-view="followups">🔔 Takip Listesi</button>
-        <button data-view="team">👥 Ekip</button>
+        <button data-view="dashboard" class="active">Panel</button>
+        <button data-view="authors">Yazarlar</button>
+        <button data-view="contracts">Sözleşmeli Yazarlar</button>
+        <button data-view="accounting">Ödemeler</button>
+        <button data-view="muhasebe">Muhasebe</button>
+        <button data-view="tasks">Görevler</button>
+        <button data-view="stock">Dahiliye Stok</button>
+        <button data-view="matbaa">Matbaa</button>
+        <button data-view="followups">Takip Listesi</button>
+        <button data-view="team">Ekip</button>
+        <button data-view="settings">Ayarlar</button>
       </nav>
-      <!-- Mobile Profile Area (only visible on mobile) -->
-      <div id="mobileProfileArea"
-        style="display:none; padding:16px; margin:auto 10px 16px 10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Hoş geldiniz,</div>
-        <div class="userNameLabel" style="font-size:14px;font-weight:600;color:var(--txt)">Admin</div>
-        <button onclick="handleLogout()"
-          style="width:100%;background:rgba(242,97,122,0.1);border:1px solid rgba(242,97,122,0.3);color:var(--red);padding:8px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;margin-top:12px;transition:0.2s;"
-          onmouseover="this.style.background='rgba(242,97,122,0.2)'"
-          onmouseout="this.style.background='rgba(242,97,122,0.1)'">Çıkış Yap</button>
-      </div>
       <div class="side-foot" style="padding:10px 16px">
-        <a href="CrmYedek.doc" download="CrmYedek.doc" style="text-decoration:none; display:flex; justify-content:center; margin-bottom: 12px;" title="Word Yedeği İndir">
-          <button style="width:48px; height:48px; background:rgba(255, 255, 255, 0.05); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid rgba(255, 255, 255, 0.2); border-radius:14px; font-size:22px; cursor:pointer; display:grid; place-items:center; transition:all 0.3s ease; box-shadow:0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.1);" onmouseover="this.style.background='rgba(255, 255, 255, 0.15)'; this.style.transform='translateY(-2px)'; this.style.borderColor='rgba(255, 255, 255, 0.3)';" onmouseout="this.style.background='rgba(255, 255, 255, 0.05)'; this.style.transform='translateY(0)'; this.style.borderColor='rgba(255, 255, 255, 0.2)';">📄</button>
-        </a>
         <div style="font-size:11px;color:var(--muted);text-align:center">Mst CRM v1.0</div>
       </div>
     </aside>
@@ -1216,19 +217,44 @@
       <div class="topbar">
         <button id="mobileMenuBtn"
           style="display:none; background:none; border:none; color:var(--txt); font-size:26px; padding:0; margin-right:12px; cursor:pointer;"
-          onclick="document.querySelector('.side').classList.toggle('open')">☰</button>
+          onclick="toggleMoreSheet()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></button>
+        <!-- Masaüstünde marka .side'daki .logo ile gösteriliyor; mobilde
+             .side hiç görünmediği için panel içinde de logo/marka
+             kaybolmuştu — bu küçük işaret sadece mobilde topbar'da görünür. -->
+        <span class="topbar-mark"><img src="logo-dark.png" alt="Logo"></span>
         <div>
           <h1 id="viewTitle">Panel</h1>
-          <div class="sub" id="viewSub">Genel bakış</div>
         </div>
         <div class="spacer"></div>
-        <input class="search" id="search" placeholder="🔍 Yazar, telefon, tür, not ara..." oninput="render()">
+        <div class="search-wrap" id="searchWrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input class="search" id="search" placeholder="Yazar, telefon, tür, not ara..." oninput="debouncedRender()">
+        </div>
         <button class="btn" id="btnNewAuthor" onclick="openAuthorModal()">+ Yeni Yazar</button>
 
+        <button id="themeToggleBtn" onclick="toggleTheme()" title="Temayı Değiştir"
+          style="position:relative;display:flex;align-items:center;justify-content:center;width:38px;height:38px;margin-left:16px;background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:50%;cursor:pointer;transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1);color:var(--txt);"
+          onmouseover="this.style.background='rgba(59,130,246,0.15)';this.style.borderColor='#3b82f6';"
+          onmouseout="this.style.background='transparent';this.style.borderColor='rgba(255,255,255,0.12)';">
+          <!-- Icon will be injected by JS -->
+        </button>
+
+        <div id="taskNotifBell" title="Bekleyen görevlerin"
+          style="position:relative;display:flex;align-items:center;justify-content:center;width:38px;height:38px;margin-left:16px;background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:50%;cursor:pointer;transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1);"
+          onmouseover="this.style.background='rgba(59,130,246,0.15)';this.style.borderColor='#3b82f6';"
+          onmouseout="this.style.background='transparent';this.style.borderColor='rgba(255,255,255,0.12)';"
+          onclick="toggleTaskNotifDropdown()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span id="taskNotifBadge" style="display:none;position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 4px;box-shadow:0 0 0 2px var(--bg)"></span>
+          <div id="taskNotifDropdown" onclick="event.stopPropagation()"
+            style="position:absolute;top:calc(100% + 12px);right:-8px;background:rgba(15, 20, 35, 0.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(59,130,246,0.3);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.6);width:280px;max-height:360px;overflow-y:auto;padding:6px;z-index:999;display:none;animation:fadeIn 0.2s ease-out;cursor:default;">
+          </div>
+        </div>
+
         <div id="topProfileArea"
-          style="position:relative;display:flex;align-items:center;gap:8px;margin-left:16px;padding:6px 14px;background:rgba(255,255,255,0.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.08);border-radius:20px;cursor:pointer;user-select:none;box-shadow:0 4px 12px rgba(0,0,0,0.1);transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1);"
-          onmouseover="this.style.background='rgba(255,255,255,0.09)';this.style.boxShadow='0 6px 16px rgba(0,0,0,0.2)';this.style.borderColor='rgba(255,255,255,0.15)';"
-          onmouseout="this.style.background='rgba(255,255,255,0.05)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';this.style.borderColor='rgba(255,255,255,0.08)';"
+          style="position:relative;display:flex;align-items:center;gap:8px;margin-left:16px;padding:6px 14px;background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:20px;cursor:pointer;user-select:none;transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1);"
+          onmouseover="this.style.background='rgba(59,130,246,0.12)';this.style.borderColor='rgba(59,130,246,0.4)';"
+          onmouseout="this.style.background='transparent';this.style.borderColor='rgba(255,255,255,0.12)';"
           onclick="document.getElementById('profileDropdown').classList.toggle('open')">
           <div>
             <div style="font-size:11px;color:var(--muted);text-align:right">Hoş geldiniz,</div>
@@ -1237,7 +263,7 @@
           <span style="font-size:10px;color:var(--muted);margin-left:2px">▼</span>
           <!-- Dropdown -->
           <div id="profileDropdown"
-            style="position:absolute;top:calc(100% + 12px);right:0;background:rgba(30, 34, 45, 0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.4);min-width:100px;padding:4px;z-index:999;display:none;animation:fadeIn 0.2s ease-out;">
+            style="position:absolute;top:calc(100% + 12px);right:0;background:rgba(15, 20, 35, 0.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(59,130,246,0.3);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.6);min-width:100px;padding:4px;z-index:999;display:none;animation:fadeIn 0.2s ease-out;">
             <button onclick="event.stopPropagation(); handleLogout()"
               style="width:100%;background:none;border:none;color:var(--red);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;transition:all 0.2s;"
               onmouseover="this.style.background='rgba(242, 97, 122, 0.15)'"
@@ -1247,11 +273,120 @@
       </div>
       <div id="storageWarn"
         style="display:none;background:rgba(244,183,64,.12);border:1px solid var(--amber);color:var(--amber);padding:10px 14px;border-radius:10px;margin-bottom:16px;font-size:13px">
-        ⚠️ Bu tarayıcı yerel dosyada veri saklamayı engelliyor; girdiğiniz kayıtlar sayfayı kapatınca kaybolur. Kalıcı
-        kayıt için dosyayı bir sunucu üzerinden açın (aşağıdaki nota bakın) ya da <b>⬇️ Yedek Al</b> ile dışa aktarın.
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        Bu tarayıcı yerel dosyada veri saklamayı engelliyor; girdiğiniz kayıtlar sayfayı kapatınca kaybolur. Kalıcı
+        kayıt için dosyayı bir sunucu üzerinden açın (aşağıdaki nota bakın) ya da <b>Yedek Al</b> ile dışa aktarın.
       </div>
       <div id="content"></div>
     </main>
+
+    <!-- MOBİL ALT SEKME ÇUBUĞU -->
+    <nav class="bottom-nav">
+      <button data-view="dashboard" class="bottom-nav-btn active">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Panel</span>
+      </button>
+      <button data-view="authors" class="bottom-nav-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Yazarlar</span>
+      </button>
+      <button data-view="tasks" class="bottom-nav-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+        <span>Görevler</span>
+      </button>
+      <button data-view="followups" class="bottom-nav-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Takip</span>
+      </button>
+      <button data-view="contracts" class="bottom-nav-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>
+        <span>Sözleşmeli</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- MOBİL FAB (Yeni Yazar — sadece Yazarlar sekmesinde görünür) -->
+  <button class="fab" id="fabNewAuthor" onclick="openAuthorModal()" title="Yeni Yazar">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
+  <!-- MOBİL "HESABIM / DAHA FAZLA" SHEET — hamburger butonu bunu açar;
+       masaüstünde kullanılan soldan kayan sidebar yerine, mobilde native
+       app'lerdeki (Trendyol/Instagram "Hesabım" sekmesi tarzı) profil
+       başlığı + menü listesi + çıkış satırından oluşan bir hub. Rol bazlı
+       görünürlük render()'da (bkz. app.js) sidebar'daki karşılıklarıyla
+       senkron tutulur; profil avatarı/isim de aynı fonksiyonla güncellenir. -->
+  <div class="modal" id="moreSheet" onclick="closeMoreSheet()">
+    <div class="box" style="max-width:100%" onclick="event.stopPropagation()">
+      <div class="more-sheet-profile">
+        <div class="avatar" id="moreSheetAvatar" style="width:48px;height:48px;font-size:17px;background:var(--brand)"></div>
+        <div>
+          <div class="userNameLabel" style="font-weight:700;font-size:16px">Kullanıcı</div>
+          <div style="color:var(--muted);font-size:12px">Hesap ve daha fazlası</div>
+        </div>
+      </div>
+      <div class="more-sheet-list">
+        <button class="more-sheet-row" data-view="dashboard" onclick="switchView('dashboard');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>Panel</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row" data-view="authors" onclick="switchView('authors');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Yazarlar</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row" data-view="contracts" onclick="switchView('contracts');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>
+          <span>Sözleşmeli Yazarlar</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row" data-view="accounting" onclick="switchView('accounting');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          <span>Ödemeler</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row" data-view="muhasebe" onclick="switchView('muhasebe');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          <span>Muhasebe</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row" data-view="tasks" onclick="switchView('tasks');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+          <span>Görevler</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row" data-view="stock" onclick="switchView('stock');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3a2 2 0 0 1-2-2V2"/><path d="M9 22V12h6v10"/><path d="M4 12V4a2 2 0 0 1 2-2h9l5 5v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg>
+          <span>Dahiliye Stok</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row" data-view="matbaa" onclick="switchView('matbaa');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          <span>Matbaa</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row" data-view="followups" onclick="switchView('followups');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>Takip Listesi</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row" data-view="team" onclick="switchView('team');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Ekip</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row" data-view="settings" onclick="switchView('settings');closeMoreSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82A1.65 1.65 0 0 0 3 13.09H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Ayarlar</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="more-sheet-row more-sheet-logout" onclick="closeMoreSheet();handleLogout()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span>Çıkış Yap</span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- DETAIL DRAWER -->
@@ -1290,8 +425,8 @@
   </div>
 
   <!-- AUTHOR MODAL -->
-  <div class="modal" id="authorModal">
-    <div class="box">
+  <div class="modal" id="authorModal" onclick="closeModal()">
+    <div class="box" onclick="event.stopPropagation()">
       <h2 id="modalTitle">Yeni Yazar</h2>
       <input type="hidden" id="f_id">
       <div class="row2">
@@ -1317,19 +452,29 @@
             <option value="standart">Standart Paket</option>
           </select>
         </div>
+        <div>
+          <label>Sözleşme Tarihi</label>
+          <input type="date" id="f_contractDate">
+        </div>
+      </div>
+      <div class="row2" id="f_contractEndContainer" style="display:none">
+        <div>
+          <label>Sözleşme Bitiş Tarihi (Opsiyonel)</label>
+          <input type="date" id="f_contractEndDate">
+        </div>
         <div></div>
       </div>
       <div class="row2">
-        <div><label>E-posta</label><input id="f_email" placeholder="ornek@mail.com"></div>
-        <div><label>Telefon</label><input id="f_phone" placeholder="05xx..."></div>
+        <div><label>E-posta</label><input type="email" id="f_email" placeholder="ornek@mail.com"></div>
+        <div><label>Telefon</label><input type="tel" id="f_phone" placeholder="05xx..."></div>
       </div>
       <div class="row2">
         <div><label>Türler (virgülle)</label><input id="f_genres" placeholder="Roman, Şiir"></div>
-        <div><label>İlgi / Sıcaklık (1-5)</label>
+        <div><label><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="vertical-align:-2px;color:var(--red)"><path fill-rule="evenodd" clip-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z"/></svg> İlgi / Sıcaklık (1-5)</label>
           <select id="f_temp">
-            <option value="5">🔥🔥🔥 Çok yüksek</option>
-            <option value="4">🔥🔥 Yüksek</option>
-            <option value="3" selected>🔥 Orta</option>
+            <option value="5">Çok yüksek</option>
+            <option value="4">Yüksek</option>
+            <option value="3" selected>Orta</option>
             <option value="2">Düşük</option>
             <option value="1">Soğuk</option>
           </select>
@@ -1337,13 +482,20 @@
       </div>
       <label>Eser / Dosya Adı</label><input id="f_work" placeholder="Örn. 'Gece Yürüyüşleri' (roman dosyası)">
       <div class="row2">
-        <div><label>Görüşme Tarihi (Başlangıç)</label><input type="date" id="f_interviewDate"></div>
+        <div><label>Görüşme / Randevu Tarihi</label>
+          <div style="display:flex;gap:8px">
+            <input type="date" id="f_interviewDate" style="flex:1.5;min-width:0">
+            <input type="time" id="f_interviewTime" title="Randevu saati (opsiyonel)" style="flex:1;min-width:0">
+          </div>
+        </div>
         <div><label>Sonraki Takip Tarihi</label><input type="date" id="f_followup"></div>
       </div>
       <div class="row2">
         <div><label>Kaynak</label>
           <select id="f_source">
             <option>E-posta başvurusu</option>
+            <option>WhatsApp</option>
+            <option>Telefon</option>
             <option>Fuar/Etkinlik</option>
             <option>Referans</option>
             <option>Sosyal medya</option>
@@ -1363,10 +515,11 @@
   </div>
 
   <!-- INTERACTION MODAL -->
-  <div class="modal" id="logModal">
-    <div class="box">
-      <h2>Görüşme / Etkileşim Ekle</h2>
+  <div class="modal" id="logModal" onclick="closeLogModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2 id="logModalTitle">Görüşme / Etkileşim Ekle</h2>
       <input type="hidden" id="l_authorId">
+      <input type="hidden" id="l_logIndex">
       <div class="row2">
         <div><label>Tür</label>
           <select id="l_type">
@@ -1378,7 +531,12 @@
             <option>Dosya değerlendirme</option>
           </select>
         </div>
-        <div><label>Tarih</label><input type="date" id="l_date"></div>
+        <div><label>Tarih</label>
+          <div style="display:flex;gap:8px">
+            <input type="date" id="l_date" style="flex:1.5;min-width:0">
+            <input type="time" id="l_time" title="Saat (opsiyonel)" style="flex:1;min-width:0">
+          </div>
+        </div>
       </div>
       <label>Görüşmeci</label>
       <select id="l_staff">
@@ -1387,7 +545,7 @@
       <label>Özet *</label><textarea id="l_text" placeholder="Ne konuşuldu, ne karar alındı?"></textarea>
       <div class="actions">
         <button class="btn ghost" onclick="closeLogModal()">Vazgeç</button>
-        <button class="btn" onclick="saveLog()">Ekle</button>
+        <button class="btn" id="logModalSaveBtn" onclick="saveLog()">Ekle</button>
       </div>
     </div>
   </div>
@@ -1395,9 +553,9 @@
 
 
   <!-- PAYMENT MODAL -->
-  <div class="modal" id="payModal">
-    <div class="box">
-      <h2>Ödeme Bilgisi</h2>
+  <div class="modal" id="payModal" onclick="closePayModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2 id="payModalTitle">Ödeme Bilgisi</h2>
       <input type="hidden" id="p_authorId">
       <input type="hidden" id="p_package">
       <div id="p_authorSelectContainer" style="display:none; margin-bottom: 12px">
@@ -1405,7 +563,12 @@
         <select id="p_authorSelect"></select>
       </div>
       <div id="p_noPackageWarning" style="display:none; margin-bottom:12px; padding:10px 12px; background:rgba(244,183,64,.12); border:1px solid rgba(244,183,64,.4); border-radius:8px; color:#f4b740; font-size:12px;">
-        ⚠️ Bu yazar için paket seçilmemiş, tutarı elle girin.
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        Bu yazar için paket seçilmemiş, tutarı elle girin.
+      </div>
+      <div id="p_serviceNameContainer" style="display:none">
+        <label id="p_serviceNameLabel">Hizmet Adı</label>
+        <input id="p_serviceName" placeholder="Örn: Kapak Tasarımı, Redaksiyon, Ek Baskı...">
       </div>
       <label>Ödeme Şekli</label>
       <select id="p_method" onchange="applyPackage()">
@@ -1419,6 +582,11 @@
         <input type="number" id="p_installments" value="1" min="1" max="6">
       </div>
       <label>Toplam Tutar (₺)</label><input type="number" id="p_amount" placeholder="Örn: 5000">
+      <label>Tür</label>
+      <select id="p_resmi">
+        <option value="true">Resmi</option>
+        <option value="false">Gayri Resmi</option>
+      </select>
       <input type="hidden" id="p_date">
       <input type="hidden" id="p_status" value="Ödendi">
       <input type="hidden" id="p_notes">
@@ -1430,8 +598,8 @@
   </div>
 
   <!-- EDIT PAYMENT MODAL -->
-  <div class="modal" id="editPaymentModal">
-    <div class="box">
+  <div class="modal" id="editPaymentModal" onclick="closeEditPaymentModal()">
+    <div class="box" onclick="event.stopPropagation()">
       <h2>Ödemeyi Düzenle</h2>
       <input type="hidden" id="ep_authorId">
       <input type="hidden" id="ep_paymentId">
@@ -1456,6 +624,19 @@
           </select>
         </div>
       </div>
+      <label>Ödeme Şekli</label>
+      <select id="ep_method" onchange="applyEditPaymentMethod()">
+        <option value="">-- Seçilmemiş --</option>
+        <option value="taksit">Taksit</option>
+        <option value="nakit">Nakit (KDV hariç)</option>
+        <option value="pesin">Peşin Kredi Kartı</option>
+      </select>
+      <label>Tür</label>
+      <select id="ep_resmi">
+        <option value="true">Resmi</option>
+        <option value="false">Gayri Resmi</option>
+      </select>
+      <label>Hizmet Adı (opsiyonel)</label><input id="ep_serviceName" placeholder="Örn: Kapak Tasarımı, Redaksiyon, Ek Baskı...">
       <label>Not</label><input id="ep_notes">
       <div class="actions">
         <button class="btn ghost" onclick="closeEditPaymentModal()">Vazgeç</button>
@@ -1464,9 +645,161 @@
     </div>
   </div>
 
+  <!-- GİDER MODAL -->
+  <div class="modal" id="expenseModal" onclick="closeExpenseModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2 id="expenseModalTitle">Gider Ekle</h2>
+      <input type="hidden" id="ex_id">
+      <div class="row2">
+        <div><label>Tutar (₺)</label><input type="number" id="ex_amount" placeholder="Örn: 5000"></div>
+        <div><label>Tarih</label><input type="date" id="ex_date"></div>
+      </div>
+      <div class="row2">
+        <div>
+          <label>Kategori</label>
+          <select id="ex_category">
+            <option>Kira</option>
+            <option>Maaş</option>
+            <option>Pazarlama</option>
+            <option>Ofis Giderleri</option>
+            <option>Baskı</option>
+            <option>Diğer</option>
+          </select>
+        </div>
+        <div>
+          <label>Tür</label>
+          <select id="ex_resmi">
+            <option value="true">Resmi</option>
+            <option value="false">Gayri Resmi</option>
+          </select>
+        </div>
+      </div>
+      <label>Açıklama (opsiyonel)</label><input id="ex_description" placeholder="Örn: Temmuz ayı ofis kirası">
+      <div class="actions">
+        <button class="btn ghost" onclick="closeExpenseModal()">Vazgeç</button>
+        <button class="btn" onclick="saveExpense()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STOK MODAL -->
+  <div class="modal" id="stockModal" onclick="closeStockModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2 id="stockModalTitle">Kitap Ekle</h2>
+      <input type="hidden" id="st_id">
+      <label>Kitap / Ürün Adı *</label><input id="st_title" placeholder="Örn. 'Gece Yürüyüşleri'">
+      <div class="row2">
+        <div><label>Tür</label><input id="st_type" placeholder="Örn: Kitap" value="Kitap"></div>
+        <div><label>Stok Adedi</label><input type="number" id="st_quantity" placeholder="Örn: 25" min="0"></div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeStockModal()">Vazgeç</button>
+        <button class="btn" onclick="saveStockItem()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MATBAA MODAL -->
+  <div class="modal" id="printOrderModal" onclick="closePrintOrderModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2 id="printModalTitle">Kayıt Ekle</h2>
+      <input type="hidden" id="pr_id">
+      <label>Yön</label>
+      <select id="pr_direction">
+        <option value="gelen">Matbaadan Bize Geldi</option>
+        <option value="giden">Bizden Matbaaya Gönderildi</option>
+      </select>
+      <label>Kitap / Ürün Adı *</label><input id="pr_title" placeholder="Örn. 'Gece Yürüyüşleri'">
+      <div class="row2">
+        <div><label>Adet</label><input type="number" id="pr_quantity" placeholder="Örn: 500" min="0"></div>
+        <div><label>Tarih</label><input type="date" id="pr_date"></div>
+      </div>
+      <label>Not (opsiyonel)</label><input id="pr_note" placeholder="Örn: Kargo ile gönderildi">
+      <div class="actions">
+        <button class="btn ghost" onclick="closePrintOrderModal()">Vazgeç</button>
+        <button class="btn" onclick="savePrintOrder()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- YENİ KULLANICI MODAL -->
+  <div class="modal" id="createUserModal" onclick="closeCreateUserModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2>Yeni Kullanıcı Ekle</h2>
+      <label>Ad Soyad *</label><input id="cu_name" placeholder="Örn. Ayşe Yılmaz">
+      <label>Kullanıcı Adı *</label><input id="cu_username" placeholder="Örn. ayse">
+      <label>Şifre *</label><input type="password" id="cu_password" placeholder="En az 6 karakter">
+      <label>Rol</label>
+      <select id="cu_role">
+        <option value="personel">Personel</option>
+        <option value="muhasebe">Muhasebe</option>
+        <option value="admin">Admin</option>
+      </select>
+      <div id="cu_msg" style="font-size:11px;margin-top:6px"></div>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeCreateUserModal()">Vazgeç</button>
+        <button class="btn" onclick="saveNewUser()">Oluştur</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GÖREV MODAL -->
+  <div class="modal" id="taskModal" onclick="closeTaskModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2 id="taskModalTitle">Görev Ekle</h2>
+      <input type="hidden" id="tsk_id">
+      <label>Başlık</label><input id="tsk_title" placeholder="Örn: Sözleşme taslağını hazırla">
+      <label>Açıklama (opsiyonel)</label><input id="tsk_description" placeholder="Detaylar...">
+      <label>Kime Atanacak</label>
+      <select id="tsk_assignedTo"></select>
+      <label>Son Tarih (opsiyonel)</label><input type="date" id="tsk_dueDate">
+      <div class="actions">
+        <button class="btn ghost" onclick="closeTaskModal()">Vazgeç</button>
+        <button class="btn" onclick="saveTask()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOOK MODAL -->
+  <div class="modal" id="bookModal" onclick="closeBookModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2 id="bookModalTitle">Eser Ekle</h2>
+      <input type="hidden" id="bk_authorId">
+      <input type="hidden" id="bk_bookId">
+      <label>Kitap Adı *</label><input id="bk_title" placeholder="Örn. 'Gece Yürüyüşleri'">
+      <div class="row2">
+        <div><label>Yayın Tarihi</label><input type="date" id="bk_publishDate"></div>
+        <div><label>Telif Oranı (%)</label><input type="number" id="bk_royaltyRate" placeholder="Örn: 10" min="0" max="100"></div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeBookModal()">Vazgeç</button>
+        <button class="btn" onclick="saveBook()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SALE MODAL -->
+  <div class="modal" id="saleModal" onclick="closeSaleModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2>Satış Kaydı Ekle</h2>
+      <input type="hidden" id="sl_authorId">
+      <input type="hidden" id="sl_bookId">
+      <div class="row2">
+        <div><label>Tarih</label><input type="date" id="sl_date"></div>
+        <div><label>Adet</label><input type="number" id="sl_copies" placeholder="Örn: 300" min="1"></div>
+      </div>
+      <label>Ciro (₺)</label><input type="number" id="sl_revenue" placeholder="Örn: 15000">
+      <label>Not</label><input id="sl_note" placeholder="Örn: 2. baskı, imza günü satışı">
+      <div class="actions">
+        <button class="btn ghost" onclick="closeSaleModal()">Vazgeç</button>
+        <button class="btn" onclick="saveSale()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
   <!-- FILE MODAL -->
-  <div class="modal" id="fileModal">
-    <div class="box">
+  <div class="modal" id="fileModal" onclick="closeFileModal()">
+    <div class="box" onclick="event.stopPropagation()">
       <h2>Dosya / Belge Yükle</h2>
       <input type="hidden" id="fi_authorId">
       <div id="fi_authorSelectContainer" style="display:none; margin-bottom: 12px">
@@ -1492,2055 +825,133 @@
     </div>
   </div>
 
+  <!-- AI ASİSTAN -->
+  <div id="chatFabDock" style="display:none;position:fixed;bottom:32px;right:-42px;z-index:500;align-items:center;gap:10px;transition:right 0.5s cubic-bezier(0.34,1.56,0.64,1)">
+    <div id="chatFabBubble" style="opacity:0;transform:translateX(8px);transition:opacity 0.3s,transform 0.3s;background:var(--panel);border:1px solid var(--line);color:var(--txt);padding:8px 14px;border-radius:14px 14px 4px 14px;font-size:12px;white-space:nowrap;box-shadow:0 8px 20px rgba(0,0,0,0.35)">Yardımcı olabilirim, hocam! 👋</div>
+    <div style="position:relative;flex-shrink:0">
+      <button id="chatFab" onclick="toggleChatWidget()" title="Linda"
+        style="position:relative;width:56px;height:56px;border-radius:18px;background:linear-gradient(135deg,var(--brand),var(--brand-2));border:none;box-shadow:0 8px 24px rgba(0,0,0,0.35);cursor:pointer;display:grid;place-items:center;color:#fff;flex-shrink:0;transition:transform 0.2s"
+        onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
+        <span style="position:absolute;top:-9px;left:8px;width:14px;height:16px;background:var(--brand);clip-path:polygon(0% 100%,50% 0%,100% 100%);border-radius:3px"></span>
+        <span style="position:absolute;top:-9px;right:8px;width:14px;height:16px;background:var(--brand-2);clip-path:polygon(0% 100%,50% 0%,100% 100%);border-radius:3px"></span>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:relative;z-index:1"><path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-.42 7 .57 1.07 1 2.24 1 3.44C21 17.9 16.97 21 12 21s-9-3-9-7.56c0-1.25.5-2.4 1-3.44 0 0-1.89-6.42-.42-7 1.42-.58 4.72.23 6.42 2.26A9.87 9.87 0 0 1 12 5Z"/><path d="M8 14v.5"/><path d="M16 14v.5"/><path d="M11.25 16.25h1.5L12 17l-.75-.75Z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="chatPanel" style="display:none;position:fixed;bottom:92px;right:24px;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 140px);background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,0.5);z-index:500;display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:6px;color:var(--brand-2)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-.42 7 .57 1.07 1 2.24 1 3.44C21 17.9 16.97 21 12 21s-9-3-9-7.56c0-1.25.5-2.4 1-3.44 0 0-1.89-6.42-.42-7 1.42-.58 4.72.23 6.42 2.26A9.87 9.87 0 0 1 12 5Z"/><path d="M8 14v.5"/><path d="M16 14v.5"/><path d="M11.25 16.25h1.5L12 17l-.75-.75Z"/></svg>Linda</div>
+      <button onclick="toggleChatWidget()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px" title="Kapat">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="chatMessages" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+      <div style="color:var(--muted);font-size:12px">Merhaba, ben Linda! Yazarlar, ödemeler ve ekip hakkında soru sorabilirsin.</div>
+      <div id="chatSuggestions" style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+        <button class="btn ghost" style="text-align:left;font-size:12px;padding:7px 10px" onclick="askSuggestion('Bugün kimlerle ilgilenmem lazım?')">Bugün kimlerle ilgilenmem lazım?</button>
+        <button class="btn ghost" style="text-align:left;font-size:12px;padding:7px 10px" onclick="askSuggestion('Hangi ödemeler gecikmiş?')">Hangi ödemeler gecikmiş?</button>
+        <button class="btn ghost" style="text-align:left;font-size:12px;padding:7px 10px" onclick="askSuggestion('Bu ay kaç yeni aday eklendi?')">Bu ay kaç yeni aday eklendi?</button>
+        <button class="btn ghost" style="text-align:left;font-size:12px;padding:7px 10px" onclick="askSuggestion('Sözleşmeye en sıcak bakan kim?')">Sözleşmeye en sıcak bakan kim?</button>
+      </div>
+    </div>
+    <div style="padding:12px;border-top:1px solid var(--line);display:flex;gap:8px;flex-shrink:0">
+      <input id="chatInput" placeholder="Bir şey sor..." style="flex:1;margin:0" onkeydown="if(event.key==='Enter')sendChatMessage()">
+      <button class="btn" onclick="sendChatMessage()" style="padding:8px 14px" id="chatSendBtn">Gönder</button>
+    </div>
+  </div>
+
+  <div class="modal" id="bulkMessageModal" onclick="closeBulkMessageModal()">
+    <div class="box" onclick="event.stopPropagation()" style="max-width:650px; width:95%;">
+      
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid var(--line);padding-bottom:16px;">
+        <h3 style="margin:0;display:flex;align-items:center;gap:8px;">
+          <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="color:var(--brand)"><path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/></svg> 
+          Toplu WhatsApp Gönderimi
+        </h3>
+        <button class="btn ghost" onclick="closeBulkMessageModal()">X</button>
+      </div>
+      
+      <div id="bulkMessageInputArea">
+        <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:20px; margin-bottom:20px;">
+          
+          <!-- Sol Taraf: Mesaj Hazırlama -->
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label style="margin:0; font-weight:600; font-size:13px;">Mesajınız</label>
+              <select id="bulkTemplateSelect" class="input" style="padding:4px 8px; font-size:12px; width:140px; height:auto; margin:0;" onchange="applyBulkTemplate()">
+                <option value="">Şablon Seç...</option>
+                <option value="bayram">Bayram Kutlaması</option>
+                <option value="hatirlatma">Genel Hatırlatma</option>
+                <option value="sozlesme">Sözleşme Bilgisi</option>
+              </select>
+            </div>
+            
+            <textarea id="bulkMessageText" class="input" rows="7" placeholder="Mesajınızı yazın..." oninput="updateBulkLivePreview()" style="width:100%; resize:vertical; padding:10px; font-size:13px;"></textarea>
+            
+            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+              <span style="font-size:11px; color:var(--muted);">Dinamik Değişken Ekle:</span>
+              <button class="btn ghost" style="padding:4px 8px; font-size:11px; border:1px dashed var(--line); border-radius:12px;" onclick="insertBulkVariable('{isim}')">+ Yazar Adı</button>
+              <button class="btn ghost" style="padding:4px 8px; font-size:11px; border:1px dashed var(--line); border-radius:12px;" onclick="insertBulkVariable('{telefon}')">+ Telefon</button>
+            </div>
+          </div>
+          
+          <!-- Sağ Taraf: Canlı Önizleme -->
+          <div style="display:flex; flex-direction:column; gap:8px; height:100%;">
+            <label style="margin:0; font-weight:600; font-size:13px; display:flex; align-items:center; gap:6px;">
+              <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="color:var(--brand)"><path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/></svg> Canlı Önizleme
+            </label>
+            <div id="bulkMessagePreview" style="flex:1; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; max-height:190px; overflow-y:auto; font-size:13px; line-height:1.5; white-space:pre-wrap; color:var(--txt); box-shadow:inset 0 2px 4px rgba(0,0,0,0.02);">
+              Lütfen mesaj yazın...
+            </div>
+            <div style="font-size:11px; color:var(--muted); text-align:right;">* Seçili ilk kişiye göre gösterilir</div>
+          </div>
+          
+        </div>
+
+        <div style="border-top:1px solid var(--line); padding-top:20px; margin-bottom:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+            <label style="margin:0; font-weight:600; font-size:13px;">Alıcılar (<span id="bulkMessageSelectedCount">0</span>/<span id="bulkMessageTotalCount">0</span> Seçildi)</label>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <input type="text" id="bulkMessageSearch" class="input" placeholder="Yazar Ara..." style="padding:6px 12px; font-size:12px; height:auto; width:160px; border-radius:20px;" oninput="filterBulkRecipients()">
+              <a href="#" style="font-size:12px;color:var(--brand); font-weight:600;" onclick="event.preventDefault(); toggleBulkSelectAll()">Tümünü Seç/Kaldır</a>
+            </div>
+          </div>
+          
+          <div id="bulkMessageRecipients" style="height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:4px; background:var(--bg-card); box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
+          </div>
+        </div>
+        
+        <div style="display:flex; justify-content:flex-end; gap:10px; border-top:1px solid var(--line); padding-top:16px;">
+          <button class="btn ghost" onclick="closeBulkMessageModal()">İptal</button>
+          <button class="btn" id="btnStartBulkMessage" onclick="startBulkMessage()" style="background:var(--brand); border-color:var(--brand); font-weight:600; padding:8px 24px;">Gönderime Hazırla</button>
+        </div>
+      </div>
+
+      <div id="bulkMessageProgressArea" style="display:none; text-align:center; padding:30px 20px;">
+        <h2 id="bulkMessageStatusText" style="margin:0 0 16px; font-weight:600; font-size:22px;">Başlıyor...</h2>
+        
+        <div id="bulkMessageCurrentRecipient" style="font-size:16px; margin-bottom:20px; min-height:24px; color:var(--muted);"></div>
+        
+        <div id="bulkMessageProgressBar" style="width:100%; height:14px; background:var(--line); border-radius:7px; overflow:hidden; margin-bottom:30px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.1);">
+          <div id="bulkMessageProgressFill" style="width:0%; height:100%; background:var(--brand); transition:width 0.4s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+        </div>
+        
+        <div style="display:flex; justify-content:center; gap:16px;">
+           <button class="btn ghost" id="btnCancelBulkMessage" onclick="cancelBulkMessage()" style="color:var(--red); border-color:rgba(242,97,122,0.3); font-weight:600; padding:10px 24px;">İptal Et / Durdur</button>
+           <button class="btn" id="btnSendNextBulkMessage" onclick="sendNextBulkMessage()" style="padding:10px 32px; font-size:15px; font-weight:bold; background:var(--brand); border-color:var(--brand);">Sıradakine Gönder</button>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDnqNrkeIi7SLHpk8LOXI94BtOU9mXems4",
-      authDomain: "mst-crm.firebaseapp.com",
-      projectId: "mst-crm",
-      storageBucket: "mst-crm.firebasestorage.app",
-      messagingSenderId: "796821173721",
-      appId: "1:796821173721:web:f3fdef9395f7606e4f95c8",
-      measurementId: "G-R6EXXCECYC"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const firestore = firebase.firestore();
-    // file:/// protokolünde WebSocket bağlantı sorunlarını çözmek için:
-    firestore.settings({ experimentalForceLongPolling: true });
-    const auth = firebase.auth();
-    const storage = firebase.storage();
-    storage.setMaxUploadRetryTime(15000); // 15 saniye sonra sonsuz döngüyü kır ve hata ver
-
-    /* ---------- Veri katmanı (Firebase) ---------- */
-    const KEY = "kalem_crm_v1";
-    const STATUS = {
-      aday: { label: "Aday", color: "#9aa1b2" },
-      gorusuluyor: { label: "Görüşülüyor", color: "#4aa8ff" },
-      degerlendirme: { label: "Değerlendirmede", color: "#f4b740" },
-      sozlesme: { label: "Sözleşme", color: "#a99bff" },
-      yayinda: { label: "Yayında", color: "#37c98a" },
-      arsiv: { label: "Arşiv", color: "#5b6070" }
-    };
-    const PIPELINE = ["aday", "gorusuluyor", "degerlendirme", "sozlesme", "yayinda"];
-    const PACKAGES = {
-      vip: { label: "VIP Paket", withVat: 70800, noVat: 59000 },
-      pro: { label: "Profesyonel Paket", withVat: 42000, noVat: 35000 },
-      standart: { label: "Standart Paket", withVat: 24000, noVat: 20000 }
-    };
-    const PAYMENT_METHODS = {
-      taksit: { label: "Taksit", vatIncluded: true, installments: true },
-      nakit: { label: "Nakit", vatIncluded: false, installments: false },
-      pesin: { label: "Peşin Kredi Kartı", vatIncluded: true, installments: false }
-    };
-
-    let db = { staff: [], authors: [] };
-    let currentView = "dashboard";
-    let filterStatus = "all";
-    let filterDate = "all";
-    let currentRole = "admin";
-    let currentStaffId = null;
-    let isRegistering = false;
-
-    // load() içindeki Firestore dinleyicileri, kullanıcı onaylı şekilde
-    // giriş yapmadan önce başlatılırsa güvenlik kuralları "izin yok"
-    // hatası verir. Token'ı bekletmemize rağmen bu, ID token'ın Firestore
-    // SDK'sına tam yayılması birkaç yüz milisaniye sürebildiği için hâlâ
-    // görülebiliyor — bu yüzden ilk denemede "izin yok" alırsa kısa bir
-    // bekleme ile birkaç kez daha deniyoruz, gerçek bir yetki sorununu
-    // (örn. onaysız kullanıcı) birkaç saniyede ayırt ediyoruz.
-    let dataLoaded = false;
-    async function ensureDataLoaded() {
-      if (dataLoaded) return;
-      dataLoaded = true;
-      const maxAttempts = 4;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          await load();
-          return;
-        } catch (e) {
-          console.error(`Veri yükleme hatası (deneme ${attempt}/${maxAttempts}):`, e);
-          if (attempt < maxAttempts) {
-            await new Promise(r => setTimeout(r, 700));
-          } else {
-            dataLoaded = false;
-            alert("Veriler yüklenemedi. Lütfen sayfayı yenileyin.");
-          }
-        }
-      }
-    }
-
-    function setupAuthListener() {
-      auth.onAuthStateChanged(async user => {
-        if (isRegistering) return; // Kayıt sırasında onAuthStateChanged devreye girme
-        if (user) {
-          // onAuthStateChanged "user" ile tetiklenmiş olması, Firestore
-          // SDK'sının bir sonraki isteğe kimlik token'ını iliştirmeye tam
-          // hazır olduğu anlamına gelmeyebiliyor (özellikle admin girişinde,
-          // onay kontrolü GET'i olmadığı için bu "ısınma" adımı eksik
-          // kalıyordu). Token'ı burada açıkça bekleyerek bu yarışı kapatıyoruz.
-          try { await user.getIdToken(); } catch (e) { console.error("Token hatası:", e); }
-          const u = user.email.split("@")[0].toLowerCase();
-          const clean = str => str.toLowerCase().replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ç/g, 'c').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/\s+/g, '');
-
-          if (u === "admin") {
-            currentRole = "admin";
-          } else {
-            // Onay kontrolü
-            try {
-              const userDoc = await firestore.collection("users").doc(user.uid).get();
-              if (!userDoc.exists || userDoc.data().approved !== true) {
-                auth.signOut();
-                const err = document.getElementById("loginError");
-                if (err) {
-                  err.innerText = "⏳ Hesabınız henüz admin tarafından onaylanmadı. Lütfen bekleyin.";
-                  err.style.display = "block";
-                }
-                return;
-              }
-              currentRole = userDoc.data().role || "admin";
-            } catch (e) {
-              console.error("Onay kontrolü hatası:", e);
-              currentRole = "admin";
-            }
-          }
-
-          await ensureDataLoaded();
-          const stf = db.staff.find(s => clean(s.name) === clean(u) || clean(s.name).includes(clean(u)));
-          currentStaffId = stf ? stf.id : null;
-          document.getElementById("loginError").style.display = "none";
-          document.getElementById("loginScreen").style.display = "none";
-          document.querySelector(".app").style.display = "grid";
-          render();
-        } else {
-          document.getElementById("loginScreen").style.display = "grid";
-          document.querySelector(".app").style.display = "none";
-        }
-      });
-    }
-
-    function checkLogin() {
-      if (auth.currentUser) {
-        document.getElementById("loginScreen").style.display = "none";
-        document.querySelector(".app").style.display = "grid";
-      } else {
-        document.getElementById("loginScreen").style.display = "grid";
-        document.querySelector(".app").style.display = "none";
-      }
-    }
-
-    async function handleLogin(e) {
-      e.preventDefault();
-      const btn = e.target.querySelector("button[type='submit']");
-      const u = document.getElementById("loginUser").value.trim().toLowerCase();
-      const p = document.getElementById("loginPass").value.trim();
-      const err = document.getElementById("loginError");
-
-      btn.disabled = true;
-      btn.innerText = "Giriş Yapılıyor...";
-
-      const email = u.includes("@") ? u : u + "@crm.com";
-
-      try {
-        await auth.signInWithEmailAndPassword(email, p);
-        btn.disabled = false;
-        btn.innerText = "Giriş Yap";
-        // onAuthStateChanged will trigger and render the app.
-      } catch (error) {
-        let errorMsg = error.message;
-        if (error.code === 'auth/invalid-credential') {
-          errorMsg = "Girdiğiniz e-posta veya şifre hatalı.";
-        }
-        err.innerText = "Hata: " + errorMsg;
-        err.style.display = "block";
-        btn.disabled = false;
-        btn.innerText = "Giriş Yap";
-      }
-    }
-
-    function handleLogout() {
-      auth.signOut().then(() => {
-        document.getElementById("loginUser").value = "";
-        document.getElementById("loginPass").value = "";
-      });
-    }
-
-    function togglePassword(id, el) {
-      const inp = document.getElementById(id);
-      if (inp.type === "password") {
-        inp.type = "text";
-        el.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
-      } else {
-        inp.type = "password";
-        el.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
-      }
-    }
-
-    function switchAuthTab(tab) {
-      const loginForm = document.getElementById("loginForm");
-      const regForm = document.getElementById("registerForm");
-      const tabL = document.getElementById("tabLogin");
-      const tabR = document.getElementById("tabRegister");
-      if (tab === "login") {
-        loginForm.style.display = "block";
-        regForm.style.display = "none";
-        tabL.style.borderBottom = "2px solid var(--brand)"; tabL.style.color = "var(--brand)";
-        tabR.style.borderBottom = "2px solid transparent"; tabR.style.color = "var(--muted)";
-      } else {
-        loginForm.style.display = "none";
-        regForm.style.display = "block";
-        tabR.style.borderBottom = "2px solid var(--brand)"; tabR.style.color = "var(--brand)";
-        tabL.style.borderBottom = "2px solid transparent"; tabL.style.color = "var(--muted)";
-      }
-    }
-
-    async function handleRegister(e) {
-      e.preventDefault();
-      const btn = e.target.querySelector("button[type='submit']");
-      const name = document.getElementById("regName").value.trim();
-      const u = document.getElementById("regUser").value.trim().toLowerCase();
-      const p = document.getElementById("regPass").value;
-      const p2 = document.getElementById("regPass2").value;
-      const err = document.getElementById("regError");
-      const suc = document.getElementById("regSuccess");
-      err.style.display = "none";
-      suc.style.display = "none";
-
-      if (!name) { err.innerText = "Lütfen adınızı ve soyadınızı girin."; err.style.display = "block"; return; }
-      if (p !== p2) { err.innerText = "Şifreler eşleşmiyor."; err.style.display = "block"; return; }
-      if (p.length < 6) { err.innerText = "Şifre en az 6 karakter olmalıdır."; err.style.display = "block"; return; }
-
-      btn.disabled = true;
-      btn.innerText = "Kayıt Yapılıyor...";
-      const email = u.includes("@") ? u : u + "@crm.com";
-      isRegistering = true;
-
-      try {
-        const cred = await auth.createUserWithEmailAndPassword(email, p);
-
-        // Güvenlik: rol/onay durumu artık her zaman "personel" + onaysız
-        // olarak oluşturulur. Firestore kuralları da bunu zorunlu kılıyor;
-        // yetki yükseltmesi sadece mevcut bir admin tarafından yapılabilir.
-        await firestore.collection("users").doc(cred.user.uid).set({
-          name: name,
-          username: u,
-          email: email,
-          approved: false,
-          role: "personel",
-          createdAt: new Date().toISOString()
-        });
-        await auth.signOut();
-        suc.innerText = "✅ Kayıt başarılı! Hesabınız admin onayından sonra aktif olacaktır.";
-        suc.style.display = "block";
-        btn.disabled = false;
-        btn.innerText = "Kayıt Ol";
-        isRegistering = false;
-      } catch (error) {
-        isRegistering = false;
-        let msg = error.message;
-        if (error.code === "auth/email-already-in-use") msg = "Bu kullanıcı adı zaten kayıtlı.";
-        if (error.code === "auth/weak-password") msg = "Şifre çok zayıf, en az 6 karakter olmalı.";
-        err.innerText = msg;
-        err.style.display = "block";
-        btn.disabled = false;
-        btn.innerText = "Kayıt Ol";
-      }
-    }
-
-    let storageOK = true;
-
-    // Yazarlar artık tek dev dokümanda değil, her biri kendi dokümanında
-    // (authors/{id} koleksiyonu); personel ise küçük ayrı bir dokümanda
-    // (crm/staff). db.authors / db.staff'ın şekli (düz dizi) DEĞİŞMEDİ —
-    // sadece nereden geldikleri değişti — bu yüzden render/view
-    // fonksiyonlarının hiçbiri değişmek zorunda kalmadı.
-    function onDataChanged() {
-      render();
-      const drawer = document.getElementById("drawer");
-      if (drawer && drawer.classList.contains("open")) {
-        const match = drawer.innerHTML.match(/openAuthorModal\('([^']+)'\)/);
-        if (match && match[1]) openDrawer(match[1]);
-      }
-    }
-
-    function loadStaff() {
-      return new Promise((resolve, reject) => {
-        let firstLoad = true;
-        firestore.collection("crm").doc("staff").onSnapshot(doc => {
-          db.staff = doc.exists ? (doc.data().staff || []) : [];
-          if (firstLoad) { firstLoad = false; resolve(); }
-          else onDataChanged();
-        }, err => {
-          console.error("Personel veri çekme hatası:", err);
-          if (firstLoad) reject(err);
-        });
-      });
-    }
-
-    function loadAuthors() {
-      return new Promise((resolve, reject) => {
-        let firstLoad = true;
-        firestore.collection("authors").onSnapshot(snapshot => {
-          if (firstLoad) {
-            db.authors = snapshot.docs.map(d => d.data());
-          } else {
-            snapshot.docChanges().forEach(change => {
-              const data = change.doc.data();
-              const idx = db.authors.findIndex(a => a.id === data.id);
-              if (change.type === "removed") {
-                if (idx !== -1) db.authors.splice(idx, 1);
-              } else if (idx !== -1) {
-                db.authors[idx] = data;
-              } else {
-                db.authors.unshift(data);
-              }
-            });
-          }
-          if (firstLoad) { firstLoad = false; resolve(); }
-          else onDataChanged();
-        }, err => {
-          console.error("Yazar veri çekme hatası:", err);
-          if (firstLoad) reject(err);
-        });
-      });
-    }
-
-    async function load() {
-      db.staff = db.staff || [];
-      db.authors = db.authors || [];
-      await Promise.all([loadStaff(), loadAuthors()]);
-    }
-
-    // Tek bir yazarın dokümanını, sunucudaki en güncel haliyle güvenli
-    // şekilde günceller (iki kişi farklı yazarları aynı anda düzenlese bile
-    // artık birbirini hiç etkilemez, çünkü her yazar ayrı doküman). fn iki
-    // kez çağrılır (anlık ekran güncellemesi için yerel kopyaya, asıl kayıt
-    // için sunucudan taze okunan kopyaya) — bu yüzden fn içinde uid()/
-    // new Date() gibi her çağrıda farklı sonuç üretebilecek değerler
-    // ÜRETİLMEMELİ, çağıran fonksiyon tarafından önceden hesaplanmalı.
-    async function mutateAuthor(authorId, fn) {
-      const a = db.authors.find(x => x.id === authorId);
-      if (a) fn(a);
-      render();
-      const ref = firestore.collection("authors").doc(authorId);
-      try {
-        await firestore.runTransaction(async tx => {
-          const doc = await tx.get(ref);
-          if (!doc.exists) return;
-          const server = doc.data();
-          fn(server);
-          tx.set(ref, server);
-        });
-      } catch (e) {
-        console.error("Kaydetme hatası:", e);
-        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
-      }
-    }
-
-    async function createAuthor(authorData) {
-      db.authors.unshift(authorData);
-      render();
-      try {
-        await firestore.collection("authors").doc(authorData.id).set(authorData);
-      } catch (e) {
-        console.error("Kaydetme hatası:", e);
-        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
-      }
-    }
-
-    async function deleteAuthorDoc(authorId) {
-      db.authors = db.authors.filter(x => x.id !== authorId);
-      render();
-      try {
-        await firestore.collection("authors").doc(authorId).delete();
-      } catch (e) {
-        console.error("Silme hatası:", e);
-        alert("Veri silinemedi. Lütfen internet bağlantınızı kontrol edin.");
-      }
-    }
-
-    // Personel listesi küçük ve az değiştiği için kendi ayrı dokümanında
-    // (crm/staff) tek parça tutuluyor. fn, {staff:[...]} şeklinde bir
-    // sarmalayıcı alır ve önceki mutate() ile aynı şekilde d.staff = ...
-    // atamasıyla kullanılabilir.
-    async function mutateStaff(fn) {
-      const wrapper = { staff: db.staff || [] };
-      fn(wrapper);
-      db.staff = wrapper.staff;
-      render();
-      const ref = firestore.collection("crm").doc("staff");
-      try {
-        await firestore.runTransaction(async tx => {
-          const doc = await tx.get(ref);
-          const server = { staff: doc.exists ? (doc.data().staff || []) : [] };
-          fn(server);
-          tx.set(ref, { staff: server.staff });
-        });
-      } catch (e) {
-        console.error("Kaydetme hatası:", e);
-        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
-      }
-    }
-
-    function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-    function staffName(id) { const s = (db.staff || []).find(x => x.id === id); return s ? s.name : ''; }
-
-    /* ---------- Yardımcılar ---------- */
-    function escapeHtml(str) {
-      if (str === null || str === undefined) return '';
-      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    }
-    function initials(n) { return n.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase(); }
-    function avatarColor(n) {
-      const colors = ["#7c6cff", "#4aa8ff", "#37c98a", "#f4b740", "#f2617a", "#a99bff", "#22c1c3"];
-      let s = 0; for (const c of n) s += c.charCodeAt(0);
-      return colors[s % colors.length];
-    }
-    function fmtDate(s) { if (!s) return "—"; const d = new Date(s); return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" }); }
-    function daysUntil(s) { if (!s) return null; return Math.round((new Date(s) - new Date().setHours(0, 0, 0, 0)) / 864e5); }
-    function toWaLink(phone, text) {
-      if (!phone) return "";
-      let p = phone.replace(/\D/g, "");
-      if (p.startsWith("0")) p = "90" + p.substring(1);
-      else if (p.length === 10 && p.startsWith("5")) p = "90" + p;
-      let url = "https://api.whatsapp.com/send?phone=" + p;
-      if (text) url += "&text=" + encodeURIComponent(text);
-      return url;
-    }
-    function waBtn(phone, text) {
-      if (!phone) return "";
-      return `<a href="${toWaLink(phone, text)}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;justify-content:center;background:#25D366;color:#fff;border-radius:50%;width:26px;height:26px;text-decoration:none;box-shadow:0 2px 5px rgba(37,211,102,0.4);transition:transform 0.2s;flex-shrink:0;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="WhatsApp ile Mesaj Gönder">
-        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
-      </a>`;
-    }
-
-    /* ---------- WhatsApp hazır mesaj şablonları ---------- */
-    function paymentReminderText(authorName, amount, days) {
-      const when = days < 0 ? `${-days} gün önce vadesi geçen` : days === 0 ? "bugün vadesi gelen" : `${days} gün sonra vadesi gelecek`;
-      return `Merhaba ${authorName}, ${amount.toLocaleString('tr-TR')} ₺ tutarındaki ${when} ödemenizi hatırlatmak isteriz. Bilgilerinize sunarız, teşekkür ederiz.`;
-    }
-    function followupReminderText(authorName) {
-      return `Merhaba ${authorName}, sizinle görüşmemizin üzerinden bir süre geçti. Müsait olduğunuzda bizimle iletişime geçebilir misiniz? Teşekkür ederiz.`;
-    }
-    function contractConfirmText(authorName, packageLabel) {
-      return `Merhaba ${authorName}, sözleşme sürecinizi tamamladık${packageLabel ? " ve " + packageLabel + "ni onayladık" : ""}. Bizimle çalışmayı tercih ettiğiniz için teşekkür ederiz, en kısa sürede sizinle iletişime geçeceğiz.`;
-    }
-    function receiptWaText(authorName, payment, vat) {
-      const net = payment.amount - vat;
-      return `Merhaba ${authorName}, ödeme makbuzunuz:\nTarih: ${fmtDate(payment.date)}\nNet Tutar: ${net.toLocaleString('tr-TR')} ₺\nKDV: ${vat.toLocaleString('tr-TR')} ₺\nToplam: ${payment.amount.toLocaleString('tr-TR')} ₺\nDurum: ${payment.status}\nTeşekkür ederiz.`;
-    }
-
-    /* ---------- Profil dropdown kapat ---------- */
-    document.addEventListener("click", e => {
-      const dd = document.getElementById("profileDropdown");
-      const pa = document.getElementById("topProfileArea");
-      if (dd && pa && !pa.contains(e.target)) dd.classList.remove("open");
-    });
-
-    /* ---------- Navigasyon ---------- */
-    document.querySelectorAll(".nav button").forEach(b => {
-      b.onclick = () => {
-        document.querySelectorAll(".nav button").forEach(x => x.classList.remove("active"));
-        b.classList.add("active");
-        currentView = b.dataset.view; filterStatus = "all";
-        document.getElementById("search").value = ""; // Sekme değiştiğinde aramayı temizle
-        render();
-        const side = document.querySelector('.side');
-        if (side) side.classList.remove('open');
-      };
-    });
-    const TITLES = {
-      dashboard: ["Panel", "Genel bakış ve bugünkü işler"],
-      authors: ["Yazarlar", "Tüm yazar ve adaylar"],
-      contracts: ["Sözleşmeli Yazarlar", "Sözleşme yaptığımız yazarlar"],
-      followups: ["Takip Listesi", "Yaklaşan ve geciken takipler"],
-      team: ["Ekip", "Görüşmeciler ve ekip üyeleri"],
-      accounting: ["Ödemeler", "Sözleşmeli yazarların ödeme takibi"]
-    };
-
-    /* ---------- Render ---------- */
-    function render() {
-      const w = document.getElementById("storageWarn");
-      if (w) w.style.display = storageOK ? "none" : "block";
-
-      let title = TITLES[currentView][0];
-      document.getElementById("viewTitle").textContent = title;
-      document.getElementById("viewSub").textContent = TITLES[currentView][1];
-
-      const tp = document.getElementById("topProfileArea");
-      if (tp) {
-        let nameToSet = "Personel";
-        const stf = db.staff.find(s => s.id === currentStaffId);
-        if (stf) {
-          nameToSet = stf.name;
-        } else if (currentRole === "admin") {
-          nameToSet = "Sistem Yöneticisi";
-        } else if (auth.currentUser) {
-          let n = auth.currentUser.email.split("@")[0];
-          nameToSet = n.charAt(0).toUpperCase() + n.slice(1);
-        }
-        document.querySelectorAll(".userNameLabel").forEach(el => el.textContent = nameToSet);
-      }
-
-      const isPersonel = currentRole === "personel";
-      const canSeeAccounting = currentRole === "admin" || currentRole === "muhasebe";
-      const navTeam = document.querySelector('[data-view="team"]');
-      if (navTeam) navTeam.style.display = isPersonel ? "none" : "block";
-      const navPay = document.querySelector('[data-view="accounting"]');
-      if (navPay) navPay.style.display = canSeeAccounting ? "flex" : "none";
-
-      if (isPersonel && currentView === "team") {
-        currentView = "dashboard";
-        document.querySelectorAll(".nav button").forEach(x => x.classList.remove("active"));
-        document.querySelector('[data-view="dashboard"]').classList.add("active");
-        return render(); // Re-render with new view
-      }
-      if (!canSeeAccounting && currentView === "accounting") {
-        currentView = "dashboard";
-        document.querySelectorAll(".nav button").forEach(x => x.classList.remove("active"));
-        document.querySelector('[data-view="dashboard"]').classList.add("active");
-        return render();
-      }
-
-      // Arama çubuğu ve buton gösterimi
-      const searchInput = document.getElementById("search");
-      if (currentView === "dashboard") {
-        searchInput.style.display = "none";
-      } else {
-        searchInput.style.display = "block";
-        searchInput.placeholder = currentView === "team" ? "🔍 Ekip üyesi ara..." : currentView === "accounting" ? "🔍 Yazar veya eser ara..." : "🔍 Yazar, telefon, tür, not ara...";
-      }
-      document.getElementById("btnNewAuthor").style.display = currentView === "authors" ? "inline-block" : "none";
-
-      const c = document.getElementById("content");
-      if (currentView === "dashboard") {
-        c.innerHTML = viewDashboard();
-        setTimeout(initCharts, 0); // DOM update sonrası çalışması için
-      }
-      else if (currentView === "authors") c.innerHTML = viewAuthors();
-      else if (currentView === "contracts") c.innerHTML = viewContracts();
-      else if (currentView === "accounting") { c.innerHTML = viewAccounting(); setTimeout(initAccountingChart, 0); }
-      else if (currentView === "followups") c.innerHTML = viewFollowups();
-      else if (currentView === "team") { c.innerHTML = viewTeam(); if (currentRole === "admin") setTimeout(loadPendingUsers, 0); }
-    }
-
-    function searchTerm() { return document.getElementById("search").value.toLowerCase().trim(); }
-    function filteredAuthors() {
-      const t = searchTerm();
-      return db.authors.filter(a => {
-        const hay = (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase();
-        let statusMatch = (filterStatus === "all" || a.status === filterStatus);
-        if (currentView === "authors" && (a.status === "sozlesme" || a.status === "yayinda")) {
-          statusMatch = false;
-        }
-        return (!t || hay.includes(t)) && statusMatch;
-      });
-    }
-
-    function viewDashboard() {
-      const a = db.authors;
-      const overdue = a.filter(x => { const d = daysUntil(x.followup); return d !== null && d < 0; }).length;
-
-      // Ortak bölümler: Takip uyarıları ve Son etkileşimler
-      const followList = a.filter(x => { const d = daysUntil(x.followup); return d !== null && d <= 3; })
-        .sort((x, y) => daysUntil(x.followup) - daysUntil(y.followup));
-      let follow = `<div class="card" style="display:flex; flex-direction:column; max-height:450px;"><h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px; flex-shrink:0;">🔔 Bugün ilgilenmen gerekenler ${overdue ? `<span class="badge" style="background:rgba(242,97,122,.2);color:#f2617a">${overdue} gecikmiş</span>` : ""}</h4><div style="overflow-y:auto; padding-right:4px;">`;
-      if (!followList.length) follow += `<div class="empty">Yaklaşan takip yok. 🎉</div>`;
-      else follow += followList.map(x => {
-        const d = daysUntil(x.followup);
-        const lbl = d < 0 ? `${-d} gün gecikti` : d === 0 ? "Bugün" : `${d} gün sonra`;
-        const col = d < 0 ? "var(--red)" : d === 0 ? "var(--amber)" : "var(--muted)";
-        return `<div class="mini" onclick="openDrawer('${x.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-      <div><span class="mn">${escapeHtml(x.name)}</span><div class="ms">${escapeHtml(x.work) || "—"} • ${STATUS[x.status].label}</div></div>
-      <div style="display:flex;align-items:center;gap:8px">${waBtn(x.phone, followupReminderText(x.name))}<span style="color:${col};font-weight:600;font-size:12px">${lbl}</span></div></div>`;
-      }).join("");
-      follow += `</div></div>`;
-
-      const acts = [];
-      a.forEach(x => (x.logs || []).forEach(l => acts.push({ ...l, name: x.name, id: x.id })));
-      acts.sort((p, q) => new Date(q.date) - new Date(p.date));
-      let recent = `<div class="card" style="display:flex; flex-direction:column; max-height:450px;"><h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px; flex-shrink:0;">🕑 Son etkileşimler</h4><div class="timeline" style="overflow-y:auto; padding-right:4px;">`;
-      recent += acts.slice(0, 50).map(l => `<div class="tl"><div class="tt">${fmtDate(l.date)} • ${escapeHtml(l.name)}</div><div class="tx"><span class="type">${escapeHtml(l.type)}</span>${escapeHtml(l.text)}</div></div>`).join("") || `<div class="empty">Kayıt yok</div>`;
-      recent += `</div></div>`;
-
-      // PERSONEL GÖRÜNÜMÜ
-      const total = a.length;
-      const adaylar = a.filter(x => ["aday", "gorusuluyor"].includes(x.status)).length;
-      const aktif = a.filter(x => ["degerlendirme", "sozlesme"].includes(x.status)).length;
-      const yayinda = a.filter(x => x.status === "yayinda").length;
-
-      let stats = `<div class="grid stats" style="margin-bottom:16px">
-    <div class="card stat"><div class="n">${total}</div><div class="l">Toplam kayıt</div></div>
-    <div class="card stat"><div class="n">${adaylar}</div><div class="l">Aday & görüşülüyor</div><span class="chip" style="background:rgba(74,168,255,.15);color:#4aa8ff">Pipeline'da</span></div>
-    <div class="card stat"><div class="n">${aktif}</div><div class="l">Aktif süreç</div><span class="chip" style="background:rgba(169,155,255,.15);color:#a99bff">Değerlendirme/Sözleşme</span></div>
-    <div class="card stat"><div class="n">${yayinda}</div><div class="l">Yayında</div><span class="chip" style="background:rgba(55,201,138,.15);color:#37c98a">Aktif yazar</span></div>
-  </div>`;
-
-      return stats + `<div class="grid" style="grid-template-columns:1fr 1fr;gap:16px">${follow}${recent}</div>`;
-    }
-
-    let chartStatus = null;
-    let chartGenre = null;
-    let chartMonthlyRevenue = null;
-
-    function getMonthlyRevenue(monthsBack) {
-      const now = new Date();
-      const months = [];
-      for (let i = monthsBack - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        months.push({ key: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'), label: d.toLocaleDateString('tr-TR', { month: 'short', year: '2-digit' }), total: 0 });
-      }
-      const map = {};
-      months.forEach(m => map[m.key] = m);
-      db.authors.forEach(a => (a.payments || []).forEach(p => {
-        if (p.status !== "Ödendi" || !p.date) return;
-        const d = new Date(p.date);
-        const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-        if (map[key]) map[key].total += p.amount;
-      }));
-      return months;
-    }
-
-    function initAccountingChart() {
-      if (typeof Chart === 'undefined') return;
-      const ctx = document.getElementById('monthlyRevenueChart');
-      if (!ctx) return;
-      const monthly = getMonthlyRevenue(6);
-      if (chartMonthlyRevenue) chartMonthlyRevenue.destroy();
-      chartMonthlyRevenue = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: monthly.map(m => m.label),
-          datasets: [{
-            label: 'Tahsil Edilen',
-            data: monthly.map(m => m.total),
-            backgroundColor: '#37c98a',
-            borderRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            y: { beginAtZero: true, ticks: { color: '#9aa1b2', font: { family: 'Inter, sans-serif' }, callback: v => v.toLocaleString('tr-TR') }, grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } },
-            x: { ticks: { color: '#9aa1b2', font: { family: 'Inter, sans-serif' } }, grid: { display: false }, border: { display: false } }
-          }
-        }
-      });
-    }
-
-    function initCharts() {
-      if (typeof Chart === 'undefined') return;
-
-      // Status Chart Data
-      const statusCounts = {};
-      Object.keys(STATUS).forEach(k => statusCounts[k] = 0);
-      db.authors.forEach(a => { if (statusCounts[a.status] !== undefined) statusCounts[a.status]++; });
-
-      const ctxStatus = document.getElementById('statusChart');
-      if (ctxStatus) {
-        if (chartStatus) chartStatus.destroy();
-        chartStatus = new Chart(ctxStatus, {
-          type: 'doughnut',
-          data: {
-            labels: Object.keys(STATUS).map(k => STATUS[k].label),
-            datasets: [{
-              data: Object.values(statusCounts),
-              backgroundColor: Object.keys(STATUS).map(k => STATUS[k].color),
-              borderWidth: 0,
-              hoverOffset: 4
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { position: 'right', labels: { color: '#9aa1b2', font: { size: 11, family: 'Inter, sans-serif' } } }
-            },
-            cutout: '65%'
-          }
-        });
-      }
-
-      // Genre Chart Data
-      const genreCounts = {};
-      db.authors.forEach(a => {
-        (a.genres || []).forEach(g => {
-          genreCounts[g] = (genreCounts[g] || 0) + 1;
-        });
-      });
-      const genres = Object.keys(genreCounts).sort((x, y) => genreCounts[y] - genreCounts[x]).slice(0, 6);
-
-      const ctxGenre = document.getElementById('genreChart');
-      if (ctxGenre) {
-        if (chartGenre) chartGenre.destroy();
-        chartGenre = new Chart(ctxGenre, {
-          type: 'bar',
-          data: {
-            labels: genres,
-            datasets: [{
-              label: 'Yazar',
-              data: genres.map(g => genreCounts[g]),
-              backgroundColor: '#4aa8ff',
-              borderRadius: 4
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              y: { beginAtZero: true, ticks: { stepSize: 1, color: '#9aa1b2', font: { family: 'Inter, sans-serif' } }, grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } },
-              x: { ticks: { color: '#9aa1b2', font: { family: 'Inter, sans-serif' } }, grid: { display: false }, border: { display: false } }
-            }
-          }
-        });
-      }
-    }
-
-    function viewAuthors() {
-      const list = filteredAuthors();
-
-      const visibleStatuses = Object.keys(STATUS).filter(s => s !== "sozlesme" && s !== "yayinda");
-      const counts = { all: db.authors.filter(a => a.status !== "sozlesme" && a.status !== "yayinda").length };
-      visibleStatuses.forEach(s => counts[s] = db.authors.filter(a => a.status === s).length);
-
-      let bar = `<div class="toolbar" style="gap:10px; align-items:center; flex-wrap:wrap;">`;
-      const allActive = filterStatus === 'all';
-      const allStyle = allActive ? `background: rgba(255,255,255,0.08); border-color: #fff; color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.15);` : ``;
-      bar += `<span class="pill ${allActive ? 'active' : ''}" style="${allStyle}" onclick="setFilter('all')" onmouseover="this.style.borderColor='#fff'" onmouseout="if(!${allActive}) this.style.borderColor='var(--line)'">
-          Tümü (${counts.all})
-        </span>`;
-        
-      bar += visibleStatuses.map(k => {
-        const v = STATUS[k];
-        const isActive = filterStatus === k;
-        const style = isActive ? `background: ${v.color}18; border-color: ${v.color}; color: ${v.color}; box-shadow: 0 0 14px ${v.color}33; text-shadow: 0 0 12px ${v.color}44;` : ``;
-        return `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setFilter('${k}')" onmouseover="this.style.borderColor='${v.color}'" onmouseout="if(!${isActive}) this.style.borderColor='var(--line)'">
-          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${v.color};margin-right:8px;box-shadow:0 0 8px ${v.color}"></span>
-          ${v.label} (${counts[k]})
-        </span>`;
-      }).join("");
-      
-      const dfStyle = filterDate !== 'all' ? `background: rgba(74, 168, 255, 0.15); border-color: #4aa8ff; color: #4aa8ff; margin-left: auto;` : `margin-left: auto; border: 1px solid rgba(255,255,255,0.15);`;
-      bar += `<button class="btn ${filterDate !== 'all' ? '' : 'ghost'}" style="${dfStyle}" onclick="openDateFilterModal()">📅 Tarih: ${filterDate === 'all' ? 'Tümü' : filterDate}</button>`;
-      
-      bar += `</div>`;
-      
-      if (!list.length) return bar + `<div class="empty">Kayıt bulunamadı.</div>`;
-      
-      const getAuthorDate = (a) => {
-        let latestDate = a.created || "Bilinmeyen Tarih";
-        if (a.logs && a.logs.length > 0) {
-          const maxLogDate = a.logs.map(l => l.date).reduce((x, y) => x > y ? x : y);
-          if (maxLogDate > latestDate || latestDate === "Bilinmeyen Tarih") {
-            latestDate = maxLogDate;
-          }
-        }
-        return latestDate;
-      };
-
-      const groups = {};
-      list.forEach(a => {
-         const d = getAuthorDate(a);
-         if (!groups[d]) groups[d] = [];
-         groups[d].push(a);
-      });
-
-      const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
-      
-      const datesToRender = filterDate === 'all' ? sortedDates : (groups[filterDate] ? [filterDate] : []);
-
-      let htmlOutput = bar;
-
-      if (datesToRender.length === 0) {
-         htmlOutput += `<div class="empty">Bu tarihte kayıt bulunamadı.</div>`;
-      } else {
-          datesToRender.forEach(date => {
-            htmlOutput += `<h2 style="margin: 24px 0 12px; color: var(--blue); font-size: 16px; border-bottom: 1px solid rgba(74, 168, 255, 0.3); padding-bottom: 8px;">📅 ${date} Tarihli İşlemler</h2>`;
-            htmlOutput += `<div class="grid authors">`;
-            htmlOutput += groups[date].map(authorCard).join("");
-            htmlOutput += `</div>`;
-          });
-      }
-
-      return htmlOutput;
-    }
-
-    function openDateFilterModal() {
-      const list = filteredAuthors();
-      const getAuthorDate = (a) => {
-        let latestDate = a.created || "Bilinmeyen Tarih";
-        if (a.logs && a.logs.length > 0) {
-          const maxLogDate = a.logs.map(l => l.date).reduce((x, y) => x > y ? x : y);
-          if (maxLogDate > latestDate || latestDate === "Bilinmeyen Tarih") {
-            latestDate = maxLogDate;
-          }
-        }
-        return latestDate;
-      };
-
-      const groups = {};
-      list.forEach(a => {
-         const d = getAuthorDate(a);
-         if (!groups[d]) groups[d] = [];
-         groups[d].push(a);
-      });
-      const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
-
-      let content = `
-        <div class="box" style="max-width: 320px; padding: 20px;">
-          <h2 style="margin-top:0; font-size:16px;">📅 Tarih Filtresi</h2>
-          <div style="display:flex; flex-direction:column; gap: 8px; max-height:400px; overflow-y:auto; padding-right:4px;">
-            <button class="btn ${filterDate === 'all' ? 'primary' : 'ghost'}" style="${filterDate === 'all' ? '' : 'justify-content:flex-start;'} width:100%;" onclick="setDateFilter('all'); closeDateFilterModal();">
-              Tüm Tarihler
-            </button>
-      `;
-      
-      sortedDates.forEach(d => {
-        const isActive = filterDate === d;
-        const style = isActive ? `background: rgba(74, 168, 255, 0.15); border-color: #4aa8ff; color: #4aa8ff;` : `justify-content:flex-start;`;
-        content += `<button class="btn ${isActive ? '' : 'ghost'}" style="${style} width:100%;" onclick="setDateFilter('${d}'); closeDateFilterModal();">
-          ${d} (${groups[d].length})
-        </button>`;
-      });
-      
-      content += `
-          </div>
-          <div class="actions" style="margin-top: 16px;">
-            <button class="btn ghost" style="width:100%" onclick="closeDateFilterModal()">Kapat</button>
-          </div>
-        </div>
-      `;
-      
-      let m = document.getElementById("dateFilterModal");
-      if (!m) {
-        m = document.createElement("div");
-        m.className = "modal";
-        m.id = "dateFilterModal";
-        document.body.appendChild(m);
-      }
-      m.innerHTML = content;
-      m.classList.add("open");
-    }
-
-    function closeDateFilterModal() {
-      const m = document.getElementById("dateFilterModal");
-      if(m) m.classList.remove("open");
-    }
-
-    function authorCard(a) {
-      const st = STATUS[a.status];
-      const temp = Array.from({ length: 5 }, (_, i) => `<span style="background:${i < a.temp ? '#f4b740' : 'var(--line)'}"></span>`).join("");
-      const d = daysUntil(a.followup);
-      const fl = d === null ? "" : d < 0 ? `<span style="color:var(--red)">⚠ ${-d}g gecikti</span>` : d <= 3 ? `<span style="color:var(--amber)">🔔 ${d === 0 ? 'bugün' : d + 'g sonra'}</span>` : `📅 ${fmtDate(a.followup)}`;
-
-      const adder = a.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(a.addedBy) || "Personel");
-
-      return `<div class="card author" onclick="openDrawer('${a.id}')">
-    <div class="head">
-      <div class="avatar" style="background:${avatarColor(a.name)}">${escapeHtml(initials(a.name))}</div>
-      <div style="flex:1">
-        <div class="name">${escapeHtml(a.name)}</div>
-        <div class="role">${escapeHtml(a.work) || "—"}</div>
-      </div>
-      <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:6px;">
-        <span style="font-size:11px; color:var(--muted); line-height:1;">(${escapeHtml(adder)})</span>
-        <span class="badge" style="background:${st.color}15;color:${st.color};border:1px solid ${st.color}44;box-shadow:0 0 10px ${st.color}22">${st.label}</span>
-      </div>
-    </div>
-    <div class="tags">${(a.genres || []).map(g => `<span class="tag">${escapeHtml(g)}</span>`).join("")}</div>
-    <div class="meta-row">
-      <div class="temp" title="İlgi düzeyi">${temp}</div>
-      <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">${fl} ${waBtn(a.phone)}</div>
-    </div>
-  </div>`;
-    }
-
-    function setFilter(s) { filterStatus = s; render(); }
-    function setDateFilter(d) { filterDate = d; render(); }
-    let filterContract = "all";
-    function setContractFilter(s) { filterContract = s; render(); }
-    let filterPackage = "all";
-    function setPackageFilter(p) { filterPackage = p; render(); }
-    function openPackageFilterModal() {
-      const allContracted = db.authors.filter(a => a.status === "sozlesme" || a.status === "yayinda");
-      const PKG_TYPES = ["vip", "pro", "standart"];
-
-      let content = `
-        <div class="box" style="max-width: 320px; padding: 20px;">
-          <h2 style="margin-top:0; font-size:16px;">🔽 Paket Filtresi</h2>
-          <div style="display:flex; flex-direction:column; gap: 8px;">
-            <button class="btn ${filterPackage === 'all' ? 'primary' : 'ghost'}" style="${filterPackage === 'all' ? '' : 'justify-content:flex-start;'} width:100%;" onclick="setPackageFilter('all'); closePackageFilterModal();">
-              Tüm Paketler (${allContracted.length})
-            </button>
-      `;
-
-      PKG_TYPES.forEach(k => {
-        const pkg = PACKAGES[k];
-        const count = allContracted.filter(a => a.package === k).length;
-        const isActive = filterPackage === k;
-        const style = isActive ? `background: rgba(124,108,255,.15); border-color: var(--brand); color: var(--brand);` : `justify-content:flex-start;`;
-        content += `<button class="btn ${isActive ? '' : 'ghost'}" style="${style} width:100%;" onclick="setPackageFilter('${k}'); closePackageFilterModal();">
-          ${pkg.label} (${count})
-        </button>`;
-      });
-
-      content += `
-          </div>
-          <div class="actions" style="margin-top: 16px;">
-            <button class="btn ghost" style="width:100%" onclick="closePackageFilterModal()">Kapat</button>
-          </div>
-        </div>
-      `;
-
-      let m = document.getElementById("packageFilterModal");
-      if (!m) {
-        m = document.createElement("div");
-        m.className = "modal";
-        m.id = "packageFilterModal";
-        document.body.appendChild(m);
-      }
-      m.innerHTML = content;
-      m.classList.add("open");
-    }
-    function closePackageFilterModal() {
-      const m = document.getElementById("packageFilterModal");
-      if (m) m.classList.remove("open");
-    }
-
-    function viewContracts() {
-      const t = searchTerm();
-      const match = a => !t || (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase().includes(t);
-      const sozlesme = db.authors.filter(a => a.status === "sozlesme" && match(a));
-      const yayinda = db.authors.filter(a => a.status === "yayinda" && match(a));
-      const toplam = sozlesme.length + yayinda.length;
-
-      const TYPES = ["Aktif Sözleşme", "Yayında"];
-      const counts = { "Aktif Sözleşme": sozlesme.length, "Yayında": yayinda.length };
-      const COLORS = { "Aktif Sözleşme": "#a99bff", "Yayında": "#37c98a" };
-
-      let bar = `<div class="toolbar" style="margin-top:-8px;margin-bottom:20px;gap:10px">`;
-      
-      const allActive = filterContract === 'all';
-      const allStyle = allActive ? `background: rgba(255,255,255,0.08); border-color: #fff; color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.15);` : ``;
-      bar += `<span class="pill ${allActive ? 'active' : ''}" style="${allStyle}" onclick="setContractFilter('all')" onmouseover="this.style.borderColor='#fff'" onmouseout="if(!${allActive}) this.style.borderColor='var(--line)'">
-          Tümü (${toplam})
-        </span>`;
-
-      TYPES.forEach(ft => {
-        const c = COLORS[ft];
-        const isActive = filterContract === ft;
-        const style = isActive ? `background: ${c}15; border-color: ${c}; color: ${c}; box-shadow: 0 0 14px ${c}40;` : ``;
-        bar += `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setContractFilter('${ft}')" onmouseover="this.style.borderColor='${c}'" onmouseout="if(!${isActive}) this.style.borderColor='rgba(255,255,255,0.08)'">
-          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:8px;box-shadow:0 0 8px ${c}"></span>
-          ${ft} (${counts[ft]})
-        </span>`;
-      });
-
-      const allContracted = [...sozlesme, ...yayinda];
-      const pkgLabel = filterPackage === 'all' ? 'Tümü' : PACKAGES[filterPackage].label;
-      const pkgBtnStyle = filterPackage !== 'all' ? `background: rgba(124,108,255,.15); border-color: var(--brand); color: var(--brand); margin-left:auto;` : `margin-left:auto; border: 1px solid rgba(255,255,255,0.15);`;
-      bar += `<button class="btn ${filterPackage !== 'all' ? '' : 'ghost'}" style="${pkgBtnStyle}" onclick="openPackageFilterModal()">🔽 Paket: ${pkgLabel}</button>`;
-      bar += `</div>`;
-
-      let html = `<p class="sub" style="color:var(--muted);margin-top:-8px">Sözleşme yaptığınız tüm yazarlar burada toplanır. Toplam <b>${toplam}</b> sözleşmeli yazar.</p>`;
-      html += bar;
-
-      let displayList = [];
-      if (filterContract === 'all') displayList = allContracted;
-      else if (filterContract === 'Aktif Sözleşme') displayList = sozlesme;
-      else if (filterContract === 'Yayında') displayList = yayinda;
-
-      if (filterPackage !== 'all') displayList = displayList.filter(a => a.package === filterPackage);
-
-      if (displayList.length) {
-        html += `<div class="grid authors">${displayList.map(authorCard).join("")}</div>`;
-      } else {
-        html += `<div class="empty">Bu bölümde henüz yazar yok.</div>`;
-      }
-
-      return html;
-    }
-
-    function getPaymentAlerts() {
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const overdue = [], upcoming = [];
-      db.authors.forEach(a => {
-        (a.payments || []).forEach((p, idx) => {
-          if (p.status !== "Bekliyor") return;
-          const d = new Date(p.date);
-          const days = Math.round((d - today) / 864e5);
-          const item = { author: a, payment: p, idx, days };
-          if (days < 0) overdue.push(item);
-          else if (days <= 7) upcoming.push(item);
-        });
-      });
-      overdue.sort((x, y) => x.days - y.days);
-      upcoming.sort((x, y) => x.days - y.days);
-      return { overdue, upcoming };
-    }
-    function vatPortion(p) {
-      if (p.vatIncluded === false) return 0;
-      return Math.round(p.amount - p.amount / 1.2);
-    }
-
-    // Eski ödeme kayıtlarında (bu güncellemeden önce eklenmiş) sabit bir id
-    // yoktu, sil/düzenle/ödendi-işaretle işlemleri dizideki sıra numarasına
-    // (index) göre çalışıyordu — eşzamanlı bir değişiklikte yanlış satırı
-    // etkileme riski vardı. Bu, ilk açılışta eksik id'leri tek seferde
-    // dolduran, hem yerel hem sunucu tarafını güncelleyen bir öz-onarım.
-    function backfillPaymentIds() {
-      const byAuthor = {};
-      db.authors.forEach(a => {
-        (a.payments || []).forEach((p, idx) => {
-          if (!p.id) {
-            byAuthor[a.id] = byAuthor[a.id] || [];
-            byAuthor[a.id].push({ idx, newId: uid() });
-          }
-        });
-      });
-      Object.keys(byAuthor).forEach(authorId => {
-        const assignments = byAuthor[authorId];
-        const apply = author => {
-          assignments.forEach(as => {
-            const p = author.payments && author.payments[as.idx];
-            if (p && !p.id) p.id = as.newId;
-          });
-        };
-        mutateAuthor(authorId, apply);
-      });
-    }
-
-    function getPaymentBreakdown(authors) {
-      const byPackage = {}, byMethod = {};
-      authors.forEach(a => (a.payments || []).forEach(p => {
-        if (p.status !== "Ödendi") return;
-        const pkgLabel = p.package && PACKAGES[p.package] ? PACKAGES[p.package].label : "Diğer/Paketsiz";
-        byPackage[pkgLabel] = (byPackage[pkgLabel] || 0) + p.amount;
-        const methodLabel = p.method && PAYMENT_METHODS[p.method] ? PAYMENT_METHODS[p.method].label : "Diğer";
-        byMethod[methodLabel] = (byMethod[methodLabel] || 0) + p.amount;
-      }));
-      return { byPackage, byMethod };
-    }
-
-    function renderBreakdownBars(dataObj, colors) {
-      const entries = Object.entries(dataObj).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-      if (!entries.length) return `<div class="empty" style="padding:8px 0">Veri yok</div>`;
-      const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
-      return entries.map(([label, val], i) => {
-        const pct = Math.round(val / total * 100);
-        const color = colors[i % colors.length];
-        return `<div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span>${escapeHtml(label)}</span>
-        <span style="color:var(--muted)">${val.toLocaleString('tr-TR')} ₺ (%${pct})</span>
-      </div>
-      <div style="background:var(--panel-2);border-radius:6px;height:8px;overflow:hidden">
-        <div style="width:${pct}%;height:100%;background:${color};border-radius:6px"></div>
-      </div>
-    </div>`;
-      }).join('');
-    }
-
-    function printReceipt(authorId, paymentId) {
-      const a = db.authors.find(x => x.id === authorId);
-      const p = a && a.payments && a.payments.find(x => x.id === paymentId);
-      if (!a || !p) return;
-      const vat = vatPortion(p);
-      const net = p.amount - vat;
-      const waUrl = a.phone ? toWaLink(a.phone, receiptWaText(a.name, p, vat)) : '';
-      const win = window.open('', '_blank', 'width=650,height=800');
-      if (!win) { alert('Makbuz penceresi açılamadı. Tarayıcınız açılır pencereleri engelliyor olabilir.'); return; }
-      win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Makbuz</title>
-    <style>
-      body { font-family: Arial, sans-serif; padding: 40px; color: #222; }
-      h1 { font-size: 20px; border-bottom: 2px solid #7c6cff; padding-bottom: 10px; }
-      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-      td { padding: 8px 0; border-bottom: 1px solid #eee; }
-      td:first-child { color: #666; width: 40%; }
-      .total { font-size: 18px; font-weight: bold; }
-      button, a.wa-btn { margin-top: 30px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
-      a.wa-btn { display: inline-block; margin-left: 10px; background: #25D366; color: #fff; text-decoration: none; border-radius: 6px; }
-      @media print { button, a.wa-btn { display: none; } }
-    </style></head><body>
-      <h1>Ödeme Makbuzu</h1>
-      <table>
-        <tr><td>Yazar</td><td>${escapeHtml(a.name)}</td></tr>
-        <tr><td>Tarih</td><td>${fmtDate(p.date)}</td></tr>
-        <tr><td>Açıklama</td><td>${escapeHtml(p.notes) || '—'}</td></tr>
-        <tr><td>Net Tutar</td><td>${net.toLocaleString('tr-TR')} ₺</td></tr>
-        <tr><td>KDV (%20)</td><td>${vat.toLocaleString('tr-TR')} ₺</td></tr>
-        <tr><td>Toplam</td><td class="total">${p.amount.toLocaleString('tr-TR')} ₺</td></tr>
-        <tr><td>Durum</td><td>${escapeHtml(p.status)}</td></tr>
-      </table>
-      <button onclick="window.print()">Yazdır / PDF Kaydet</button>${waUrl ? `<a class="wa-btn" href="${waUrl}" target="_blank">WhatsApp'tan Gönder</a>` : ''}
-    </body></html>`);
-      win.document.close();
-    }
-
-    function viewAccounting() {
-      backfillPaymentIds();
-      const t = searchTerm();
-      const match = a => !t || (a.name + " " + (a.work || "")).toLowerCase().includes(t);
-      const contracted = db.authors.filter(a => (a.status === "sozlesme" || a.status === "yayinda") && match(a));
-      // Sözleşmesi bitip arşivlenen ama ödeme geçmişi olan yazarlar da listede kalsın.
-      const archivedWithPayments = db.authors.filter(a => a.status !== "sozlesme" && a.status !== "yayinda" && (a.payments || []).length > 0 && match(a));
-      const displayAuthors = [...contracted, ...archivedWithPayments];
-
-      let totalPaid = 0, totalPending = 0, totalVat = 0;
-      displayAuthors.forEach(a => (a.payments || []).forEach(p => {
-        if (p.status === "Ödendi") { totalPaid += p.amount; totalVat += vatPortion(p); }
-        else if (p.status === "Bekliyor") totalPending += p.amount;
-      }));
-
-      let html = `<div class="grid stats" style="margin-bottom:16px">
-    <div class="card stat"><div class="n">${contracted.length}</div><div class="l">Sözleşmeli yazar</div></div>
-    <div class="card stat"><div class="n">${totalPaid.toLocaleString('tr-TR')} ₺</div><div class="l">Tahsil edilen</div><span class="chip" style="background:rgba(55,201,138,.15);color:#37c98a">Ödendi</span></div>
-    <div class="card stat"><div class="n">${totalPending.toLocaleString('tr-TR')} ₺</div><div class="l">Bekleyen ödeme</div><span class="chip" style="background:rgba(244,183,64,.15);color:#f4b740">Bekliyor</span></div>
-    <div class="card stat"><div class="n">${totalVat.toLocaleString('tr-TR')} ₺</div><div class="l">Tahsilattaki KDV</div><span class="chip" style="background:rgba(169,155,255,.15);color:#a99bff">%20 KDV</span></div>
-  </div>`;
-
-      html += `<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
-    <button class="btn ghost" onclick="exportPaymentsCSV()">📥 Ödemeleri CSV İndir</button>
-  </div>`;
-
-      const alerts = getPaymentAlerts();
-      if (alerts.overdue.length || alerts.upcoming.length) {
-        const items = [...alerts.overdue, ...alerts.upcoming];
-        html += `<div class="card" style="margin-bottom:16px">
-    <h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">🔔 Vadesi Gelen Taksitler ${alerts.overdue.length ? `<span class="badge" style="background:rgba(242,97,122,.2);color:#f2617a">${alerts.overdue.length} gecikmiş</span>` : ""}</h4>
-    ${items.map(item => {
-          const lbl = item.days < 0 ? `${-item.days} gün gecikti` : item.days === 0 ? "Bugün" : `${item.days} gün sonra`;
-          const col = item.days < 0 ? "var(--red)" : item.days <= 2 ? "var(--amber)" : "var(--muted)";
-          const reminderText = paymentReminderText(item.author.name, item.payment.amount, item.days);
-          return `<div class="mini" onclick="openDrawer('${item.author.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-      <div><span class="mn">${escapeHtml(item.author.name)}</span><div class="ms">${item.payment.amount.toLocaleString('tr-TR')} ₺${item.payment.notes ? " • " + escapeHtml(item.payment.notes) : ""}</div></div>
-      <div style="display:flex;align-items:center;gap:8px">${waBtn(item.author.phone, reminderText)}<span style="color:${col};font-weight:600;font-size:12px">${lbl}</span></div></div>`;
-        }).join("")}
-  </div>`;
-      }
-
-      const monthly = getMonthlyRevenue(6);
-      const thisMonth = monthly[monthly.length - 1].total;
-      const lastMonth = monthly.length > 1 ? monthly[monthly.length - 2].total : 0;
-      const diff = thisMonth - lastMonth;
-      const pct = lastMonth > 0 ? Math.round((diff / lastMonth) * 100) : (thisMonth > 0 ? 100 : 0);
-      const trendColor = diff >= 0 ? '#37c98a' : '#f2617a';
-      const trendArrow = diff >= 0 ? '▲' : '▼';
-
-      html += `<div class="card" style="margin-bottom:16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-      <h4 style="margin:0;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">📈 Aylık Gelir (Tahsil Edilen)</h4>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:18px;font-weight:700">${thisMonth.toLocaleString('tr-TR')} ₺ <span style="font-weight:400;font-size:12px;color:var(--muted)">bu ay</span></span>
-        <span style="font-size:12px;font-weight:600;color:${trendColor}">${trendArrow} %${Math.abs(pct)} geçen aya göre</span>
-      </div>
-    </div>
-    <div style="height:220px"><canvas id="monthlyRevenueChart"></canvas></div>
-  </div>`;
-
-      const breakdown = getPaymentBreakdown(displayAuthors);
-      html += `<div class="grid" style="grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-    <div class="card">
-      <h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">📦 Pakete Göre Tahsilat</h4>
-      ${renderBreakdownBars(breakdown.byPackage, ['#7c6cff', '#4aa8ff', '#37c98a', '#9aa1b2'])}
-    </div>
-    <div class="card">
-      <h4 style="margin:0 0 14px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">💳 Ödeme Şekline Göre Tahsilat</h4>
-      ${renderBreakdownBars(breakdown.byMethod, ['#f4b740', '#37c98a', '#a99bff', '#9aa1b2'])}
-    </div>
-  </div>`;
-
-      if (!displayAuthors.length) return html + `<div class="empty">Sözleşmeli yazar bulunamadı.</div>`;
-
-      const STATUS_COLORS = { "Ödendi": "#37c98a", "Bekliyor": "#f4b740", "İptal": "#9aa1b2" };
-
-      html += displayAuthors.map(a => {
-        const payments = (a.payments || []).slice().sort((p, q) => new Date(p.date) - new Date(q.date));
-        const paid = payments.filter(p => p.status === "Ödendi");
-        const pending = payments.filter(p => p.status === "Bekliyor");
-        const paidSum = paid.reduce((s, p) => s + p.amount, 0);
-        const pendingSum = pending.reduce((s, p) => s + p.amount, 0);
-        const isOtherStatus = a.status !== "sozlesme" && a.status !== "yayinda";
-
-        const canManagePayments = currentRole === 'admin' || currentRole === 'muhasebe';
-        const rows = payments.map(p => {
-          const col = STATUS_COLORS[p.status] || "#9aa1b2";
-          const vat = vatPortion(p);
-          const addedByLabel = p.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(p.addedBy) || "");
-          const receiptBtn = `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="printReceipt('${a.id}', '${p.id}')" title="Makbuz">🧾</button>`;
-          const markPaidBtn = p.status === "Bekliyor" ? `<button class="btn ghost" style="padding:4px 10px;font-size:12px;color:#37c98a;border-color:#37c98a" onclick="markPaymentPaid('${a.id}', '${p.id}')">✓ Ödendi</button>` : '';
-          const editBtn = canManagePayments ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="openEditPaymentModal('${a.id}', '${p.id}')" title="Düzenle">✏️</button>` : '';
-          const delBtn = canManagePayments ? `<button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delPayment('${a.id}', '${p.id}')" title="Sil">🗑</button>` : '';
-          return `<tr style="border-bottom:1px solid var(--line)">
-        <td style="padding:8px">${fmtDate(p.date)}</td>
-        <td style="padding:8px;font-weight:600">${p.amount.toLocaleString('tr-TR')} ₺<div style="font-weight:400;font-size:11px;color:var(--muted)">KDV: ${vat.toLocaleString('tr-TR')} ₺</div></td>
-        <td style="padding:8px"><span class="badge" style="background:${col}22;color:${col}">${escapeHtml(p.status)}</span></td>
-        <td style="padding:8px;color:var(--muted);font-size:12px">${escapeHtml(p.notes) || '—'}${addedByLabel ? `<div style="font-size:11px;opacity:.7">${escapeHtml(addedByLabel)} ekledi</div>` : ''}</td>
-        <td style="padding:8px;text-align:right"><div style="display:flex;gap:6px;justify-content:flex-end">${receiptBtn}${markPaidBtn}${editBtn}${delBtn}</div></td>
-      </tr>`;
-        }).join('');
-
-        return `<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="openDrawer('${a.id}')">
-          <div class="avatar" style="background:${avatarColor(a.name)}">${escapeHtml(initials(a.name))}</div>
-          <div>
-            <div style="font-weight:600;font-size:15px">${escapeHtml(a.name)} ${isOtherStatus ? `<span class="badge" style="background:${STATUS[a.status].color}22;color:${STATUS[a.status].color};font-size:10px;vertical-align:middle">${STATUS[a.status].label}</span>` : ''}</div>
-            <div style="color:var(--muted);font-size:12px">${escapeHtml(a.work) || "—"}</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:20px;text-align:right">
-          <div><div style="font-size:11px;color:var(--muted)">Ödenen</div><div style="font-weight:700;color:#37c98a">${paidSum.toLocaleString('tr-TR')} ₺</div></div>
-          <div><div style="font-size:11px;color:var(--muted)">Bekleyen</div><div style="font-weight:700;color:#f4b740">${pendingSum.toLocaleString('tr-TR')} ₺</div></div>
-          <div><div style="font-size:11px;color:var(--muted)">Taksit</div><div style="font-weight:700">${paid.length}/${payments.length}</div></div>
-          <button class="btn ghost" style="padding:6px 10px" onclick="openPayModal('${a.id}')" title="Ödeme Ekle">+ Ödeme</button>
-        </div>
-      </div>
-      ${payments.length ? `<table style="width:100%;text-align:left;border-collapse:collapse;font-size:13px">
-        <tr style="border-bottom:1px solid var(--line);color:var(--muted)">
-          <th style="padding:8px;font-weight:600">Tarih</th><th style="padding:8px;font-weight:600">Tutar</th><th style="padding:8px;font-weight:600">Durum</th><th style="padding:8px;font-weight:600">Not</th><th></th>
-        </tr>
-        ${rows}
-      </table>` : `<div class="empty" style="padding:12px 0">Henüz ödeme kaydı yok.</div>`}
-    </div>`;
-      }).join('');
-
-      return html;
-    }
-
-
-    function viewFollowups() {
-      const t = searchTerm();
-      const list = db.authors.filter(a =>
-        a.followup &&
-        (!t || (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase().includes(t))
-      ).sort((x, y) => new Date(x.followup) - new Date(y.followup));
-      if (!list.length) return `<div class="empty">Planlanmış takip yok.</div>`;
-
-      const overdue = [], today = [], upcoming = [];
-      list.forEach(a => {
-        const d = daysUntil(a.followup);
-        if (d < 0) overdue.push(a);
-        else if (d === 0) today.push(a);
-        else upcoming.push(a);
-      });
-
-      if (!['all', 'overdue', 'today', 'upcoming'].includes(filterStatus)) filterStatus = 'all';
-
-      const filterTabs = [
-        { id: 'overdue', label: 'Gecikenler', count: overdue.length, color: '#f2617a' },
-        { id: 'today', label: 'Bugün', count: today.length, color: '#f4b740' },
-        { id: 'upcoming', label: 'Gelecek', count: upcoming.length, color: '#4aa8ff' }
-      ];
-
-      let bar = `<div class="toolbar" style="margin-top:-8px;margin-bottom:20px;gap:10px">`;
-      
-      const allActive = filterStatus === 'all';
-      const allStyle = allActive ? `background: rgba(255,255,255,0.08); border-color: #fff; color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.15);` : ``;
-      bar += `<span class="pill ${allActive ? 'active' : ''}" style="${allStyle}" onclick="setFilter('all')" onmouseover="this.style.borderColor='#fff'" onmouseout="if(!${allActive}) this.style.borderColor='var(--line)'">
-          Tümü (${list.length})
-        </span>`;
-
-      filterTabs.forEach(t => {
-        const isActive = filterStatus === t.id;
-        const style = isActive ? `background: ${t.color}15; border-color: ${t.color}; color: ${t.color}; box-shadow: 0 0 14px ${t.color}40;` : ``;
-        bar += `<span class="pill ${isActive ? 'active' : ''}" style="${style}" onclick="setFilter('${t.id}')" onmouseover="this.style.borderColor='${t.color}'" onmouseout="if(!${isActive}) this.style.borderColor='rgba(255,255,255,0.08)'">
-          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.color};margin-right:8px;box-shadow:0 0 8px ${t.color}"></span>
-          ${t.label} (${t.count})
-        </span>`;
-      });
-      bar += `</div>`;
-
-      let activeList = list;
-      if (filterStatus === 'overdue') activeList = overdue;
-      else if (filterStatus === 'today') activeList = today;
-      else if (filterStatus === 'upcoming') activeList = upcoming;
-
-      if (!activeList.length) return bar + `<div class="empty">Bu kategoride kayıt bulunamadı.</div>`;
-      const cards = activeList.map(authorCard).join("");
-      return bar + `<div class="grid authors">${cards}</div>`;
-    }
-
-    /* ---------- Detay Drawer ---------- */
-    function openDrawer(id) {
-      const a = db.authors.find(x => x.id === id); if (!a) return;
-      const st = STATUS[a.status];
-      const logs = (a.logs || []).slice().sort((p, q) => new Date(q.date) - new Date(p.date));
-      const tl = logs.map(l => { const sn = staffName(l.staffId); return `<div class="tl"><div class="tt">${fmtDate(l.date)}${sn ? ` • <span style="color:var(--blue)">${escapeHtml(sn)}</span>` : ''}</div><div class="tx"><span class="type">${escapeHtml(l.type)}</span>${escapeHtml(l.text)}</div></div>`; }).join("") || `<div class="empty" style="padding:16px">Henüz görüşme kaydı yok.</div>`;
-
-      const authorFiles = (a.files || []).map((f, idx) => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px dashed var(--line);">
-          <div style="display:flex; flex-direction:column; gap:4px">
-            <div style="font-weight:600; font-size:13px"><a href="#" onclick="downloadFile('${a.id}', ${idx});return false;" style="color:var(--brand);text-decoration:none">${escapeHtml(f.name)}</a></div>
-            <div style="font-size:11px; color:var(--muted)">${fmtDate(f.date)} • <span style="color:var(--txt)">${escapeHtml(f.type) || 'Diğer'}</span> • ${(f.size / 1024).toFixed(1)} KB</div>
-          </div>
-          <button class="btn ghost" style="padding:4px 8px;font-size:12px" onclick="delFile('${a.id}', ${idx})" title="Sil">🗑</button>
-        </div>
-      `).join("") || `<div class="empty" style="padding:16px">Henüz dosya eklenmemiş.</div>`;
-
-      document.getElementById("drawer").innerHTML = `
-    <div class="dh">
-      <button class="close" onclick="closeDrawer()">×</button>
-      <div style="display:flex;gap:14px;align-items:center">
-        <div class="avatar" style="width:54px;height:54px;font-size:20px;background:${avatarColor(a.name)}">${escapeHtml(initials(a.name))}</div>
-        <div><div style="font-size:19px;font-weight:700">${escapeHtml(a.name)}</div>
-        <div style="color:var(--muted);font-size:13px">${escapeHtml(a.work) || "—"}</div></div>
-      </div>
-      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-        <span class="badge" style="background:${st.color}22;color:${st.color}">${st.label}</span>
-        ${(a.genres || []).map(g => `<span class="tag">${escapeHtml(g)}</span>`).join("")}
-      </div>
-      <div style="margin-top:14px;display:flex;gap:8px">
-        <button class="btn" style="flex:1" onclick="openLogModal('${a.id}')">+ Görüşme</button>
-        <button class="btn" style="flex:1; background:rgba(124,108,255,0.15); border-color:var(--brand); color:var(--brand)" onclick="openFileModal('${a.id}')">+ Dosya</button>
-        <button class="btn ghost" onclick="openAuthorModal('${a.id}')">✏️</button>
-        <button class="btn ghost" onclick="delAuthor('${a.id}')" title="Sil">🗑</button>
-      </div>
-    </div>
-    <div class="db">
-      <div class="section"><h4>İletişim & Bilgi</h4>
-        <div class="kv"><span>E-posta</span><span>${escapeHtml(a.email) || "—"}</span></div>
-        <div class="kv"><span>Telefon</span><span style="display:flex;align-items:center;gap:8px">${escapeHtml(a.phone) || "—"} ${waBtn(a.phone)}</span></div>
-        ${(a.phone && (a.status === "sozlesme" || a.status === "yayinda")) ? `<div class="kv"><span>Sözleşme Mesajı</span><span><a href="${toWaLink(a.phone, contractConfirmText(a.name, a.package && PACKAGES[a.package] ? PACKAGES[a.package].label : ''))}" target="_blank" style="color:var(--brand);text-decoration:underline;font-size:12px">📱 Onay Mesajı Gönder</a></span></div>` : ''}
-        <div class="kv"><span>Kaynak</span><span>${escapeHtml(a.source) || "—"}</span></div>
-        <div class="kv"><span>İlgi düzeyi</span><span>${"🔥".repeat(a.temp || 0) || "—"}</span></div>
-        <div class="kv"><span>Görüşme tarihi</span><span>${fmtDate(a.interviewDate)}</span></div>
-        <div class="kv"><span>Sonraki takip</span><span>${fmtDate(a.followup)}</span></div>
-        <div class="kv"><span>İlk kayıt</span><span>${fmtDate(a.created)}</span></div>
-      </div>
-      <div class="section"><h4>Notlar</h4>
-        <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px;line-height:1.5;white-space:pre-wrap">${escapeHtml(a.notes) || "—"}</div>
-      </div>
-
-      <div class="section"><h4>Dosyalar ve Belgeler (${(a.files || []).length})</h4>
-        <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:0 12px">${authorFiles}</div>
-      </div>
-
-      <div class="section"><h4>Görüşme Geçmişi (${logs.length})</h4>
-        <div class="timeline">${tl}</div>
-      </div>
-    </div>`;
-      document.getElementById("drawer").classList.add("open");
-      document.getElementById("overlay").classList.add("open");
-    }
-    function closeDrawer() { document.getElementById("drawer").classList.remove("open"); document.getElementById("overlay").classList.remove("open"); }
-
-    /* ---------- Yazar CRUD ---------- */
-    function openAuthorModal(id) {
-      const m = document.getElementById("authorModal");
-      const g = v => document.getElementById(v);
-      if (id) {
-        const a = db.authors.find(x => x.id === id);
-        document.getElementById("modalTitle").textContent = "Yazarı Düzenle";
-        g("f_id").value = a.id; g("f_name").value = a.name; g("f_status").value = a.status;
-        g("f_email").value = a.email || ""; g("f_phone").value = a.phone || "";
-        g("f_genres").value = (a.genres || []).join(", "); g("f_temp").value = a.temp || 3;
-        g("f_work").value = a.work || ""; g("f_interviewDate").value = a.interviewDate || ""; g("f_followup").value = a.followup || ""; g("f_source").value = a.source || "Diğer";
-        g("f_notes").value = a.notes || "";
-        g("f_package").value = a.package || "";
-      } else {
-        document.getElementById("modalTitle").textContent = "Yeni Yazar";
-        ["f_id", "f_name", "f_email", "f_phone", "f_genres", "f_work", "f_interviewDate", "f_followup", "f_notes"].forEach(v => g(v).value = "");
-        g("f_status").value = "aday"; g("f_temp").value = "3"; g("f_source").value = "E-posta başvurusu"; g("f_package").value = "";
-      }
-      toggleFPackage();
-      m.classList.add("open");
-    }
-    function closeModal() { document.getElementById("authorModal").classList.remove("open"); }
-    function toggleFPackage() {
-      const show = document.getElementById("f_status").value === "sozlesme";
-      document.getElementById("f_packageContainer").style.display = show ? "grid" : "none";
-    }
-    async function saveAuthor() {
-      const g = v => document.getElementById(v).value.trim();
-      const name = g("f_name");
-      if (!name) { alert("Ad Soyad zorunlu."); return; }
-      const id = g("f_id");
-      const oldAuthor = id ? db.authors.find(x => x.id === id) : null;
-      const wasContracted = oldAuthor ? oldAuthor.status === "sozlesme" : false;
-      const payload = {
-        name, status: g("f_status"), email: g("f_email"), phone: g("f_phone"),
-        genres: g("f_genres").split(",").map(s => s.trim()).filter(Boolean),
-        temp: +g("f_temp"), work: g("f_work"), interviewDate: g("f_interviewDate"), followup: g("f_followup"), source: g("f_source"), notes: g("f_notes"),
-        package: g("f_package") || null
-      };
-      const newId = id || uid();
-      if (id) {
-        await mutateAuthor(id, a => Object.assign(a, payload));
-      } else {
-        payload.id = newId; payload.created = new Date().toISOString().slice(0, 10); payload.logs = []; payload.addedBy = currentStaffId || "admin";
-        await createAuthor(payload);
-      }
-      closeModal(); render();
-      if (id) openDrawer(id);
-
-      // Yazar yeni sözleşmeli olduysa (durum ilk kez "Sözleşme"ye geçtiyse)
-      // ödeme şekli sorulması için ödeme ekranı otomatik açılır; formda
-      // seçilen paket buraya otomatik taşınır.
-      if (payload.status === "sozlesme" && !wasContracted) {
-        openPayModal(newId);
-      }
-    }
-    window.customConfirmResolve = null;
-    async function customConfirm(message, confirmLabel) {
-      return new Promise(resolve => {
-        document.getElementById("customConfirmMessage").textContent = message;
-        document.getElementById("customConfirmConfirmBtn").textContent = confirmLabel || "Evet, Sil";
-        document.getElementById("customConfirmModal").classList.add("open");
-        window.customConfirmResolve = function (result) {
-          document.getElementById("customConfirmModal").classList.remove("open");
-          resolve(result);
-        };
-      });
-    }
-
-    async function delAuthor(id) {
-      if (!(await customConfirm("Bu yazar ve tüm kayıtları silinsin mi?"))) return;
-      await deleteAuthorDoc(id);
-      closeDrawer(); render();
-    }
-
-    /* ---------- Görüşme kaydı ---------- */
-    function openLogModal(authorId) {
-      document.getElementById("l_authorId").value = authorId;
-      document.getElementById("l_type").value = "Telefon";
-      document.getElementById("l_date").value = new Date().toISOString().slice(0, 10);
-      document.getElementById("l_text").value = "";
-      // Staff dropdown doldur
-      const sel = document.getElementById("l_staff");
-      sel.innerHTML = '<option value="">— Seçiniz —</option>' + (db.staff || []).map(s => `<option value="${s.id}">${escapeHtml(s.name)} (${escapeHtml(s.role)})</option>`).join('');
-
-      if (currentStaffId) {
-        sel.value = currentStaffId;
-        sel.style.display = "none";
-        sel.previousElementSibling.style.display = "none";
-      } else {
-        sel.style.display = "block";
-        sel.previousElementSibling.style.display = "block";
-      }
-
-      document.getElementById("logModal").classList.add("open");
-    }
-    function closeLogModal() { document.getElementById("logModal").classList.remove("open"); }
-    async function saveLog() {
-      const id = document.getElementById("l_authorId").value;
-      const text = document.getElementById("l_text").value.trim();
-      if (!text) { alert("Özet zorunlu."); return; }
-      let staffId = document.getElementById("l_staff").value;
-      if (currentStaffId) staffId = currentStaffId;
-      const logEntry = { type: document.getElementById("l_type").value, date: document.getElementById("l_date").value, text, staffId };
-
-      await mutateAuthor(id, a => {
-        a.logs = a.logs || [];
-        a.logs.push(logEntry);
-      });
-      closeLogModal(); openDrawer(id); render();
-    }
-
-    /* ---------- Ödeme Yönetimi ---------- */
-    function openPayModal(authorId) {
-      let author = null;
-      if (authorId) {
-        document.getElementById("p_authorId").value = authorId;
-        document.getElementById("p_authorSelectContainer").style.display = "none";
-        author = db.authors.find(x => x.id === authorId);
-      } else {
-        document.getElementById("p_authorId").value = "";
-        const sel = document.getElementById("p_authorSelect");
-        sel.innerHTML = `<option value="">-- Yazar Seçin --</option>` +
-          db.authors.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
-        document.getElementById("p_authorSelectContainer").style.display = "block";
-      }
-      // Paket artık burada seçilmiyor: yazarın kaydındaki paketi kullanılır.
-      const pkgKey = (author && author.package && PACKAGES[author.package]) ? author.package : "";
-      document.getElementById("p_package").value = pkgKey;
-      document.getElementById("p_noPackageWarning").style.display = (author && !pkgKey) ? "block" : "none";
-      document.getElementById("p_method").value = "";
-      document.getElementById("p_amount").value = "";
-      document.getElementById("p_installments").value = "1";
-      document.getElementById("p_installmentsContainer").style.display = "none";
-      document.getElementById("p_date").value = new Date().toISOString().slice(0, 10);
-      document.getElementById("p_notes").value = "";
-      document.getElementById("p_status").value = "Ödendi";
-      applyPackage();
-      document.getElementById("payModal").classList.add("open");
-    }
-    function closePayModal() { document.getElementById("payModal").classList.remove("open"); }
-    function applyPackage() {
-      const key = document.getElementById("p_package").value;
-      const methodKey = document.getElementById("p_method").value;
-      const method = PAYMENT_METHODS[methodKey];
-      const amountEl = document.getElementById("p_amount");
-
-      if (key && PACKAGES[key]) {
-        const pkg = PACKAGES[key];
-        const vatIncluded = method ? method.vatIncluded : true;
-        amountEl.value = vatIncluded ? pkg.withVat : pkg.noVat;
-        amountEl.readOnly = true;
-        document.getElementById("p_notes").value = pkg.label + (method ? " (" + method.label + ")" : "");
-      } else {
-        amountEl.readOnly = false;
-      }
-
-      const instEl = document.getElementById("p_installments");
-      const instContainer = document.getElementById("p_installmentsContainer");
-      if (method && method.installments) {
-        instContainer.style.display = "block";
-      } else {
-        instEl.value = "1";
-        instContainer.style.display = "none";
-      }
-    }
-    async function savePayment() {
-      let id = document.getElementById("p_authorId").value;
-      if (!id) {
-        id = document.getElementById("p_authorSelect").value;
-        if (!id) { alert("Lütfen yazar seçin."); return; }
-      }
-      const totalAmount = parseFloat(document.getElementById("p_amount").value.trim());
-      if (!totalAmount) { alert("Tutar zorunlu."); return; }
-      const installments = Math.min(6, parseInt(document.getElementById("p_installments").value) || 1);
-
-      const baseDate = new Date(document.getElementById("p_date").value);
-      const status = document.getElementById("p_status").value;
-      const notes = document.getElementById("p_notes").value.trim();
-      const methodKey = document.getElementById("p_method").value;
-      const method = PAYMENT_METHODS[methodKey];
-      const vatIncluded = method ? method.vatIncluded : true;
-      const addedBy = currentStaffId || "admin";
-      const packageKey = document.getElementById("p_package").value || null;
-
-      const newPayments = [];
-      if (installments > 1) {
-        const instAmount = Math.floor(totalAmount / installments);
-        const remainder = totalAmount - (instAmount * installments);
-        for (let i = 0; i < installments; i++) {
-          let d = new Date(baseDate);
-          d.setMonth(d.getMonth() + i);
-          let instNotes = notes + (notes ? " " : "") + `(${i + 1}/${installments}. Taksit)`;
-          let instStatus = i === 0 ? status : "Bekliyor";
-          let amt = (i === installments - 1) ? (instAmount + remainder) : instAmount;
-          newPayments.push({
-            id: uid(), amount: amt, date: d.toISOString().slice(0, 10),
-            status: instStatus, notes: instNotes, vatIncluded, addedBy,
-            package: packageKey, method: methodKey || null
-          });
-        }
-      } else {
-        newPayments.push({
-          id: uid(), amount: totalAmount, date: document.getElementById("p_date").value,
-          status: status, notes: notes, vatIncluded, addedBy,
-          package: packageKey, method: methodKey || null
-        });
-      }
-      await mutateAuthor(id, a => {
-        a.payments = a.payments || [];
-        a.payments.push(...newPayments);
-      });
-      closePayModal();
-      if (document.getElementById("drawer").classList.contains("open")) openDrawer(id);
-      render();
-    }
-    async function delPayment(authorId, paymentId) {
-      if (!(await customConfirm("Ödeme silinsin mi?"))) return;
-      await mutateAuthor(authorId, a => {
-        a.payments = a.payments.filter(p => p.id !== paymentId);
-      });
-      if (document.getElementById("drawer").classList.contains("open")) openDrawer(authorId);
-      render();
-    }
-    async function markPaymentPaid(authorId, paymentId) {
-      if (!(await customConfirm("Bu taksit/ödeme ödendi olarak işaretlensin mi?", "Evet, Ödendi"))) return;
-      await mutateAuthor(authorId, a => {
-        const p = a.payments.find(x => x.id === paymentId);
-        if (p) p.status = "Ödendi";
-      });
-      render();
-    }
-    function openEditPaymentModal(authorId, paymentId) {
-      const a = db.authors.find(x => x.id === authorId);
-      const p = a && a.payments && a.payments.find(x => x.id === paymentId);
-      if (!p) return;
-      document.getElementById("ep_authorId").value = authorId;
-      document.getElementById("ep_paymentId").value = paymentId;
-      document.getElementById("ep_amount").value = p.amount;
-      document.getElementById("ep_date").value = p.date;
-      document.getElementById("ep_status").value = p.status;
-      document.getElementById("ep_vatIncluded").value = p.vatIncluded === false ? "false" : "true";
-      document.getElementById("ep_notes").value = p.notes || "";
-      document.getElementById("editPaymentModal").classList.add("open");
-    }
-    function closeEditPaymentModal() { document.getElementById("editPaymentModal").classList.remove("open"); }
-    async function saveEditPayment() {
-      const authorId = document.getElementById("ep_authorId").value;
-      const paymentId = document.getElementById("ep_paymentId").value;
-      const amount = parseFloat(document.getElementById("ep_amount").value);
-      if (!amount) { alert("Tutar zorunlu."); return; }
-      const date = document.getElementById("ep_date").value;
-      const status = document.getElementById("ep_status").value;
-      const vatIncluded = document.getElementById("ep_vatIncluded").value === "true";
-      const notes = document.getElementById("ep_notes").value.trim();
-
-      await mutateAuthor(authorId, a => {
-        const p = a.payments.find(x => x.id === paymentId);
-        p.amount = amount; p.date = date; p.status = status; p.vatIncluded = vatIncluded; p.notes = notes;
-      });
-      closeEditPaymentModal();
-      if (document.getElementById("drawer").classList.contains("open")) openDrawer(authorId);
-      render();
-    }
-
-    /* ---------- Dosya Yönetimi ---------- */
-    function openFileModal(authorId) {
-      if (authorId) {
-        document.getElementById("fi_authorId").value = authorId;
-        document.getElementById("fi_authorSelectContainer").style.display = "none";
-      } else {
-        document.getElementById("fi_authorId").value = "";
-        const sel = document.getElementById("fi_authorSelect");
-        sel.innerHTML = `<option value="">-- Yazar Seçin --</option>` +
-          db.authors.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
-        document.getElementById("fi_authorSelectContainer").style.display = "block";
-      }
-      document.getElementById("fi_file").value = "";
-      document.getElementById("fi_name").value = "";
-      document.getElementById("fi_type").value = "Diğer";
-      document.getElementById("fileModal").classList.add("open");
-    }
-    function closeFileModal() { document.getElementById("fileModal").classList.remove("open"); }
-    async function saveFile() {
-      let id = document.getElementById("fi_authorId").value;
-      if (!id) {
-        id = document.getElementById("fi_authorSelect").value;
-        if (!id) { alert("Lütfen yazar seçin."); return; }
-      }
-      const fileInput = document.getElementById("fi_file");
-      const name = document.getElementById("fi_name").value.trim();
-      const type = document.getElementById("fi_type").value;
-      if (!fileInput.files[0]) { alert("Lütfen dosya seçin."); return; }
-      const file = fileInput.files[0];
-      if (!name) { alert("Lütfen dosya adı/açıklaması girin."); return; }
-      if (file.size > 2 * 1024 * 1024) { alert("Dosya boyutu 2MB'den büyük olamaz."); return; }
-
-      const btn = document.getElementById("fi_saveBtn");
-      btn.disabled = true; btn.innerHTML = "Yükleniyor...";
-
-      try {
-        const fileDataUrl = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-
-        // Firebase Firestore 1MB doc limiti aşmamak için chunklara ayırıyoruz
-        const chunkSize = 800000;
-        const totalChunks = Math.ceil(fileDataUrl.length / chunkSize);
-        const fileId = "file_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
-
-        for (let i = 0; i < totalChunks; i++) {
-          const chunkData = fileDataUrl.slice(i * chunkSize, (i + 1) * chunkSize);
-          await firestore.collection("crm_files").doc(`${fileId}_${i}`).set({
-            data: chunkData,
-            index: i,
-            fileId: fileId
-          });
-        }
-
-        const fileMeta = {
-          name, size: file.size, date: new Date().toISOString().slice(0, 10), type,
-          isChunked: true, fileId: fileId, totalChunks: totalChunks
-        };
-        await mutateAuthor(id, a => {
-          a.files = a.files || [];
-          a.files.push(fileMeta);
-        });
-        closeFileModal(); openDrawer(id); render();
-      } catch (err) {
-        console.error("Yükleme Hatası:", err);
-        alert("Dosya yüklenirken hata oluştu: " + err.message);
-      } finally {
-        btn.disabled = false; btn.innerHTML = "Yükle";
-      }
-    }
-    async function delFile(authorId, idx) {
-      if (!(await customConfirm("Dosya silinsin mi?"))) return;
-      const a = db.authors.find(x => x.id === authorId);
-      const f = a.files[idx];
-      if (f.isChunked) {
-        for(let i=0; i<f.totalChunks; i++) {
-          firestore.collection("crm_files").doc(`${f.fileId}_${i}`).delete().catch(e=>console.log(e));
-        }
-      }
-      await mutateAuthor(authorId, da => {
-        da.files.splice(idx, 1);
-      });
-      openDrawer(authorId); render();
-    }
-    async function downloadFile(authorId, idx) {
-      const a = db.authors.find(x => x.id === authorId);
-      if (!a || !a.files || !a.files[idx]) return;
-      const f = a.files[idx];
-      
-      if (f.isChunked) {
-        let fullData = "";
-        try {
-          // Chunkları birleştir
-          for(let i=0; i<f.totalChunks; i++) {
-            const doc = await firestore.collection("crm_files").doc(`${f.fileId}_${i}`).get();
-            if(doc.exists) fullData += doc.data().data;
-          }
-          if(fullData) triggerDownload(fullData, f.name);
-          else alert("Dosya verisi bulunamadı.");
-        } catch(e) {
-          alert("Dosya indirilirken hata: " + e.message);
-        }
-      } else if (f.url) {
-        if (f.url.startsWith("http")) window.open(f.url, "_blank");
-        else if (f.url.startsWith("data:")) triggerDownload(f.url, f.name);
-      }
-    }
-    function triggerDownload(dataUrl, name) {
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-
-    /* ---------- Ekip Yönetimi ---------- */
-    function viewTeam() {
-      db.staff = db.staff || [];
-      const t = searchTerm();
-      const staff = db.staff.filter(s => !t || (s.name + " " + (s.role || "")).toLowerCase().includes(t));
-      // Her üyenin istatistikleri
-      const stats = staff.map(s => {
-        const logs = [];
-        const myAuthors = new Set();
-        db.authors.forEach(a => {
-          if (a.addedBy === s.id) myAuthors.add(a.id);
-          (a.logs || []).forEach(l => {
-            if (l.staffId === s.id) {
-              logs.push({ ...l, authorName: a.name, authorId: a.id });
-              myAuthors.add(a.id);
-            }
-          });
-        });
-        return { ...s, totalLogs: logs.length, authorCount: myAuthors.size, recentLogs: logs.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3) };
-      });
-
-      const addForm = "";
-
-      const backupHtml = currentRole === "admin" ? `
-    <div class="card" style="margin-bottom:16px">
-      <h3 style="margin:0 0 8px;font-size:14px">💾 Yedekleme</h3>
-      <div style="color:var(--muted);font-size:12px;margin-bottom:12px">Tüm yazar, personel ve ödeme verisini bir JSON dosyası olarak bilgisayarınıza indirir. Önemli bir değişiklik yapmadan önce almanız önerilir.</div>
-      <button class="btn ghost" onclick="exportData()">⬇️ Yedek Al (JSON İndir)</button>
-    </div>
-  ` : "";
-
-      const migrationHtml = currentRole === "admin" ? `
-    <div class="card" style="margin-bottom:16px;border-color:var(--brand)">
-      <h3 style="margin:0 0 8px;font-size:14px">🔧 Veritabanı Taşıma (Bir Kerelik)</h3>
-      <div style="color:var(--muted);font-size:12px;margin-bottom:12px">
-        Yazarları ve personeli, performans ve büyüme için tek dokümandan ayrı dokümanlara kopyalar.
-        <b style="color:var(--txt)">Mevcut veriye hiç dokunmaz, sadece yeni bir yere kopyalar</b> — orijinal veri (crm/main_db) olduğu gibi kalır.
-        Bu, birden fazla kez çalıştırılsa da güvenlidir (üzerine yazar, kaybetmez).
-      </div>
-      <button class="btn ghost" onclick="runMigrationToSeparateDocs()">▶️ Taşımayı Çalıştır</button>
-      <div id="migrationResult" style="margin-top:12px;font-size:13px;line-height:1.6"></div>
-    </div>
-  ` : "";
-
-      const pendingApprovalHtml = currentRole === "admin" ? `
-    <div class="card" style="margin-bottom:16px;border-color:var(--amber)">
-      <h3 style="margin:0 0 12px;font-size:14px;color:var(--amber)">👥 Kullanıcı Onay Yönetimi</h3>
-      <div style="color:var(--muted);font-size:12px;margin-bottom:12px">Kayıt olan kullanıcılar burada listelenir. Onaylamadığınız kullanıcılar sisteme giriş yapamaz.</div>
-      <div id="pendingUsersArea"><div class="empty">⏳ Yükleniyor...</div></div>
-    </div>
-  ` : "";
-
-      if (!staff.length) return backupHtml + migrationHtml + pendingApprovalHtml + addForm + `<div class="empty">Henüz ekip üyesi eklenmemiş.</div>`;
-
-      const cards = stats.map(s => {
-        const recentHtml = s.recentLogs.map(l => `<div style="font-size:11px;color:var(--muted);padding:3px 0;border-bottom:1px dashed var(--line)">${fmtDate(l.date)} • ${escapeHtml(l.authorName)} • <span style="color:var(--txt)">${escapeHtml(l.text.slice(0, 50))}${l.text.length > 50 ? '...' : ''}</span></div>`).join('');
-        return `<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-        <div class="avatar" style="background:${avatarColor(s.name)}">${escapeHtml(initials(s.name))}</div>
-        <div style="flex:1">
-          <div style="font-weight:600;font-size:15px">${escapeHtml(s.name)}</div>
-          <div style="color:var(--muted);font-size:12px">${escapeHtml(s.role) || '—'}</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:20px;font-weight:700;color:var(--brand)">${s.totalLogs}</div>
-          <div style="color:var(--muted);font-size:11px">görüşme</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:20px;font-weight:700;color:var(--blue)">${s.authorCount}</div>
-          <div style="color:var(--muted);font-size:11px">yazar</div>
-        </div>
-        <button class="btn ghost" onclick="delStaff('${s.id}')" style="padding:6px 10px" title="Sil">🗑</button>
-      </div>
-      ${recentHtml ? `<div style="margin-top:6px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Son görüşmeler</div>${recentHtml}</div>` : ''}
-    </div>`;
-      }).join('');
-
-      return backupHtml + migrationHtml + pendingApprovalHtml + addForm + cards;
-    }
-
-    async function addStaff() {
-      const name = document.getElementById('st_name').value.trim();
-      if (!name) { alert('Ad Soyad zorunlu.'); return; }
-      const role = document.getElementById('st_role').value.trim();
-      const newStaff = { id: uid(), name, role };
-      await mutateStaff(d => { d.staff = d.staff || []; d.staff.push(newStaff); });
-      render();
-    }
-    async function delStaff(id) {
-      if (!(await customConfirm('Bu ekip üyesi silinsin mi? Görüşme kayıtlarındaki referanslar kalacaktır.'))) return;
-      await mutateStaff(d => { d.staff = (d.staff || []).filter(x => x.id !== id); });
-      render();
-    }
-
-    /* ---------- Yedek al / yükle ---------- */
-    function exportData() {
-      const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "mst-crm-yedek-" + new Date().toISOString().slice(0, 10) + ".json";
-      a.click();
-    }
-    function exportPaymentsCSV() {
-      const rows = [["Yazar", "Tarih", "Tutar", "KDV", "Durum", "Not", "Ekleyen"]];
-      db.authors.forEach(a => {
-        (a.payments || []).forEach(p => {
-          const addedByLabel = p.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(p.addedBy) || "");
-          rows.push([a.name, p.date, p.amount, vatPortion(p), p.status, p.notes || "", addedByLabel]);
-        });
-      });
-      const csv = rows.map(r => r.map(cell => {
-        const s = String(cell === undefined || cell === null ? "" : cell);
-        return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-      }).join(";")).join("\r\n");
-      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "odemeler-" + new Date().toISOString().slice(0, 10) + ".csv";
-      a.click();
-    }
-    // Not: dosyadaki yazarları/personeli yazar (var olanların üzerine
-    // yazar) ama dosyada OLMAYAN, sunucuda hâlâ duran yazarları silmez.
-    function importData(e) {
-      const f = e.target.files[0]; if (!f) return;
-      const r = new FileReader();
-      r.onload = async () => {
-        try {
-          const imported = JSON.parse(r.result);
-          const authors = imported.authors || [];
-          const staffList = imported.staff || [];
-
-          const CHUNK = 450;
-          for (let i = 0; i < authors.length; i += CHUNK) {
-            const batch = firestore.batch();
-            authors.slice(i, i + CHUNK).forEach(a => {
-              batch.set(firestore.collection("authors").doc(a.id), a);
-            });
-            await batch.commit();
-          }
-          await firestore.collection("crm").doc("staff").set({ staff: staffList });
-          alert("Yedek yüklendi.");
-        } catch (err) {
-          alert("Geçersiz dosya veya yükleme hatası: " + err.message);
-        }
-      };
-      r.readAsText(f); e.target.value = "";
-    }
-
-    // Tek dev dokümandan ayrı dokümanlara geçiş — SADECE kopyalar, crm/main_db
-    // dokümanına hiç dokunmaz/silmez. Bu yüzden birden fazla kez çalıştırılsa
-    // bile güvenlidir. Kod tarafı henüz bu yeni koleksiyonu okumuyor; bu adım
-    // sadece veriyi hazırlar, uygulamanın davranışını değiştirmez.
-    async function runMigrationToSeparateDocs() {
-      if (currentRole !== 'admin') { alert('Bu işlemi sadece admin çalıştırabilir.'); return; }
-      if (!(await customConfirm('Yazarlar ve personel ayrı dokümanlara kopyalanacak. Mevcut veri (crm/main_db) hiç değişmeyecek/silinmeyecek, sadece yeni bir yere kopyalanacak. Devam edilsin mi?', 'Evet, Taşımayı Başlat'))) return;
-
-      const resultEl = document.getElementById('migrationResult');
-      resultEl.innerHTML = '⏳ Taşıma çalışıyor, lütfen bekleyin...';
-
-      try {
-        const mainDoc = await firestore.collection('crm').doc('main_db').get();
-        if (!mainDoc.exists) { resultEl.innerHTML = '❌ Ana veri (crm/main_db) bulunamadı.'; return; }
-        const data = mainDoc.data();
-        const authors = data.authors || [];
-        const staffList = data.staff || [];
-
-        const CHUNK = 450;
-        for (let i = 0; i < authors.length; i += CHUNK) {
-          const batch = firestore.batch();
-          authors.slice(i, i + CHUNK).forEach(a => {
-            batch.set(firestore.collection('authors').doc(a.id), a);
-          });
-          await batch.commit();
-        }
-        await firestore.collection('crm').doc('staff').set({ staff: staffList });
-
-        const check = await firestore.collection('authors').get();
-        const staffCheck = await firestore.collection('crm').doc('staff').get();
-        const migratedStaffCount = staffCheck.exists ? (staffCheck.data().staff || []).length : 0;
-
-        const ok = check.size === authors.length && migratedStaffCount === staffList.length;
-        if (ok) {
-          resultEl.innerHTML = `✅ <b style="color:#37c98a">Taşıma tamamlandı ve doğrulandı.</b><br>
-        Yazar: ${authors.length} → ${check.size} kopyalandı.<br>
-        Personel: ${staffList.length} → ${migratedStaffCount} kopyalandı.<br>
-        <b>Orijinal veri (crm/main_db) hiç değiştirilmedi, olduğu gibi duruyor.</b>`;
-        } else {
-          resultEl.innerHTML = `⚠️ <b style="color:#f2617a">Sayılar eşleşmiyor, lütfen bana bildirin.</b><br>
-        Yazar: ${authors.length} kaynak / ${check.size} kopyalandı.<br>
-        Personel: ${staffList.length} kaynak / ${migratedStaffCount} kopyalandı.<br>
-        Orijinal veri etkilenmedi, hiçbir şey silinmedi.`;
-        }
-      } catch (e) {
-        resultEl.innerHTML = '❌ Hata: ' + escapeHtml(e.message) + '<br>Orijinal veri etkilenmedi, hiçbir şey silinmedi.';
-      }
-    }
-
-
-    const ROLE_LABELS = { personel: "Personel", muhasebe: "Muhasebe", admin: "Admin" };
-    async function loadPendingUsers() {
-      const area = document.getElementById("pendingUsersArea");
-      if (!area) return;
-      try {
-        const snap = await firestore.collection("users").get();
-        if (snap.empty) {
-          area.innerHTML = '<div class="empty">Henüz kayıt olan kullanıcı yok.</div>';
-          return;
-        }
-        const pending = [];
-        const active = [];
-        snap.forEach(doc => {
-          const d = { id: doc.id, ...doc.data() };
-          (d.approved === true ? active : pending).push(d);
-        });
-
-        let html = '';
-
-        if (pending.length) {
-          html += '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">';
-          pending.forEach(d => {
-            const statusBadge = '<span style="background:rgba(244,183,64,.15);color:var(--amber);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600">⏳ Onay Bekliyor</span>';
-            const actions = `<button class="btn" style="padding:5px 12px;font-size:12px" onclick="approveUser('${d.id}')">✅ Onayla</button>
-           <button class="btn ghost" style="padding:5px 10px;font-size:12px;color:var(--red)" onclick="rejectUser('${d.id}')">❌ Reddet</button>`;
-            html += `<div style="display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 16px">
-        <div style="flex:1">
-          <div style="font-weight:600;font-size:14px">${escapeHtml(d.name) || '—'}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">@${escapeHtml(d.username || d.email)} • ${d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—'}</div>
-        </div>
-        ${statusBadge}
-        <div style="display:flex;gap:6px">${actions}</div>
-      </div>`;
-          });
-          html += '</div>';
-        }
-
-        if (active.length) {
-          html += '<div style="font-size:11px;color:var(--muted);margin:18px 0 10px;text-transform:uppercase;letter-spacing:.5px">Aktif Kullanıcılar ve Rolleri</div>';
-          html += '<div style="display:flex;flex-direction:column;gap:10px">';
-          active.forEach(d => {
-            const role = d.role || 'personel';
-            const roleOptions = Object.keys(ROLE_LABELS).map(r =>
-              `<option value="${r}" ${role === r ? 'selected' : ''}>${ROLE_LABELS[r]}</option>`
-            ).join('');
-            html += `<div style="display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 16px">
-        <div style="flex:1">
-          <div style="font-weight:600;font-size:14px">${escapeHtml(d.name) || '—'}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">@${escapeHtml(d.username || d.email)}</div>
-        </div>
-        <select onchange="changeUserRole('${d.id}', this.value)" style="width:auto;padding:6px 10px;font-size:12px">${roleOptions}</select>
-      </div>`;
-          });
-          html += '</div>';
-        }
-
-        area.innerHTML = html || '<div class="empty">Henüz kullanıcı yok.</div>';
-      } catch (e) {
-        area.innerHTML = '<div class="empty" style="color:var(--red)">Kullanıcılar yüklenemedi: ' + e.message + '</div>';
-      }
-    }
-    async function changeUserRole(userId, newRole) {
-      if (newRole === 'admin' && !(await customConfirm("Bu kullanıcıya tam yönetici (admin) yetkisi verilsin mi? Tüm verilere ve ayarlara erişebilir.", "Evet, Admin Yap"))) {
-        await loadPendingUsers();
-        return;
-      }
-      try {
-        await firestore.collection("users").doc(userId).update({ role: newRole });
-      } catch (e) {
-        alert('Rol güncellenemedi: ' + e.message);
-      }
-      await loadPendingUsers();
-    }
-
-    async function approveUser(userId) {
-      if (!confirm('Bu kullanıcıyı onaylamak istediğinize emin misiniz?')) return;
-      try {
-        const doc = await firestore.collection("users").doc(userId).get();
-        const d = doc.data();
-        await firestore.collection("users").doc(userId).update({ approved: true });
-
-        // Otomatik olarak Ekip'e de ekle
-        if (d && d.name) {
-          const clean = str => str.toLowerCase().replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ç/g, 'c').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/\s+/g, '');
-          const newStaffMember = { id: uid(), name: d.name, role: "Personel" };
-          await mutateStaff(state => {
-            state.staff = state.staff || [];
-            if (!state.staff.find(s => clean(s.name) === clean(d.name))) {
-              state.staff.push(newStaffMember);
-            }
-          });
-        }
-
-        render();
-        await loadPendingUsers();
-      } catch (e) { alert('Hata: ' + e.message); }
-    }
-
-    async function rejectUser(userId) {
-      if (!confirm('Bu kullanıcıyı silmek/engellemek istediğinize emin misiniz?')) return;
-      try {
-        await firestore.collection("users").doc(userId).delete();
-        render();
-        await loadPendingUsers();
-      } catch (e) { alert('Hata: ' + e.message); }
-    }
-
-
-
-    async function initApp() {
-      const loginFormHtml = document.getElementById("loginScreen").innerHTML;
-      document.getElementById("loginScreen").innerHTML = `<div style="text-align:center;color:#fff"><div style="font-size:32px;margin-bottom:14px;animation:spin 1s linear infinite">⏳</div><div style="font-size:15px;color:var(--muted)">Bulut veritabanına (Firebase) bağlanılıyor...</div><style>@keyframes spin { 100% { transform:rotate(360deg); } }</style></div>`;
-
-      // Firestore kuralları girişi zorunlu kıldığı için, kimlik doğrulama
-      // durumu netleşmeden (Firebase Auth önceki oturumu geri yüklerken)
-      // veri okumaya kalkışmak "izin yok" hatasına ve sonsuza kadar bu
-      // ekranda takılı kalmaya yol açabiliyordu. Önce SADECE ilk oturum
-      // durumunu bekliyoruz; asıl veri yüklemesi setupAuthListener()
-      // içinde, kullanıcı onaylı şekilde giriş yaptığında tetikleniyor.
-      await new Promise(resolve => {
-        const unsub = auth.onAuthStateChanged(() => { unsub(); resolve(); });
-      });
-
-      document.getElementById("loginScreen").innerHTML = loginFormHtml;
-      setupAuthListener();
-    }
-
-    initApp();
-  </script>
+  <script src="app.js"></script>
 </body>
 
 </html>

@@ -1,0 +1,30 @@
+name: WhatsApp Ödeme Hatırlatmaları
+
+on:
+  schedule:
+    # Her gün 06:00 UTC = Türkiye saatiyle 09:00 (yaz saati uygulamasında)
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}   # Elle de tetiklenebilsin diye (Actions sekmesinden "Run workflow")
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bağımlılıkları kur
+        working-directory: scripts
+        run: npm install
+
+      - name: Hatırlatmaları gönder
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          WHATSAPP_TEMPLATE_NAME: ${{ secrets.WHATSAPP_TEMPLATE_NAME }}
+        run: node send-whatsapp-reminders.js

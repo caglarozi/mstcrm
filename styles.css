@@ -1,0 +1,2019 @@
+    :root {
+      /* Tema: Premium Dark (Obsidyen Siyah) + Koyu Lacivert / Safir Mavi Accent */
+      --bg: #08090d;
+      --panel: #11131c;
+      --panel-2: #181b26;
+      --line: rgba(37, 99, 235, 0.22);
+      --txt: #f7f7f9;
+      --muted: #9da2b4;
+      --brand: #2563eb;
+      --brand-2: #3b82f6;
+      --green: #37c98a;
+      --amber: #f4b740;
+      --red: #f2617a;
+      --blue: #3b82f6;
+      --radius: 14px;
+      --shadow: 0 10px 35px rgba(0, 0, 0, .6);
+    }
+
+    [data-theme="light"] {
+      /* Efektli Beyaz Açık Tema Renk Paleti (Mavi Arka Plan İçermez) */
+      --bg: #fafafc;
+      --panel: #ffffff;
+      --panel-2: #f1f5f9;
+      --line: rgba(9, 105, 218, 0.14);
+      --txt: #0f172a;
+      --muted: #475569;
+      --brand: #0969da;
+      --brand-2: #0284c7;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --blue: #0969da;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+    }
+
+    [data-theme="light"] body {
+      background: #fafafc;
+      background: radial-gradient(circle at 50% 0%, #f1f5f9 0%, #fafafc 100%);
+      background-attachment: fixed;
+      color: #0f172a;
+    }
+
+    [data-theme="light"] .side {
+      background: #ffffff;
+      border-right: 1px solid #e2e8f0;
+      box-shadow: 4px 0 24px rgba(15, 23, 42, 0.03);
+    }
+
+    [data-theme="light"] .side .nav button {
+      color: #475569;
+    }
+
+    [data-theme="light"] .side .nav button:hover {
+      background: #f1f5f9;
+      color: #0969da;
+    }
+
+    [data-theme="light"] .side .nav button.active {
+      background: #eff6ff;
+      border-color: #0969da;
+      color: #0969da;
+      box-shadow: 0 2px 10px rgba(9, 105, 218, 0.15), inset 4px 0 0 #0969da;
+      text-shadow: none;
+    }
+
+    [data-theme="light"] .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+    }
+
+    [data-theme="light"] .card.author:hover {
+      background: #ffffff;
+      border-color: #0969da;
+      box-shadow: 0 10px 25px rgba(9, 105, 218, 0.12);
+    }
+
+    [data-theme="light"] .search {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #0f172a;
+    }
+
+    [data-theme="light"] .search:focus {
+      border-color: #0969da;
+      box-shadow: 0 0 12px rgba(9, 105, 218, 0.2);
+    }
+
+    [data-theme="light"] .pill {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+    }
+
+    [data-theme="light"] .pill:hover {
+      background: #eff6ff;
+      border-color: #0969da;
+      color: #0969da;
+    }
+
+    [data-theme="light"] .pill.active {
+      background: linear-gradient(135deg, #0969da 0%, #0284c7 100%);
+      border-color: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(9, 105, 218, 0.35);
+    }
+
+    [data-theme="light"] .btn {
+      background: linear-gradient(135deg, #0969da 0%, #0284c7 100%);
+      border: 1px solid #0284c7;
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(9, 105, 218, 0.3);
+    }
+
+    [data-theme="light"] .btn:hover {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      box-shadow: 0 6px 20px rgba(9, 105, 218, 0.45);
+    }
+
+    [data-theme="light"] .btn.ghost {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+    }
+
+    [data-theme="light"] .btn.ghost:hover {
+      background: #eff6ff;
+      border-color: #0969da;
+      color: #0969da;
+    }
+
+    [data-theme="light"] input,
+    [data-theme="light"] select,
+    [data-theme="light"] textarea {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      color: #0f172a;
+    }
+
+    [data-theme="light"] input:focus,
+    [data-theme="light"] select:focus,
+    [data-theme="light"] textarea:focus {
+      border-color: #0969da;
+      box-shadow: 0 0 12px rgba(9, 105, 218, 0.2);
+    }
+
+    [data-theme="light"] .modal .box {
+      background: #ffffff;
+      color: #0f172a;
+      border-color: #cbd5e1;
+      box-shadow: 0 25px 50px rgba(15, 23, 42, 0.15);
+    }
+
+    [data-theme="light"] .drawer {
+      background: #ffffff;
+      color: #0f172a;
+      border-left-color: #e2e8f0;
+      box-shadow: -10px 0 40px rgba(15, 23, 42, 0.1);
+    }
+
+    [data-theme="light"] .drawer .dh {
+      background: #f8fafc;
+      border-bottom-color: #e2e8f0;
+    }
+
+    [data-theme="light"] .side-foot button {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+      color: #334155;
+    }
+
+    [data-theme="light"] .side-foot button:hover {
+      background: #eff6ff;
+      border-color: #0969da;
+      color: #0969da;
+    }
+
+    [data-theme="light"] .tag {
+      background: #eff6ff;
+      border-color: rgba(9, 105, 218, 0.2);
+      color: #1e40af;
+    }
+
+    [data-theme="light"] .logo .mark img,
+    [data-theme="light"] .topbar-mark img,
+    [data-theme="light"] .login-mobile-brand .mark img,
+    [data-theme="light"] .login-left .mark img {
+      filter: none;
+      mix-blend-mode: multiply;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    /* viewport-fit=cover (bkz. index.html) sayfanın çentik/durum çubuğu ve
+       alt kaydırma çubuğu alanlarına kadar uzamasını sağlıyor — ama html'in
+       kendi arka planı yoksa, body'nin gerçek içerik yüksekliği bu güvenli
+       olmayan alanları kapatmayınca tarayıcının varsayılan (beyaz) rengi
+       oradan görünüyordu. html'e de aynı arka planı vererek bunu kapatıyoruz. */
+    html {
+      background: var(--bg);
+      height: 100%;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100%;
+      min-height: 100dvh;
+      font-family: "Martel Sans", "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #151824 0%, #08090d 100%);
+      background-attachment: fixed;
+      color: var(--txt);
+      font-size: 14px;
+      overflow-x: hidden
+    }
+
+    /* Film Grain / Noise Overlay — caglarozen.com.tr stilinde */
+    .noise-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      opacity: 0.045;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-repeat: repeat;
+      background-size: 180px 180px;
+    }
+
+    a {
+      color: inherit
+    }
+
+    h1, h2, h3, h4, .logo, .login-mobile-brand, .stat .n {
+      font-family: "Montserrat", "Segoe UI", system-ui, sans-serif;
+    }
+
+    button {
+      font-family: inherit;
+      cursor: pointer
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .side {
+      background: rgba(14, 18, 32, 0.65);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-right: 1px solid rgba(59, 130, 246, 0.18);
+      padding: 20px 14px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      z-index: 40;
+    }
+
+    /* MST Intro Splash Animation */
+    @keyframes introLogoPop {
+      0% { transform: scale(0.4) rotate(-10deg); opacity: 0; }
+      70% { transform: scale(1.08) rotate(0deg); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes introPulse {
+      0% { opacity: 0; transform: translateY(20px); }
+      30% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes introBar {
+      0% { width: 0%; }
+      100% { width: 100%; }
+    }
+
+    @keyframes introOrbPulse {
+      0% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.5; }
+      100% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.9; }
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 18px;
+      margin: 4px 6px 22px
+    }
+
+    .logo .mark {
+      width: 36px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      padding: 0;
+      box-shadow: none;
+      flex-shrink: 0;
+    }
+
+    .logo .mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: none;
+      mix-blend-mode: screen;
+      transition: filter 0.25s ease;
+    }
+
+    .nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px
+    }
+
+    .nav button {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: 1px solid transparent;
+      color: var(--muted);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .nav button:hover {
+      background: rgba(59, 130, 246, 0.12);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: var(--txt)
+    }
+
+    .nav button.active {
+      background: rgba(37, 99, 235, 0.22);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--brand);
+      color: #60a5fa;
+      box-shadow: 0 0 18px rgba(37, 99, 235, 0.45), inset 4px 0 0 var(--brand);
+      font-weight: 600;
+      text-shadow: 0 0 8px rgba(37, 99, 235, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .side-foot {
+      position: absolute;
+      bottom: 16px;
+      left: 14px;
+      right: 14px;
+      font-size: 11px;
+      color: var(--muted)
+    }
+
+    .side-foot button {
+      width: 100%;
+      margin-bottom: 6px;
+      background: rgba(22, 30, 52, 0.55);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: var(--txt);
+      padding: 8px;
+      border-radius: 9px;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .side-foot button:hover {
+      background: rgba(30, 42, 72, 0.7);
+      border-color: var(--brand);
+      transform: translateY(-1px);
+    }
+
+    /* Main */
+    .main {
+      padding: 26px 30px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      height: 100%;
+    }
+
+    /* Staggered View Enter Animation (Sekme İçi Efekt) */
+    @keyframes staggerFade {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    #content.view-enter > *,
+    #content.view-enter .grid > *,
+    #content.view-enter .card,
+    #content.view-enter .table-row {
+      animation: staggerFade 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    /* Gecikmeler (Daha yavaş ve belirgin) */
+    #content.view-enter > *:nth-child(1), #content.view-enter .grid > *:nth-child(1), #content.view-enter .card:nth-child(1), #content.view-enter .table-row:nth-child(1) { animation-delay: 0.0s; }
+    #content.view-enter > *:nth-child(2), #content.view-enter .grid > *:nth-child(2), #content.view-enter .card:nth-child(2), #content.view-enter .table-row:nth-child(2) { animation-delay: 0.1s; }
+    #content.view-enter > *:nth-child(3), #content.view-enter .grid > *:nth-child(3), #content.view-enter .card:nth-child(3), #content.view-enter .table-row:nth-child(3) { animation-delay: 0.2s; }
+    #content.view-enter > *:nth-child(4), #content.view-enter .grid > *:nth-child(4), #content.view-enter .card:nth-child(4), #content.view-enter .table-row:nth-child(4) { animation-delay: 0.3s; }
+    #content.view-enter > *:nth-child(5), #content.view-enter .grid > *:nth-child(5), #content.view-enter .card:nth-child(5), #content.view-enter .table-row:nth-child(5) { animation-delay: 0.4s; }
+    #content.view-enter > *:nth-child(n+6), #content.view-enter .grid > *:nth-child(n+6), #content.view-enter .card:nth-child(n+6), #content.view-enter .table-row:nth-child(n+6) { animation-delay: 0.5s; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+      position: relative;
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border-bottom: none;
+      z-index: 50;
+      padding: 10px 0;
+      margin-left: 0;
+      margin-right: 0;
+      margin-top: 0;
+      box-shadow: none;
+    }
+
+    .topbar-mark {
+      display: none;
+      width: 36px;
+      height: 48px;
+      place-items: center;
+      background: transparent;
+      padding: 0;
+      flex-shrink: 0;
+      margin-right: 6px;
+      box-shadow: none;
+    }
+
+    .topbar-mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: none;
+      mix-blend-mode: screen;
+      transition: filter 0.25s ease;
+    }
+
+    .topbar h1 {
+      font-size: 22px;
+      margin: 0;
+      font-weight: 700
+    }
+
+    .spacer {
+      flex: 1
+    }
+
+    .search-wrap {
+      position: relative;
+      flex: 1 1 200px;
+      max-width: 300px;
+      min-width: 140px;
+    }
+
+    .search-wrap svg {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .search {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 9px 13px 9px 36px;
+      color: var(--txt);
+      width: 100%;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.85) 0%, rgba(30, 64, 175, 0.9) 100%);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(96, 165, 250, 0.5);
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: 600;
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn:hover {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.9) 0%, rgba(37, 99, 235, 0.95) 100%);
+      box-shadow: 0 8px 24px rgba(37, 99, 235, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .btn.ghost {
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
+      color: var(--txt);
+      font-weight: 600;
+    }
+
+    .btn.ghost:hover {
+      background: rgba(37, 99, 235, 0.15);
+      border-color: var(--brand);
+      color: #60a5fa;
+    }
+
+    /* Cards / stats */
+    .grid {
+      display: grid;
+      gap: 16px
+    }
+
+    .stats {
+      grid-template-columns: repeat(4, 1fr)
+    }
+
+    .grid-2col {
+      grid-template-columns: 1fr 1fr
+    }
+
+    .card {
+      background: rgba(18, 24, 42, 0.55);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+    }
+
+    .stat .n {
+      font-size: 28px;
+      font-weight: 700
+    }
+
+    .stat .l {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 2px
+    }
+
+    .stat .chip {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      display: inline-block;
+      margin-top: 8px
+    }
+
+    /* Author list */
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      align-items: center
+    }
+
+    .pill {
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--txt);
+      padding: 7px 15px;
+      border-radius: 20px;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      font-weight: 500;
+      box-shadow: none;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .pill:hover {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: #3b82f6;
+      color: #60a5fa;
+      transform: translateY(-1px);
+    }
+
+    .pill.active {
+      /* Aktif state JS'den gelir, cam efektiyle birleşir */
+      transform: translateY(-1px);
+    }
+
+    .authors {
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr))
+    }
+
+    .author {
+      cursor: pointer;
+      min-height: 160px;
+      height: 160px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform .12s, border-color .12s, box-shadow .12s;
+    }
+
+    .author:hover {
+      transform: translateY(-2px);
+      border-color: var(--brand)
+    }
+
+    .author .head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: #fff;
+      flex: none
+    }
+
+    .author .name {
+      font-weight: 600;
+      font-size: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .author .role {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tags {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+      min-height: 24px;
+      max-height: 28px;
+      overflow: hidden;
+    }
+
+    .tag {
+      font-size: 11px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      padding: 3px 9px;
+      border-radius: 20px;
+      color: var(--muted)
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 600
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: auto;
+      font-size: 12px;
+      color: var(--muted);
+      flex-shrink: 0;
+      padding-top: 4px;
+    }
+
+    .temp {
+      display: flex;
+      gap: 3px
+    }
+
+    .temp span {
+      width: 16px;
+      height: 5px;
+      border-radius: 3px;
+      background: var(--line)
+    }
+
+    /* Pipeline */
+    .pipe {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+      align-items: start
+    }
+
+    .col {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      min-height: 120px
+    }
+
+    .col h3 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted)
+    }
+
+    .col .count {
+      background: var(--panel-2);
+      padding: 1px 9px;
+      border-radius: 20px
+    }
+
+    .mini {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 9px;
+      cursor: pointer;
+      font-size: 13px
+    }
+
+    .mini:hover {
+      border-color: var(--brand)
+    }
+
+    .mini .mn {
+      font-weight: 600
+    }
+
+    .mini .ms {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 3px
+    }
+
+    /* Detail drawer */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .55);
+      display: none;
+      z-index: 40
+    }
+
+    .overlay.open {
+      display: block
+    }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100vh;
+      width: 520px;
+      max-width: 94vw;
+      background: rgba(12, 16, 28, 0.82);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border-left: 1px solid rgba(59, 130, 246, 0.25);
+      z-index: 50;
+      transform: translateX(100%);
+      transition: transform .25s;
+      overflow: auto;
+      box-shadow: -10px 0 40px rgba(0, 0, 0, 0.75);
+    }
+
+    .drawer.open {
+      transform: translateX(0)
+    }
+
+    .drawer .dh {
+      padding: 22px 24px;
+      border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+      position: sticky;
+      top: 0;
+      background: rgba(14, 18, 32, 0.78);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      z-index: 2
+    }
+
+    .drawer .db {
+      padding: 22px 24px
+    }
+
+    .close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 22px;
+      float: right
+    }
+
+    .section {
+      margin-bottom: 22px
+    }
+
+    .section h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--muted);
+      margin: 0 0 10px
+    }
+
+    .kv {
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 0;
+      border-bottom: 1px dashed var(--line);
+      font-size: 13px
+    }
+
+    .kv span:first-child {
+      color: var(--muted)
+    }
+
+    .timeline {
+      position: relative;
+      padding-left: 18px
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 4px;
+      bottom: 4px;
+      width: 2px;
+      background: var(--line)
+    }
+
+    .tl {
+      position: relative;
+      margin-bottom: 14px
+    }
+
+    .tl::before {
+      content: "";
+      position: absolute;
+      left: -16px;
+      top: 4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--brand)
+    }
+
+    .tl .tt {
+      font-size: 12px;
+      color: var(--muted)
+    }
+
+    .tl .tx {
+      font-size: 13px;
+      margin-top: 2px
+    }
+
+    .tl .type {
+      font-size: 10px;
+      padding: 1px 7px;
+      border-radius: 20px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      margin-right: 6px
+    }
+
+    .msg-preview {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      margin-top: 8px;
+      max-height: 160px;
+      overflow: auto
+    }
+
+    /* Mobil FAB ("+ Yeni Yazar") — masaüstünde her zaman gizli, mobilde
+       ilgili görünümde .show class'ıyla açılır (bkz. @media altındaki .fab). */
+    .fab {
+      display: none;
+    }
+
+    /* "Hesabım" sheet'i: profil başlığı + menü listesi + çıkış satırı
+       (Trendyol/Instagram tarzı hesap sekmesi deseni). Bu sheet sadece
+       mobilde açılabildiği için (bkz. #mobileMenuBtn), buradaki temel
+       stiller media query'ye bağlı değil ama masaüstünü etkilemiyor. */
+    .more-sheet-profile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 4px 18px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .more-sheet-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .more-sheet-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      background: none;
+      border: none;
+      border-bottom: 1px solid var(--line);
+      padding: 14px 4px;
+      color: var(--txt);
+      font-size: 14px;
+      font-weight: 600;
+      text-align: left;
+      min-height: 44px;
+    }
+
+    .more-sheet-row svg {
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .more-sheet-row span {
+      flex: 1;
+    }
+
+    .more-sheet-row:active {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .more-sheet-logout {
+      border-bottom: none;
+      color: var(--red);
+      margin-top: 4px;
+    }
+
+    .more-sheet-logout svg {
+      color: var(--red);
+    }
+
+    .pay-table {
+      overflow-x: auto
+    }
+
+
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+      align-items: end
+    }
+
+    .input-group input {
+      flex: 1
+    }
+
+    .input-group button {
+      white-space: nowrap;
+      flex: none
+    }
+
+    /* Modal / forms */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: none;
+      place-items: center;
+      /* Mobil alt sekme çubuğu (z-index:900) ve yan menü (1000) modal
+         açıkken de görünür kaldığından, modal onların ÜSTÜNDE durmalı —
+         aksi halde bottom-nav, formun alt kısmındaki Vazgeç/Kaydet
+         butonlarını görsel olarak (ve tıklama açısından) örtüyordu. */
+      z-index: 1200
+    }
+
+    .modal.open {
+      display: grid
+    }
+
+    .modal .box {
+      background: rgba(15, 20, 35, 0.78);
+      backdrop-filter: blur(36px);
+      -webkit-backdrop-filter: blur(36px);
+      border: 1px solid rgba(59, 130, 246, 0.28);
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      width: 520px;
+      max-width: 94vw;
+      max-height: 90vh;
+      overflow: auto;
+      padding: 32px
+    }
+
+    .modal h2 {
+      margin: 0 0 18px;
+      font-size: 18px
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 12px 0 6px
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: var(--txt);
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    }
+    
+    input[type="file"] {
+      padding: 8px 14px;
+    }
+
+    input[type="file"]::file-selector-button {
+      background: rgba(255, 193, 69,0.25);
+      border: 1px solid rgba(255, 193, 69,0.4);
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-right: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    input[type="file"]::file-selector-button:hover {
+      background: rgba(255, 193, 69,0.4);
+    }
+
+    option {
+      background: var(--panel-2);
+      color: var(--txt);
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px rgba(255, 193, 69,0.2);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 70px
+    }
+
+    .row2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px
+    }
+
+    .empty {
+      color: var(--muted);
+      text-align: center;
+      padding: 40px;
+      font-size: 13px
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(154, 161, 178, 0.25);
+      border-radius: 20px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(154, 161, 178, 0.5);
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+
+    .login-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: grid;
+      place-items: center;
+      z-index: 9999;
+      padding: 20px;
+    }
+
+    .login-box {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 900px;
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .login-left {
+      padding: 60px 40px;
+      background: radial-gradient(circle at 100% 50%, rgba(255, 193, 69,0.05) 0%, transparent 50%), var(--panel);
+      position: relative;
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+
+    .login-left::before {
+      content: "";
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 193, 69,0.08);
+      top: -100px;
+      right: -100px;
+    }
+
+    .login-left::after {
+      content: "";
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 193, 69,0.05);
+      bottom: -150px;
+      right: -150px;
+    }
+
+    .login-right {
+      padding: 60px 50px;
+      background: var(--panel);
+    }
+
+    .login-mobile-brand {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--txt);
+    }
+
+    .login-mobile-brand .mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      padding: 3px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .login-mobile-brand .mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: none;
+      mix-blend-mode: screen;
+      transition: filter 0.25s ease;
+    }
+
+    @media (max-width: 768px) {
+      .login-box {
+        grid-template-columns: 1fr;
+      }
+
+      .login-left {
+        display: none;
+      }
+
+      .login-right {
+        padding: 40px 30px;
+      }
+
+      .login-mobile-brand {
+        display: flex;
+      }
+    }
+
+    #profileDropdown.open {
+      display: block !important
+    }
+
+    #taskNotifDropdown.open {
+      display: block !important
+    }
+
+    #topProfileArea:hover {
+      opacity: .85
+    }
+
+    /* --- EKLENEN ANİMASYON VE EFEKTLER --- */
+
+    /* Animasyonlar */
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes catBounceWalk {
+      0%   { transform: translateX(-10px) translateY(0)   scale(1,1)      scaleX(-1); }
+      15%  { transform: translateX(-6px)  translateY(-6px) scale(0.94,1.1) scaleX(-1); }
+      30%  { transform: translateX(-2px)  translateY(0)    scale(1.06,0.9) scaleX(-1); }
+      48%  { transform: translateX(2px)   translateY(0)    scale(1,1)      scaleX(-1); }
+      50%  { transform: translateX(2px)   translateY(0)    scale(1,1)      scaleX(1); }
+      65%  { transform: translateX(6px)   translateY(-6px) scale(0.94,1.1) scaleX(1); }
+      80%  { transform: translateX(10px)  translateY(0)    scale(1.06,0.9) scaleX(1); }
+      98%  { transform: translateX(-10px) translateY(0)    scale(1,1)      scaleX(1); }
+      100% { transform: translateX(-10px) translateY(0)    scale(1,1)      scaleX(-1); }
+    }
+
+    @keyframes catShadowWalk {
+      0%   { transform: translateX(-10px) scaleX(1);    opacity: 0.35; }
+      15%  { transform: translateX(-6px)  scaleX(0.55); opacity: 0.15; }
+      30%  { transform: translateX(-2px)  scaleX(1.15); opacity: 0.4; }
+      48%  { transform: translateX(2px)   scaleX(1);    opacity: 0.35; }
+      65%  { transform: translateX(6px)   scaleX(0.55); opacity: 0.15; }
+      80%  { transform: translateX(10px)  scaleX(1.15); opacity: 0.4; }
+      98%  { transform: translateX(-10px) scaleX(1);    opacity: 0.35; }
+      100% { transform: translateX(-10px) scaleX(1);    opacity: 0.35; }
+    }
+
+    .cat-loader .cat-icon { transform-origin: center bottom; }
+    .cat-loader.walking .cat-icon { animation: catBounceWalk 1.1s ease-in-out infinite; }
+    .cat-loader.walking .cat-shadow { animation: catShadowWalk 1.1s ease-in-out infinite; }
+
+    @keyframes catFlop {
+      0%   { transform: scale(1,1) rotate(0deg) translateY(0); }
+      18%  { transform: scale(1.18,0.78) rotate(0deg) translateY(2px); }
+      45%  { transform: scale(0.9,1.05) rotate(55deg) translateY(-3px); }
+      70%  { transform: scale(1.05,0.95) rotate(97deg) translateY(6px); }
+      85%  { transform: scale(0.96,1.02) rotate(93deg) translateY(4px); }
+      100% { transform: scale(0.8,0.8) rotate(96deg) translateY(6px); opacity: 0; }
+    }
+
+    @keyframes catShadowFlop {
+      0%   { transform: scaleX(1); opacity: 0.35; }
+      18%  { transform: scaleX(1.3); opacity: 0.45; }
+      70%  { transform: scaleX(0.7); opacity: 0.25; }
+      100% { transform: scaleX(0.4); opacity: 0; }
+    }
+
+    .cat-loader.collapsing .cat-icon { animation: catFlop 0.6s cubic-bezier(0.36,0.07,0.19,0.97) forwards; }
+    .cat-loader.collapsing .cat-shadow { animation: catShadowFlop 0.6s ease-in forwards; }
+
+    .spin-icon {
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(15px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes sheetUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    @keyframes skeletonPulse {
+      0% { background-position: 100% 50%; }
+      100% { background-position: 0 50%; }
+    }
+
+    .skeleton-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin-bottom: 10px;
+    }
+
+    .skeleton {
+      background: linear-gradient(90deg, rgba(255, 255, 255, .04) 25%, rgba(255, 255, 255, .09) 37%, rgba(255, 255, 255, .04) 63%);
+      background-size: 400% 100%;
+      animation: skeletonPulse 1.4s ease infinite;
+      border-radius: 6px;
+    }
+
+    .skeleton-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+
+    .skeleton-line {
+      height: 10px;
+      border-radius: 4px;
+    }
+
+    /* Genel Geçişler (Transitions) */
+    .btn,
+    .pill,
+    button,
+    .mini,
+    .card,
+    .author,
+    input,
+    textarea,
+    select {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Kart ve Yazar Efektleri */
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+      border-color: var(--brand-2);
+    }
+
+    .author:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+      background: var(--panel-2);
+      border-color: var(--brand);
+    }
+
+    /* Mini görev/yazı efekti */
+    .mini:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+      border-color: var(--brand);
+    }
+
+    /* Buton Tıklama (Active) Efekti */
+    .btn:active,
+    .pill:active,
+    .nav button:active {
+      transform: scale(0.95);
+    }
+
+    /* Input Odaklanma (Focus) Efekti */
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(255, 193, 69,0.25);
+      transform: translateY(-1px);
+    }
+
+    /* Sayfa içi Fade-in Uygulaması */
+    .main>div,
+    .login-box {
+      animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Drawer Animasyon Geliştirmesi */
+    .drawer {
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Mobil alt sekme çubuğu (native app hissi için) — masaüstünde gizli,
+       aşağıdaki mobil medya sorgusu display:flex ile açıyor. Bu temel
+       kural, override edebilmesi için medya sorgusundan ÖNCE gelmeli
+       (aksi halde eşit özgüllükte sıradaki kural kazanır ve gizli kalır). */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 900;
+      background: rgba(14, 22, 55,0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .bottom-nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: 6px 2px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .bottom-nav-btn span {
+      white-space: nowrap;
+    }
+
+    .bottom-nav-btn.active {
+      color: var(--brand-2);
+    }
+
+    .bottom-nav-btn:active {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    /* Yazar kartı: sola kaydırınca altından "Sil" çıkar (bkz. app.js
+       initSwipeToDelete). Masaüstünde JS bu sürüklemeyi hiç başlatmıyor
+       (matchMedia max-width:768px kontrolü). .card'ın kendisi yarı saydam
+       (glassmorphism, rgba arka plan + backdrop-filter) olduğu için sadece
+       pointer-events:none yeterli değil — arkadaki kırmızı buton rengi
+       saydamlıktan sızıp kartın sağında görünüyordu. opacity:0 ile tamamen
+       görünmez yapıp sadece sürüklenirken/açıkken görünür kılıyoruz. */
+    .swipe-item {
+      position: relative;
+      border-radius: var(--radius);
+      overflow: hidden;
+      height: 160px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .swipe-actions {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 84px;
+      display: flex;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s;
+    }
+
+    .swipe-item.swiped .swipe-actions,
+    .swipe-item.dragging .swipe-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .swipe-delete-btn {
+      flex: 1;
+      background: var(--red);
+      color: #fff;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .swipe-content {
+      position: relative;
+      touch-action: pan-y;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .swipe-item.dragging .swipe-content {
+      transition: none;
+    }
+
+    .swipe-item.swiped .swipe-content {
+      transform: translateX(-84px);
+    }
+
+    /* Mobile Responsiveness */
+    @media (max-width: 768px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      #mobileMenuBtn {
+        display: block !important;
+      }
+
+      .side {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 260px;
+        background: rgba(14, 16, 23, 0.96);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        padding-top: 20px;
+      }
+
+      .side.open {
+        transform: translateX(0);
+        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+      }
+
+      .logo {
+        margin: 0 10px 20px 10px;
+      }
+
+      .nav {
+        flex-direction: column;
+        overflow-x: hidden;
+      }
+
+      .nav button {
+        width: 100%;
+        white-space: normal;
+      }
+
+      .side-foot {
+        display: block;
+        position: static;
+        margin-top: auto;
+        padding: 20px 10px;
+      }
+
+      .main {
+        padding: 16px;
+      }
+
+      .topbar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        padding-top: calc(16px + env(safe-area-inset-top, 0px));
+      }
+
+      .topbar-mark {
+        display: grid;
+      }
+
+      /* Alt sekme çubuğu kaldırıldığı için (bkz. .bottom-nav) hangi
+         ekranda olunduğu artık sadece başlıktan anlaşılıyor — bu yüzden
+         mobilde de görünür kalıyor, ikon ile bildirim zili arasında
+         mevcut genişliği dolduruyor (flex:1) ki zil sağa yaslansın. */
+      .topbar>div:first-of-type {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        flex: 1;
+        min-width: 0;
+      }
+
+      #viewTitle {
+        font-size: 18px;
+        width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* flex-basis (masaüstünden gelen "1 1 200px") width:100%'ü geçersiz
+         kılıp arama kutusunu üst satıra sıkıştırıyor, başlığı neredeyse
+         sıfır genişliğe düşürüyordu — flex-basis'i burada 100%'e çekip
+         gerçekten yeni satıra düşmesini sağlıyoruz. */
+      .search-wrap {
+        order: 3;
+        flex: 1 1 100%;
+        width: 100%;
+        max-width: 100%;
+        margin-top: 8px;
+      }
+
+      /* Mobilde "+ Yeni Yazar" artık topbar'da tam genişlik satır değil,
+         alt köşede yüzen bir FAB (bkz. #fabNewAuthor / .fab). */
+      #btnNewAuthor {
+        display: none !important;
+      }
+
+      #topProfileArea {
+        display: none !important;
+      }
+
+      /* Alt sekme çubuğunda zaten olan sekmeler, yan menüde (hamburger)
+         tekrar gösterilmiyor — sadece orada olmayanlar (Ödemeler, Muhasebe,
+         Ekip, Ayarlar) kalıyor. Masaüstünde (alt çubuk yokken) bu kural
+         devreye girmiyor, hepsi normal görünüyor. */
+      .nav button[data-mobile-primary="true"] {
+        display: none !important;
+      }
+
+      #taskNotifBell {
+        margin-left: 8px !important;
+        order: 2;
+      }
+
+      #taskNotifDropdown {
+        right: auto !important;
+        left: -8px !important;
+        width: min(280px, calc(100vw - 32px)) !important;
+      }
+
+      .spacer {
+        display: none;
+      }
+
+      /* Panel/Ödemeler/Muhasebe istatistik kartları: masaüstünde grid,
+         mobilde native app'lerdeki gibi yatay kaydırmalı çip şeridi. */
+      .stats {
+        display: flex;
+        grid-template-columns: unset;
+        overflow-x: auto;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+        gap: 10px;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+      }
+
+      .stats::-webkit-scrollbar {
+        display: none;
+      }
+
+      .stats>.stat {
+        flex: 0 0 auto;
+        min-width: 150px;
+        scroll-snap-align: start;
+      }
+
+      /* Filtre pilleri (Yazarlar/Sözleşmeli/Takip Listesi): masaüstünde
+         sarıyor, mobilde tek satır, native "segmented control" şeridi gibi
+         yatay kayıyor. */
+      .toolbar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+
+      .toolbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      .toolbar>* {
+        flex: 0 0 auto;
+        margin-left: 0 !important;
+      }
+
+      .pipe {
+        grid-template-columns: 1fr;
+      }
+
+      .authors {
+        grid-template-columns: 1fr;
+      }
+
+      .drawer {
+        width: 100%;
+      }
+
+      .row2 {
+        grid-template-columns: 1fr;
+      }
+
+      .grid-2col {
+        grid-template-columns: 1fr;
+      }
+
+      /* Modallar mobilde alttan açılan panel (bottom sheet) gibi davranır —
+         ortada yüzen küçük kutu yerine, native app hissi için ekranın
+         altından yukarı doğru kayarak açılır. Tüm .modal .box kullanan
+         formlar (yazar, ödeme, gider, görev, görüşme, kitap, satış vb.)
+         otomatik olarak bunu kullanır, JS'e dokunmaya gerek yok. */
+      .modal {
+        align-items: flex-end;
+        justify-items: stretch;
+      }
+
+      .modal .box {
+        width: 100%;
+        max-width: 100%;
+        max-height: 85vh;
+        border-radius: 20px 20px 0 0;
+        padding: 20px;
+        padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+        animation: sheetUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+        position: relative;
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      /* Sürükleme sırasında (bkz. app.js initSheetDragToDismiss) anlık takip
+         için transition kapatılıyor; parmak kalkınca tekrar açılıp geri
+         zıplama/kapanma animasyonlu oluyor. */
+      .modal .box.dragging {
+        transition: none;
+      }
+
+      .modal .box::before {
+        content: "";
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 40px;
+        height: 4px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.25);
+      }
+
+      .modal .box h2 {
+        margin-top: 8px;
+      }
+
+      /* Yazar formu gibi çok alanlı formlarda Kaydet/Vazgeç formun sonunda
+         kalıyordu, oraya ulaşmak için tüm formu kaydırmak gerekiyordu.
+         Aksiyon çubuğunu sheet'in altına yapışkan (sticky) footer yapıp
+         box'un kenar boşluğunu dolduracak şekilde taşırıyoruz — Kaydet
+         her zaman tek dokunuş uzaklığında. */
+      .modal .box .actions {
+        position: sticky;
+        bottom: calc(-1 * (20px + env(safe-area-inset-bottom, 0px)));
+        margin: 20px -20px calc(-1 * (20px + env(safe-area-inset-bottom, 0px)));
+        padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+        background: rgba(20, 22, 31, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-top: 1px solid var(--line);
+      }
+
+      /* Ödemeler sekmesindeki taksit tablosu: masaüstünde gerçek bir
+         tablo, mobilde ise yana kaydırmalı mini tablo yerine dikey,
+         kart gibi satırlar. JS aynı hücreleri üretiyor, sadece her td'ye
+         eklenen data-label ile mobilde başlık gösteriyoruz. */
+      .pay-table table {
+        min-width: 0 !important;
+      }
+
+      .pay-table .pay-table-head {
+        display: none;
+      }
+
+      .pay-table tr {
+        display: block;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        margin-bottom: 8px;
+        background: var(--panel-2);
+      }
+
+      .pay-table tr:last-child {
+        margin-bottom: 0;
+      }
+
+      .pay-table td {
+        display: block;
+        width: 100%;
+        border-bottom: 1px dashed var(--line);
+      }
+
+      .pay-table td:last-child {
+        border-bottom: none;
+      }
+
+      .pay-table td[data-label]:not([data-label=""])::before {
+        content: attr(data-label);
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        margin-bottom: 2px;
+      }
+
+      /* Ekip kartı: masaüstünde avatar+isim, 4 istatistik ve sil butonu
+         tek satırda sığıyor; dar ekranda bu satır taşıyordu. İstatistikleri
+         isim satırının altına 2x2 grid olarak düşürüyoruz, sil butonu
+         isim satırında kalıyor. */
+      .team-card-row {
+        flex-wrap: wrap;
+      }
+
+      .team-card-del {
+        order: 1;
+      }
+
+      .team-card-stats {
+        order: 2;
+        width: 100%;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 16px;
+        margin-top: 6px;
+      }
+
+      .team-card-stats>div {
+        text-align: left !important;
+      }
+
+      /* Alt sekme çubuğu kaldırıldı — tüm navigasyon artık tek giriş
+         noktası olan üst-sol menü ikonu ve açtığı "Hesabım" sheet'inden
+         yürüyor (bkz. #mobileMenuBtn / #moreSheet). .bottom-nav DOM'da
+         duruyor ama temel (media dışı) display:none kuralı geçerli
+         kalıyor, burada tekrar açılmıyor. */
+      .main {
+        padding-bottom: 24px;
+      }
+
+      /* iOS Safari, font-size'ı 16px altında olan alanlara odaklanınca
+         sayfayı otomatik yakınlaştırır — native bir app'te bu olmaz.
+         Girdi alanlarını mobilde 16px'e sabitleyerek bu zoom'u engelliyoruz. */
+      input,
+      select,
+      textarea {
+        font-size: 16px;
+      }
+
+      /* Liste satırlarındaki ikon-only "düzenle/sil" gibi ghost butonlar
+         masaüstünde küçük padding'le (~28px) yeterli ama mobilde parmak
+         ucu için dar kalıyor; önerilen ~44px dokunma hedefine yaklaştırıyoruz. */
+      .btn.ghost[style*="padding:2px"],
+      .btn.ghost[style*="padding:4px"],
+      .btn.ghost[style*="padding:5px"],
+      .btn.ghost[style*="padding:6px"] {
+        min-width: 40px;
+        min-height: 40px;
+      }
+
+      /* Yapay zeka asistanı FAB'ı — masaüstündeki bottom:32px inline
+         değerini sadece mobilde ezip iOS home-indicator alanının üstüne
+         çıkarıyor (alt sekme çubuğu kalktığı için artık onu değil, sadece
+         safe-area'yı hesaba katması yetiyor). */
+      #chatFabDock {
+        bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+      }
+
+      /* "+ Yeni Yazar" FAB'ı — sohbet FAB'ıyla aynı köşede çakışmaması için
+         onun bir buton boyu üstünde duruyor (sohbet kapalıysa boşuna boşluk
+         bırakmış oluyor, ama üst üste binmiyor — en güvenli seçenek). */
+      .fab {
+        position: fixed;
+        right: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom, 0px) + 56px + 12px);
+        width: 56px;
+        height: 56px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, var(--brand), var(--brand-2));
+        border: none;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        cursor: pointer;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        z-index: 480;
+      }
+
+      .fab.show {
+        display: flex;
+      }
+
+      .fab:active {
+        transform: scale(0.94);
+      }
+
+      /* Yazar detay drawer'ı mobilde soldan/sağdan kayan tam ekran bir
+         "push" navigasyonu gibi davranıyor (zaten native hissi veriyor) —
+         kapatma ikonunu × yerine geri oku (‹) yaparak bunu güçlendiriyoruz.
+         Markup değişmiyor, sadece görünen glif CSS ile değişiyor. */
+      .close {
+        font-size: 0;
+      }
+
+      .close::before {
+        content: "‹";
+        font-size: 28px;
+      }
+
+      /* Ayarlar: masaüstünde serbest form kartları, mobilde iOS "Settings"
+         tarzı gruplu liste hissi — daha sıkı boşluk, büyük harf bölüm
+         başlığı. İçerik/işlev aynı, sadece iskelet. */
+      .settings-card {
+        max-width: 100% !important;
+        padding: 16px;
+      }
+
+      .settings-card h3 {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .settings-card label {
+        margin: 10px 0 5px;
+      }
+
+      /* Kullanıcı Yönetimi: her kullanıcı artık ayrı yüzen bir kart değil,
+         tek bir gruplu liste konteynerinin içinde ince ayraçlarla ayrılan
+         satırlar (klasik iOS grouped table görünümü). */
+      #userMgmtArea {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .user-row {
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+        margin-bottom: 0 !important;
+        border-bottom: 1px solid var(--line) !important;
+      }
+
+      .user-row:last-child {
+        border-bottom: none !important;
+      }
+    }
+
+    /* ---------- Üst bar dropdown'ları: açık tema uyumu ----------
+       Bildirim (taskNotifDropdown) ve profil (profileDropdown) menüleri
+       inline stillerinde koyu arka plan kullanıyor; açık temada beyaz
+       panele çevrilir (!important inline stili ezmek için gerekli). */
+    [data-theme="light"] #taskNotifDropdown,
+    [data-theme="light"] #profileDropdown {
+      background: rgba(255, 255, 255, 0.97) !important;
+      border: 1px solid #e2e8f0 !important;
+      box-shadow: 0 12px 40px rgba(15, 23, 42, 0.14) !important;
+    }
+
+    /* Üst bardaki yuvarlak butonların (tema, zil, profil) beyaz-saydam
+       kenarlıkları açık temada görünmez kalıyor — gri kenarlığa çevir.
+       (!important: hover sonrası JS'in inline geri yazdığı rengi de ezer) */
+    [data-theme="light"] #themeToggleBtn,
+    [data-theme="light"] #taskNotifBell,
+    [data-theme="light"] #topProfileArea {
+      border-color: #cbd5e1 !important;
+    }
+
+    /* Bildirim listesi satır hover'ı (app.js class="notifItem" basar) */
+    .notifItem:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    [data-theme="light"] .notifItem:hover {
+      background: #f1f5f9;
+    }

@@ -1,4 +1,7 @@
 {
+  "firestore": {
+    "rules": "firestore.rules"
+  },
   "hosting": {
     "public": ".",
     "ignore": [
@@ -8,11 +11,10 @@
       ".claude/**",
       "server.js",
       "package.json",
-      "netlify.toml",
       "firestore.rules",
       "test-*.js",
       "_check.js",
-      "CrmYedek.doc",
+      "whatsapp-webhook/**",
       "**/node_modules/**"
     ],
     "rewrites": [

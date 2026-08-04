@@ -1,0 +1,11 @@
+name = "yazar-crm-whatsapp-webhook"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+FIREBASE_PROJECT_ID = "mst-crm"
+
+# Her gün 06:00 UTC = 09:00 Türkiye saati (Türkiye yaz saati uygulamadığı
+# için sabit UTC+3) — "Bugün ilgilenmen gerekenler" özet bildirimi.
+[triggers]
+crons = ["0 6 * * *"]

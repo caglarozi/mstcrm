@@ -39,11 +39,24 @@ service cloud.firestore {
       // "personel" + onaysız olarak oluşturabilir. Admin yetkisi ya da
       // onay durumu asla kayıt anında client tarafından belirlenemez —
       // yalnızca mevcut bir admin sonradan bu alanları güncelleyebilir.
-      allow create: if isSignedIn() && request.auth.uid == userId
-                    && request.resource.data.role == 'personel'
-                    && request.resource.data.approved == false;
+      // Sabit admin hesabının (admin@crm.com) normal kayıt akışından hiç
+      // geçmediği için profili yoktur — ismini ilk kez kaydederken kendi
+      // dokümanını role=admin/approved=true olarak oluşturabilmesi için
+      // ayrı bir istisna var.
+      allow create: if isSignedIn() && request.auth.uid == userId && (
+        (request.resource.data.role == 'personel' && request.resource.data.approved == false) ||
+        (isBootstrapAdmin() && request.resource.data.role == 'admin' && request.resource.data.approved == true)
+      );
 
-      allow update, delete: if isAdmin();
+      // Kullanıcı kendi ad/kullanıcı adı/e-posta alanlarını güncelleyebilir
+      // (Ayarlar > Hesabım), ama rol veya onay durumunu asla kendisi
+      // değiştiremez — bunlar sadece admin tarafından değiştirilebilir.
+      allow update: if isAdmin() || (
+        isSignedIn() && request.auth.uid == userId &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.approved == resource.data.approved
+      );
+      allow delete: if isAdmin();
     }
 
     // Eski tek-doküman CRM verisi (geçiş sürecinde yedek olarak tutuluyor)
@@ -61,6 +74,46 @@ service cloud.firestore {
 
     // Parçalara ayrılmış (chunked) dosya yüklemeleri
     match /crm_files/{chunkId} {
+      allow read, write: if isApproved();
+    }
+
+    // Paket başına (vip/pro/standart) tek sözleşme şablonu — onaylı her
+    // kullanıcı (Sözleşmeli Yazarlar ekranından) yükleyip indirebilir.
+    match /packageContracts/{packageKey} {
+      allow read, write: if isApproved();
+    }
+
+    // İşletme giderleri (ön muhasebe) — okuma/yazma yetkisi arayüz
+    // tarafında admin/muhasebe rolüyle sınırlanıyor (Ödemeler sekmesiyle
+    // aynı erişim kuralı), Firestore kuralı diğer koleksiyonlarla tutarlı
+    // olsun diye onaylı her kullanıcıya izin veriyor.
+    match /expenses/{expenseId} {
+      allow read, write: if isApproved();
+    }
+
+    // Görevler — atama (oluşturma/atanan kişi değiştirme/silme) arayüz
+    // tarafında admin ile sınırlanıyor, atanan kişi ise sadece kendi
+    // görevini tamamlandı işaretleyip rapor yazabiliyor. Firestore kuralı
+    // diğer koleksiyonlarla tutarlı olsun diye onaylı her kullanıcıya
+    // izin veriyor (personel arasında hiyerarşi yok, incelik arayüzde).
+    match /tasks/{taskId} {
+      allow read, write: if isApproved();
+    }
+
+    // Stok/envanter — yazarlardan bağımsız kitap/ürün stok takibi.
+    match /stock/{stockId} {
+      allow read, write: if isApproved();
+    }
+
+    // Matbaa paneli — baskı siparişleri takibi.
+    match /printOrders/{orderId} {
+      allow read, write: if isApproved();
+    }
+
+    // Push bildirim abonelikleri — her onaylı kullanıcının cihazı kendi
+    // FCM token'ını buraya yazar; worker görev atandığında bunları okuyup
+    // (servis hesabıyla) push gönderir.
+    match /fcm_tokens/{tokenId} {
       allow read, write: if isApproved();
     }
 

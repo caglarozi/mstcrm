@@ -1,0 +1,9 @@
+{
+  "name": "yazar-crm-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitHub Actions ile calisan otomasyon betikleri",
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}
