@@ -116,6 +116,7 @@
     let currentView = "dashboard";
     let filterStatus = "all";
     let filterDate = "all";
+    let authorsGroupBy = "date"; // "date" | "staff" — yazar listesi tarih ya da görüşmeci sütunları halinde gruplanır
     let authorsRenderLimit = 60;
     let currentRole = "admin";
     let currentStaffId = null;
@@ -1972,7 +1973,11 @@
       
       const dfStyle = filterDate !== 'all' ? `background: rgba(74, 168, 255, 0.15); border-color: #4aa8ff; color: #4aa8ff; margin-left: auto;` : `margin-left: auto; border: 1px solid rgba(255,255,255,0.15);`;
       bar += `<button class="btn ${filterDate !== 'all' ? '' : 'ghost'}" style="${dfStyle}" onclick="openDateFilterModal()">${icon('calendar', 14)} Tarih: ${filterDate === 'all' ? 'Tümü' : filterDate}</button>`;
-      
+
+      const gbActive = authorsGroupBy === 'staff';
+      const gbStyle = gbActive ? `background: rgba(167, 139, 250, 0.15); border-color: #a78bfa; color: #a78bfa;` : `border: 1px solid rgba(255,255,255,0.15);`;
+      bar += `<button class="btn ${gbActive ? '' : 'ghost'}" style="${gbStyle}" onclick="setAuthorsGroupBy('${gbActive ? 'date' : 'staff'}')">${icon('users', 14)} Görüşmeciye Göre</button>`;
+
       bar += `</div>`;
       
       if (!list.length) return bar + `<div class="empty">Kayıt bulunamadı.</div>`;
@@ -1987,6 +1992,43 @@
         }
         return latestDate;
       };
+
+      // Görüşmeciye göre grupla: her personelin ekledikleri yan yana ayrı sütunlarda
+      if (authorsGroupBy === 'staff') {
+        const dateFiltered = filterDate === 'all' ? list : list.filter(a => getAuthorDate(a) === filterDate);
+        const byStaff = {};
+        dateFiltered.forEach(a => {
+          const key = a.addedBy || 'admin';
+          (byStaff[key] = byStaff[key] || []).push(a);
+        });
+        // Sütun sırası: ekip listesi sırası, sonra Sistem Yöneticisi, sonra eşleşmeyenler
+        const orderedKeys = [];
+        (db.staff || []).forEach(s => { if (byStaff[s.id]) orderedKeys.push(s.id); });
+        if (byStaff['admin'] && !orderedKeys.includes('admin')) orderedKeys.push('admin');
+        Object.keys(byStaff).forEach(k => { if (!orderedKeys.includes(k)) orderedKeys.push(k); });
+
+        if (!orderedKeys.length) return bar + `<div class="empty">Bu tarihte kayıt bulunamadı.</div>`;
+
+        let staffHtml = bar;
+        let truncated = 0;
+        staffHtml += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;align-items:start;margin-top:16px">`;
+        orderedKeys.forEach(key => {
+          const gName = key === 'admin' ? 'Sistem Yöneticisi' : (staffName(key) || 'Personel');
+          const items = byStaff[key].slice().sort((a, b) => getAuthorDate(b).localeCompare(getAuthorDate(a)));
+          const shown = items.slice(0, authorsRenderLimit);
+          truncated += items.length - shown.length;
+          staffHtml += `<div>
+            <h2 style="margin:0 0 12px;display:flex;align-items:center;gap:8px;font-size:15px;color:var(--txt);border-bottom:2px solid ${avatarColor(gName)};padding-bottom:8px">
+              <span class="avatar" style="background:${avatarColor(gName)};width:26px;height:26px;font-size:11px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%">${escapeHtml(initials(gName))}</span>
+              ${escapeHtml(gName)} <span style="color:var(--muted);font-weight:400;font-size:13px">(${items.length})</span>
+            </h2>
+            <div style="display:flex;flex-direction:column;gap:12px">${shown.map(authorCard).join("")}</div>
+          </div>`;
+        });
+        staffHtml += `</div>`;
+        if (truncated > 0) staffHtml += `<div style="display:flex;justify-content:center;margin:20px 0"><button class="btn ghost" onclick="showMoreAuthors()">Daha Fazla Göster (${truncated} kayıt daha)</button></div>`;
+        return staffHtml;
+      }
 
       const groups = {};
       list.forEach(a => {
@@ -2133,6 +2175,7 @@
 
     function setFilter(s) { filterStatus = s; authorsRenderLimit = 60; render(); }
     function setDateFilter(d) { filterDate = d; authorsRenderLimit = 60; render(); }
+    function setAuthorsGroupBy(m) { authorsGroupBy = m; authorsRenderLimit = 60; render(); }
     function showMoreAuthors() { authorsRenderLimit += 60; render(); }
 
     let searchDebounceTimer = null;
