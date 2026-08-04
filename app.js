@@ -3355,7 +3355,8 @@
           normalizePhone(author.phone) === normalizedPhone
         );
         if (duplicate) {
-          alert("⚠️ Bu numara ile daha önce zaten görüşülmüş! (\"" + duplicate.name + "\" adlı yazarda kayıtlı.) Aynı numara ikinci kez kaydedilemez.");
+          customAlert("Bu numara ile daha önce zaten görüşülmüş!",
+            "\"" + duplicate.name + "\" adlı yazarda kayıtlı. Aynı numara ikinci kez kaydedilemez.");
           return;
         }
       }
@@ -3403,6 +3404,11 @@
       if (payload.status === "sozlesme" && !wasContracted) {
         openPayModal(newId);
       }
+    }
+    function customAlert(title, message) {
+      document.getElementById("customAlertTitle").textContent = title || "Uyarı";
+      document.getElementById("customAlertMessage").textContent = message || "";
+      document.getElementById("customAlertModal").classList.add("open");
     }
     window.customConfirmResolve = null;
     async function customConfirm(message, confirmLabel) {

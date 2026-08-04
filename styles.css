@@ -2017,3 +2017,22 @@
     [data-theme="light"] .notifItem:hover {
       background: #f1f5f9;
     }
+
+    /* Uyarı bildirimi (customAlertModal) her ekran boyutunda ortada açılır —
+       mobildeki alttan açılan sheet düzeni buna uygulanmaz. */
+    #customAlertModal {
+      align-items: center;
+      justify-items: center;
+    }
+
+    #customAlertModal .box {
+      width: auto;
+      max-width: 320px;
+      border-radius: 16px;
+      animation: none;
+      padding: 24px;
+    }
+
+    #customAlertModal .box::before {
+      display: none;
+    }

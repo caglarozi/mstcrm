@@ -424,6 +424,29 @@
     </div>
   </div>
 
+  <!-- CUSTOM ALERT MODAL (GLASSMORPHISM) -->
+  <div class="modal" id="customAlertModal" style="z-index: 9999;">
+    <div class="box"
+      style="background: rgba(25, 25, 30, 0.65); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); max-width: 320px; text-align: center; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5); padding: 24px; border-radius: 16px;">
+      <div style="margin-bottom: 16px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 179, 0, 0.9)" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 8px rgba(255,179,0,0.4));">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+      <h3 id="customAlertTitle" style="margin: 0; color: #fff; font-size: 18px; font-weight: 600;">Uyarı</h3>
+      <p id="customAlertMessage"
+        style="color: rgba(255,255,255,0.7); margin: 12px 0 24px; font-size: 14px; line-height: 1.5;"></p>
+      <button class="btn"
+        style="width: 100%; background: rgba(255, 179, 0, 0.85); color: #1a1a1e; font-weight: 600; border: 1px solid rgba(255, 179, 0, 0.4); border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;"
+        onmouseover="this.style.background='rgba(255,179,0,1)'"
+        onmouseout="this.style.background='rgba(255,179,0,0.85)'"
+        onclick="document.getElementById('customAlertModal').classList.remove('open')">Tamam</button>
+    </div>
+  </div>
+
   <!-- AUTHOR MODAL -->
   <div class="modal" id="authorModal" onclick="closeModal()">
     <div class="box" onclick="event.stopPropagation()">
