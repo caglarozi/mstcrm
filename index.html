@@ -1900,6 +1900,12 @@
     }
     function fmtDate(s) { if (!s) return "—"; const d = new Date(s); return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" }); }
     function daysUntil(s) { if (!s) return null; return Math.round((new Date(s) - new Date().setHours(0, 0, 0, 0)) / 864e5); }
+    function normalizePhone(phone) {
+      // Karşılaştırma için numarayı sadeleştirir: 0532..., +90 532..., 532...
+      // hepsi aynı 10 haneli çekirdeğe iner.
+      const d = (phone || "").replace(/\D/g, "");
+      return d.length >= 10 ? d.slice(-10) : d;
+    }
     function toWaLink(phone, text) {
       if (!phone) return "";
       let p = phone.replace(/\D/g, "");
@@ -2861,6 +2867,12 @@
       const name = g("f_name");
       if (!name) { alert("Ad Soyad zorunlu."); return; }
       const id = g("f_id");
+      const phone = g("f_phone");
+      if (phone) {
+        const np = normalizePhone(phone);
+        const dup = db.authors.find(x => x.id !== id && x.phone && normalizePhone(x.phone) === np);
+        if (dup) { alert("Bu telefon numarası zaten \"" + dup.name + "\" adlı yazarda kayıtlı. Aynı numara ikinci kez kaydedilemez."); return; }
+      }
       const oldAuthor = id ? db.authors.find(x => x.id === id) : null;
       const wasContracted = oldAuthor ? oldAuthor.status === "sozlesme" : false;
       const payload = {
