@@ -2023,6 +2023,10 @@
           const olumlu = allOfStaff.filter(a => a.status === 'sozlesme' || a.status === 'yayinda').length;
           const olumsuz = allOfStaff.filter(a => a.status === 'arsiv').length;
           const devam = allOfStaff.length - olumlu - olumsuz;
+          // Başarı oranı sonuçlanmış görüşmeler üzerinden: olumlu / (olumlu + olumsuz).
+          // Devam edenler henüz sonuçlanmadığı için orana katılmaz.
+          const sonuclanan = olumlu + olumsuz;
+          const basari = sonuclanan > 0 ? Math.round(olumlu / sonuclanan * 100) : null;
           const chip = (label, val, color) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${color};background:${color}18;border:1px solid ${color}44;border-radius:20px;padding:2px 8px;white-space:nowrap"><b>${val}</b> ${label}</span>`;
           staffHtml += `<div>
             <h2 style="margin:0 0 8px;display:flex;align-items:center;gap:8px;font-size:15px;color:var(--txt);border-bottom:2px solid ${avatarColor(gName)};padding-bottom:8px">
@@ -2034,6 +2038,7 @@
               ${chip('olumlu', olumlu, '#37c98a')}
               ${chip('olumsuz', olumsuz, '#ef5350')}
               ${chip('devam eden', devam, '#f4b740')}
+              ${basari !== null ? chip('başarı', '%' + basari, '#a78bfa') : ''}
             </div>
             <div style="display:flex;flex-direction:column;gap:12px">${shown.map(authorCard).join("")}</div>
           </div>`;
