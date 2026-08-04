@@ -2194,6 +2194,16 @@
       const cDateStr = (a.status === "sozlesme" || a.status === "yayinda" || a.contractDate) ? getContractDate(a) : null;
       const contractBadge = cDateStr ? `<div style="font-size:11px;color:var(--brand);display:flex;align-items:center;gap:4px;margin-top:2px" title="Sözleşme Tarihi">${icon('calendar', 11)} Sözleşme: ${fmtDate(cDateStr)}${a.contractEndDate ? ' • Bitiş: ' + fmtDate(a.contractEndDate) : ''}</div>` : '';
 
+      // Devam eden görüşmelerde ismin altında kaç gündür görüşüldüğü yazar
+      // (başlangıç: kaydın eklendiği tarih; kart açılmadan görünsün diye).
+      let gorusmeSuresi = '';
+      if ((a.status === 'aday' || a.status === 'gorusuluyor' || a.status === 'degerlendirme') && a.created) {
+        const gDays = Math.max(0, Math.round((new Date().setHours(0, 0, 0, 0) - new Date(a.created)) / 864e5));
+        const gTxt = gDays === 0 ? 'Bugün eklendi' : gDays + ' gündür görüşülüyor';
+        const gCol = gDays >= 30 ? 'var(--red)' : gDays >= 14 ? 'var(--amber)' : 'var(--muted)';
+        gorusmeSuresi = `<div style="font-size:11px;color:${gCol};display:flex;align-items:center;gap:4px;margin-top:2px">${icon('clock', 11)} ${gTxt}</div>`;
+      }
+
       // .swipe-item/.swipe-actions/.swipe-content: mobilde sola kaydırınca
       // altından "Sil" butonu çıkar (bkz. initSwipeToDelete). Masaüstünde
       // .swipe-actions hep gizli kalır (styles.css), kart eskisi gibi davranır.
@@ -2206,6 +2216,7 @@
       <div style="flex:1">
         <div class="name">${escapeHtml(a.name)}</div>
         <div class="role">${escapeHtml(a.work) || "—"}</div>
+        ${gorusmeSuresi}
         ${contractBadge}
       </div>
       <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:6px;">
