@@ -2,8 +2,16 @@
   "name": "yazar-crm-scripts",
   "version": "1.0.0",
   "private": true,
-  "description": "GitHub Actions ile calisan otomasyon betikleri",
+  "description": "GitHub Actions ile calisan otomasyon betikleri ve bakim araclari",
+  "scripts": {
+    "kontrol": "node yayin-oncesi-kontrol.js",
+    "nobetci": "node kota-nobetci.js",
+    "ozet": "node kota-nobetci.js --ozet"
+  },
   "dependencies": {
     "firebase-admin": "^12.0.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
   }
 }
