@@ -19,6 +19,23 @@
     // gerektiğinde (ör. WebSocket'i engelleyen bir ağ/proxy) long polling'e
     // düşer, aksi halde normal (daha hızlı ve güvenilir) bağlantıyı kullanır.
     firestore.settings({ experimentalAutoDetectLongPolling: true });
+    // Yerel önbellek (IndexedDB). Bu AÇILMADAN her sayfa açılışı/yenilemesi
+    // "authors" koleksiyonunun TAMAMINI (800+ doküman) yeniden okuyordu ve
+    // Firebase'in ücretsiz paketindeki günlük 50.000 okuma kotası günün
+    // ortasında bitiyordu — kota bitince Firestore hem okumayı hem yazmayı
+    // reddediyor ve kullanıcıya "Veri kaydedilemedi" uyarısı çıkıyordu.
+    // Önbellek açıkken dinleyiciler (onSnapshot) kaldıkları yerden devam
+    // eder: sunucudan yalnızca DEĞİŞEN dokümanlar gelir, değişmeyenler
+    // yerelden okunur ve kotadan düşmez. Ayrıca uygulama çevrimdışıyken de
+    // veriyi gösterebilir. Başka hiçbir Firestore çağrısından önce
+    // çağrılmalı — bu yüzden burada, en üstte.
+    firestore.enablePersistence({ synchronizeTabs: true }).catch(err => {
+      // failed-precondition: aynı anda açık, önbelleği desteklemeyen başka
+      // sekme var. unimplemented: tarayıcı IndexedDB desteklemiyor (ör.
+      // gizli pencere). İkisi de ölümcül değil — uygulama önbelleksiz,
+      // eskisi gibi çalışmaya devam eder.
+      console.warn("Yerel önbellek açılamadı:", err.code || err.message);
+    });
     const auth = firebase.auth();
     const storage = firebase.storage();
     storage.setMaxUploadRetryTime(15000); // 15 saniye sonra sonsuz döngüyü kır ve hata ver
@@ -444,10 +461,27 @@
       }
     }
 
+    // Açık olan tüm Firestore dinleyicileri. Önceden onSnapshot'ın geri
+    // döndürdüğü "aboneliği iptal et" fonksiyonu atılıyordu; load() bir
+    // hata yüzünden tekrar denendiğinde (ensureDataLoaded 4 kez deniyor)
+    // ilk denemede BAŞARILI olan koleksiyonlara ikinci, üçüncü, dördüncü
+    // kez daha dinleyici bağlanıyordu. Her yeni dinleyici koleksiyonun
+    // tamamını baştan okuduğu için, kota hatası alındığında okuma sayısı
+    // 4 katına çıkıyor ve sorun kendi kendini büyütüyordu. Artık her
+    // load() öncesi eskiler kapatılıyor.
+    let activeListeners = [];
+    function listen(ref, onNext, onError) {
+      activeListeners.push(ref.onSnapshot(onNext, onError));
+    }
+    function stopAllListeners() {
+      activeListeners.forEach(unsub => { try { unsub(); } catch (e) { /* zaten kapalı */ } });
+      activeListeners = [];
+    }
+
     function loadStaff() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("crm").doc("staff").onSnapshot(doc => {
+        listen(firestore.collection("crm").doc("staff"), doc => {
           db.staff = doc.exists ? (doc.data().staff || []) : [];
           if (firstLoad) { firstLoad = false; resolve(); }
           else onDataChanged();
@@ -461,7 +495,7 @@
     function loadAuthors() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("authors").onSnapshot(snapshot => {
+        listen(firestore.collection("authors"), snapshot => {
           if (firstLoad) {
             db.authors = snapshot.docs.map(d => d.data());
           } else {
@@ -489,7 +523,7 @@
     function loadExpenses() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("expenses").onSnapshot(snapshot => {
+        listen(firestore.collection("expenses"), snapshot => {
           if (firstLoad) {
             db.expenses = snapshot.docs.map(d => d.data());
           } else {
@@ -588,7 +622,7 @@
     function loadTasks() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("tasks").onSnapshot(snapshot => {
+        listen(firestore.collection("tasks"), snapshot => {
           if (firstLoad) {
             db.tasks = snapshot.docs.map(d => d.data());
           } else {
@@ -619,7 +653,7 @@
     function loadStock() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("stock").onSnapshot(snapshot => {
+        listen(firestore.collection("stock"), snapshot => {
           if (firstLoad) {
             db.stock = snapshot.docs.map(d => d.data());
           } else {
@@ -647,7 +681,7 @@
     function loadPrintOrders() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("printOrders").onSnapshot(snapshot => {
+        listen(firestore.collection("printOrders"), snapshot => {
           if (firstLoad) {
             db.printOrders = snapshot.docs.map(d => d.data());
           } else {
@@ -678,7 +712,7 @@
     function loadPackageContracts() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("packageContracts").onSnapshot(snapshot => {
+        listen(firestore.collection("packageContracts"), snapshot => {
           const next = {};
           snapshot.forEach(doc => { next[doc.id] = doc.data(); });
           db.packageContracts = next;
@@ -692,6 +726,9 @@
     }
 
     async function load() {
+      // Yeniden denemede aynı koleksiyona ikinci kez dinleyici bağlanmasın
+      // (bkz. activeListeners açıklaması) — her deneme temiz başlar.
+      stopAllListeners();
       db.staff = db.staff || [];
       db.authors = db.authors || [];
       db.expenses = db.expenses || [];
@@ -700,6 +737,32 @@
       db.printOrders = db.printOrders || [];
       db.packageContracts = db.packageContracts || {};
       await Promise.all([loadStaff(), loadAuthors(), loadExpenses(), loadTasks(), loadStock(), loadPrintOrders(), loadPackageContracts()]);
+    }
+
+    // Firestore hatasını kullanıcıya anlaşılır bir cümleye çevirir. Önceden
+    // her hata için tek tip "Lütfen internet bağlantınızı kontrol edin"
+    // deniyordu; oysa uygulamanın gerçek arızası genellikle bağlantı değil,
+    // Firebase ücretsiz (Spark) paketinin günlük kotasının dolmasıydı —
+    // yanlış mesaj yüzünden sorun uzun süre internet arızası sanıldı.
+    // Hata kodunu da yazıyoruz ki teknik olmayan kullanıcı ekran
+    // görüntüsünü iletince sebep tek bakışta anlaşılsın.
+    function dbErrorText(e, baseMessage) {
+      const code = String((e && e.code) || "").replace(/^firestore\//, "");
+      if (code === "resource-exhausted") {
+        return baseMessage + "\n\nSebep: Günlük veri kotası doldu. Bu bir internet sorunu DEĞİL. " +
+          "BU KAYIT SUNUCUYA GİTMEDİ — sayfayı yenilerseniz kaybolur. Birkaç dakika sonra tekrar deneyin; " +
+          "kota her gece sıfırlanır.";
+      }
+      if (code === "permission-denied") {
+        return baseMessage + "\n\nSebep: Bu işlem için yetkiniz yok ya da hesabınızın onayı kaldırılmış. Yöneticinize bildirin.";
+      }
+      if (code === "unavailable" || code === "deadline-exceeded" || code === "aborted") {
+        return baseMessage + "\n\nSebep: Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
+      }
+      if (code === "invalid-argument" || code === "not-found") {
+        return baseMessage + "\n\nSebep: Kayıt verisinde bir sorun var (kod: " + code + "). Yöneticinize bildirin.";
+      }
+      return baseMessage + "\n\n(Hata kodu: " + (code || "bilinmiyor") + ") Sorun sürerse bu kodu yöneticinize iletin.";
     }
 
     // Tek bir yazarın dokümanını, sunucudaki en güncel haliyle güvenli
@@ -724,7 +787,7 @@
         });
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Veri kaydedilemedi"));
       }
     }
 
@@ -735,7 +798,7 @@
         await firestore.collection("authors").doc(authorData.id).set(authorData);
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Veri kaydedilemedi"));
       }
     }
 
@@ -746,7 +809,7 @@
         await firestore.collection("authors").doc(authorId).delete();
       } catch (e) {
         console.error("Silme hatası:", e);
-        alert("Veri silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Veri silinemedi"));
       }
     }
 
@@ -759,7 +822,7 @@
         await firestore.collection("expenses").doc(expenseData.id).set(expenseData);
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Gider kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Gider kaydedilemedi"));
       }
     }
     async function updateExpense(expenseId, updates) {
@@ -770,7 +833,7 @@
         await firestore.collection("expenses").doc(expenseId).update(updates);
       } catch (e) {
         console.error("Güncelleme hatası:", e);
-        alert("Gider güncellenemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Gider güncellenemedi"));
       }
     }
     async function deleteExpenseDoc(expenseId) {
@@ -780,7 +843,7 @@
         await firestore.collection("expenses").doc(expenseId).delete();
       } catch (e) {
         console.error("Silme hatası:", e);
-        alert("Gider silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Gider silinemedi"));
       }
     }
 
@@ -791,7 +854,7 @@
         await firestore.collection("stock").doc(item.id).set(item);
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Stok kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Stok kaydedilemedi"));
       }
     }
     async function updateStockItem(id, updates) {
@@ -802,7 +865,7 @@
         await firestore.collection("stock").doc(id).update(updates);
       } catch (e) {
         console.error("Güncelleme hatası:", e);
-        alert("Stok güncellenemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Stok güncellenemedi"));
       }
     }
     async function deleteStockItem(id) {
@@ -812,7 +875,7 @@
         await firestore.collection("stock").doc(id).delete();
       } catch (e) {
         console.error("Silme hatası:", e);
-        alert("Stok silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Stok silinemedi"));
       }
     }
 
@@ -823,7 +886,7 @@
         await firestore.collection("printOrders").doc(order.id).set(order);
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Baskı siparişi kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Baskı siparişi kaydedilemedi"));
       }
     }
     async function updatePrintOrder(id, updates) {
@@ -834,7 +897,7 @@
         await firestore.collection("printOrders").doc(id).update(updates);
       } catch (e) {
         console.error("Güncelleme hatası:", e);
-        alert("Baskı siparişi güncellenemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Baskı siparişi güncellenemedi"));
       }
     }
     async function deletePrintOrder(id) {
@@ -844,7 +907,7 @@
         await firestore.collection("printOrders").doc(id).delete();
       } catch (e) {
         console.error("Silme hatası:", e);
-        alert("Baskı siparişi silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Baskı siparişi silinemedi"));
       }
     }
 
@@ -868,7 +931,7 @@
         });
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Veri kaydedilemedi"));
       }
     }
 
@@ -2966,7 +3029,7 @@
           await firestore.collection("tasks").doc(taskId).update(updates);
         } catch (e) {
           console.error("Güncelleme hatası:", e);
-          alert("Görev güncellenemedi. Lütfen internet bağlantınızı kontrol edin.");
+          alert(dbErrorText(e, "Görev güncellenemedi"));
         }
         return;
       }
@@ -2985,7 +3048,7 @@
         sendTaskPush(task); // beklenmez (fire-and-forget) — kayıt akışını yavaşlatmasın
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Görev kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Görev kaydedilemedi"));
       }
     }
     async function completeTask(taskId) {
@@ -3003,7 +3066,7 @@
         await firestore.collection("tasks").doc(taskId).update(updates);
       } catch (e) {
         console.error("Güncelleme hatası:", e);
-        alert("Görev güncellenemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Görev güncellenemedi"));
       }
     }
     // Admin Görevler sekmesine girince, henüz "görülmedi" işaretli tüm
@@ -3028,7 +3091,7 @@
         await firestore.collection("tasks").doc(taskId).delete();
       } catch (e) {
         console.error("Silme hatası:", e);
-        alert("Görev silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Görev silinemedi"));
       }
     }
     let taskTab = "aktif";
@@ -3493,6 +3556,12 @@
 
       const payload = {
         name, status, email: g("f_email"), phone: g("f_phone"),
+        // Numaranın sadeleştirilmiş hali (son 10 hane). WhatsApp/arama
+        // webhook'u gelen numarayı bu alanda TEK sorguyla arayabilsin diye
+        // kaydediliyor; öncesinde webhook her arama/mesaj için yazarların
+        // TAMAMINI (800+ doküman) tarıyordu ve günlük okuma kotasını
+        // tek başına bitiriyordu.
+        phoneNorm: normalizePhone(g("f_phone")),
         genres: g("f_genres").split(",").map(s => s.trim()).filter(Boolean),
         temp: +g("f_temp"), work: g("f_work"), interviewDate: g("f_interviewDate"), interviewTime: g("f_interviewTime") || null, followup: g("f_followup"), source: g("f_source"), notes: g("f_notes"),
         package: g("f_package") || null,

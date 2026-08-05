@@ -33,6 +33,14 @@ function normalizePhone(phone) {
   return p;
 }
 
+// Yazar dokümanlarındaki "phoneNorm" alanıyla BİREBİR aynı kural: son 10
+// hane. app.js içindeki normalizePhone ile aynı kalmalı — ikisi ayrışırsa
+// gelen aramalar/mesajlar mevcut yazarla eşleşmez, mükerrer aday oluşur.
+function phoneKey(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
@@ -331,21 +339,45 @@ async function handleAdminDeleteUser(payload, env, callerPayload) {
   });
 }
 
+// Gelen numaraya karşılık gelen yazarı TEK bir indeksli sorguyla bulur.
+//
+// Önceden burada "authors" koleksiyonunun TAMAMI sayfa sayfa çekilip
+// numaralar tek tek karşılaştırılıyordu. Yazar sayısı 800'ü geçtiği için
+// her gelen WhatsApp mesajı, her arama kaydı ve her ses kaydı 800'den
+// fazla doküman okuması demekti; günde birkaç düzine arama bile Firebase
+// ücretsiz paketinin günlük 50.000 okuma kotasını öğleden sonra
+// bitiriyordu. Kota bitince Firestore hem okumayı hem YAZMAYI reddediyor
+// ve CRM'de "Veri kaydedilemedi" uyarısı çıkıyordu.
+//
+// Artık yazar dokümanındaki hazır "phoneNorm" alanına eşitlik sorgusu
+// atılıyor: istek başına 800+ değil, 1 okuma.
 async function findMatchingAuthor(projectId, token, incomingPhone) {
-  let pageToken;
-  do {
-    const url = new URL(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/authors`);
-    url.searchParams.set("pageSize", "300");
-    if (pageToken) url.searchParams.set("pageToken", pageToken);
-    const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await resp.json();
-    for (const doc of data.documents || []) {
-      const obj = docToObject(doc);
-      if (normalizePhone(obj.phone) === incomingPhone) return obj;
+  const key = phoneKey(incomingPhone);
+  if (!key) return null;
+  const resp = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: "authors" }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: "phoneNorm" },
+              op: "EQUAL",
+              value: { stringValue: key }
+            }
+          },
+          limit: 1
+        }
+      })
     }
-    pageToken = data.nextPageToken;
-  } while (pageToken);
-  return null;
+  );
+  if (!resp.ok) throw new Error("Yazar sorgusu başarısız: " + resp.status + " " + (await resp.text()).slice(0, 200));
+  const data = await resp.json();
+  const hit = (Array.isArray(data) ? data : []).find(row => row && row.document);
+  return hit ? docToObject(hit.document) : null;
 }
 
 async function appendLog(projectId, token, authorId, logEntry) {
@@ -370,6 +402,10 @@ async function createLead(projectId, token, { name, phone, source, logEntry, add
   const today = new Date().toISOString().slice(0, 10);
   const payload = {
     id, name: name || phone, status: "aday", email: "", phone,
+    // findMatchingAuthor'ın indeksli sorgusunun bu kaydı da bulabilmesi
+    // için sadeleştirilmiş numara da yazılıyor — yoksa bu numaradan gelen
+    // ikinci bir arama/mesaj eşleşmeyip mükerrer aday oluştururdu.
+    phoneNorm: phoneKey(phone),
     genres: [], temp: 3, work: "", interviewDate: "", followup: "",
     source, notes: "", package: null,
     created: today,
