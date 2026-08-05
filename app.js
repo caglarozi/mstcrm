@@ -3462,7 +3462,12 @@
       if (!name) { alert("Ad Soyad zorunlu."); return; }
       const id = g("f_id");
       const phone = g("f_phone");
-      if (phone) {
+      const oldAuthor = id ? db.authors.find(x => x.id === id) : null;
+      // Mükerrer numara kontrolü yalnızca yeni kayıtta veya numara
+      // DEĞİŞTİRİLDİĞİNDE çalışır — mevcut kaydı başka bir alan için
+      // düzenlerken (numara aynı kaldığı sürece) engel çıkarmaz.
+      const phoneChanged = !oldAuthor || normalizePhone(oldAuthor.phone || "") !== normalizePhone(phone);
+      if (phone && phoneChanged) {
         const normalizedPhone = normalizePhone(phone);
         const duplicate = db.authors.find(author =>
           author.id !== id &&
@@ -3475,7 +3480,6 @@
           return;
         }
       }
-      const oldAuthor = id ? db.authors.find(x => x.id === id) : null;
       const wasContracted = oldAuthor ? oldAuthor.status === "sozlesme" : false;
       const status = g("f_status");
       const today = todayStr();
