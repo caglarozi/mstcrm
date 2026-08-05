@@ -19,23 +19,26 @@
     // gerektiğinde (ör. WebSocket'i engelleyen bir ağ/proxy) long polling'e
     // düşer, aksi halde normal (daha hızlı ve güvenilir) bağlantıyı kullanır.
     firestore.settings({ experimentalAutoDetectLongPolling: true });
-    // Yerel önbellek (IndexedDB). Bu AÇILMADAN her sayfa açılışı/yenilemesi
-    // "authors" koleksiyonunun TAMAMINI (800+ doküman) yeniden okuyordu ve
-    // Firebase'in ücretsiz paketindeki günlük 50.000 okuma kotası günün
-    // ortasında bitiyordu — kota bitince Firestore hem okumayı hem yazmayı
-    // reddediyor ve kullanıcıya "Veri kaydedilemedi" uyarısı çıkıyordu.
-    // Önbellek açıkken dinleyiciler (onSnapshot) kaldıkları yerden devam
-    // eder: sunucudan yalnızca DEĞİŞEN dokümanlar gelir, değişmeyenler
-    // yerelden okunur ve kotadan düşmez. Ayrıca uygulama çevrimdışıyken de
-    // veriyi gösterebilir. Başka hiçbir Firestore çağrısından önce
-    // çağrılmalı — bu yüzden burada, en üstte.
-    firestore.enablePersistence({ synchronizeTabs: true }).catch(err => {
-      // failed-precondition: aynı anda açık, önbelleği desteklemeyen başka
-      // sekme var. unimplemented: tarayıcı IndexedDB desteklemiyor (ör.
-      // gizli pencere). İkisi de ölümcül değil — uygulama önbelleksiz,
-      // eskisi gibi çalışmaya devam eder.
-      console.warn("Yerel önbellek açılamadı:", err.code || err.message);
-    });
+    // NOT — burada bir süre enablePersistence({synchronizeTabs:true}) vardı
+    // (okuma kotasını düşürmek için) ama 2026-08-05'te GERİ ALINDI:
+    //
+    // Önbellek açıkken onSnapshot ilk olarak YEREL kopyadan tetikleniyor.
+    // loadAuthors/loadStock/... içindeki "firstLoad" dalı bu ilk anlık
+    // görüntüyü kesin doğru kabul edip db.authors = [...] atamasını yapıyor.
+    // Cihazda henüz önbellek yoksa bu görüntü BOŞ geliyor; ekrana boş liste
+    // basılıyor ve ardından sunucudan gelen veriyle doldurulması bekleniyor.
+    // Kota dolu olduğu için sunucu senkronizasyonu reddedilince liste boş
+    // KALIYOR — kullanıcıya bütün kayıtlar silinmiş gibi görünüyor.
+    // Önbellek yokken aynı durumda uygulama bunun yerine "Veriler
+    // yüklenemedi, sayfayı yenileyin" diyip açıkça hata veriyor.
+    //
+    // Ayrıca sessiz bir veri kaybı riski: mutateStaff yerel db.staff'ı
+    // olduğu gibi sunucuya geri yazıyor — yerel kopya boşken personel
+    // listesinde bir işlem yapılırsa liste sunucuda da silinebilirdi.
+    //
+    // Önbellek tekrar açılacaksa önce load* fonksiyonları ilk anlık
+    // görüntüyü snapshot.metadata.fromCache ile ayırt edecek şekilde
+    // düzeltilmeli (yani sunucudan gelen ilk görüntü beklenmeli).
     const auth = firebase.auth();
     const storage = firebase.storage();
     storage.setMaxUploadRetryTime(15000); // 15 saniye sonra sonsuz döngüyü kır ve hata ver
