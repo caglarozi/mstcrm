@@ -386,7 +386,14 @@ async function appendLog(projectId, token, authorId, logEntry) {
     writes: [{
       transform: {
         document: `projects/${projectId}/databases/(default)/documents/authors/${authorId}`,
-        fieldTransforms: [{ fieldPath: "logs", appendMissingElements: { values: [toFirestoreValue(logEntry)] } }]
+        fieldTransforms: [
+          { fieldPath: "logs", appendMissingElements: { values: [toFirestoreValue(logEntry)] } },
+          // "Son değişiklik" damgası. CRM açılışta yalnızca damgası
+          // ilerlemiş kayıtları çekiyor (bkz. app.js > loadAuthors); bu
+          // damga basılmazsa webhook'un eklediği arama/mesaj kaydı
+          // personelin ekranına hiç düşmez.
+          { fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" }
+        ]
       }
     }]
   };
@@ -416,6 +423,12 @@ async function createLead(projectId, token, { name, phone, source, logEntry, add
   };
   const fields = {};
   for (const [k, v] of Object.entries(payload)) fields[k] = toFirestoreValue(v);
+  // "Son değişiklik" damgası — CRM açılışta yalnızca damgası ilerlemiş
+  // kayıtları çekiyor (bkz. app.js > loadAuthors). Bu doküman OLUŞTURMA
+  // isteği olduğu için sunucu tarafı damga (setToServerValue) dönüşümü
+  // kullanılamıyor; worker'ın saati ile yazılıyor. Küçük saat farkları
+  // CRM tarafındaki DELTA_SAFETY_MS payı sayesinde sorun çıkarmaz.
+  fields.updatedAt = { timestampValue: new Date().toISOString() };
 
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/authors?documentId=${id}`;
   await fetch(url, {
@@ -436,7 +449,10 @@ async function appendFile(projectId, token, authorId, fileMeta) {
     writes: [{
       transform: {
         document: `projects/${projectId}/databases/(default)/documents/authors/${authorId}`,
-        fieldTransforms: [{ fieldPath: "files", appendMissingElements: { values: [toFirestoreValue(fileMeta)] } }]
+        fieldTransforms: [
+          { fieldPath: "files", appendMissingElements: { values: [toFirestoreValue(fileMeta)] } },
+          { fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" } // bkz. appendLog
+        ]
       }
     }]
   };

@@ -93,7 +93,56 @@ function kontrol(ad, kosul, detay) {
   kontrol('Gerçek bağlantı hatasında internet kontrolü öneriyor', /[iİ]nternet/i.test(m.net), m.net.slice(0, 80));
   kontrol('Yetki hatasında yetkiden bahsediyor', /yetki/i.test(m.yetki));
 
-  console.log('\n5) Telefon eşleştirme (webhook ile aynı kural olmalı)');
+  console.log('\n5) Yalnızca değişenleri çekme (delta) mantığı');
+  const d = await page.evaluate(() => {
+    const s = {};
+    // 5a. Damga okuma: canlı Timestamp, yerel kopyadan gelen düz nesne,
+    //     ISO metin ve damgasız kayıt — dördü de doğru okunmalı.
+    s.msTimestamp = authorUpdatedMs({ updatedAt: { toMillis: () => 1700000000000 } });
+    s.msPlain     = authorUpdatedMs({ updatedAt: { seconds: 1700000000, nanoseconds: 0 } });
+    s.msIso       = authorUpdatedMs({ updatedAt: '2026-08-05T10:00:00.000Z' });
+    s.msYok       = authorUpdatedMs({});
+
+    // 5b. Değişiklik uygulama: ekleme / güncelleme / yumuşak silme / gerçek silme
+    const sahte = (id, ad, extra) => ({ type: 'added', doc: { data: () => Object.assign({ id, name: ad, updatedAt: { seconds: 1700000001 } }, extra || {}) } });
+    db.authors = [];
+    authorWatermark = 0;
+
+    applyAuthorChanges([sahte('a1', 'Bir'), sahte('a2', 'İki')]);
+    s.eklendi = db.authors.length === 2;
+    s.damgaIlerledi = authorWatermark === 1700000001000;
+
+    applyAuthorChanges([sahte('a1', 'Bir GÜNCEL')]);
+    s.guncellendi = db.authors.length === 2 && db.authors.find(x => x.id === 'a1').name === 'Bir GÜNCEL';
+
+    applyAuthorChanges([sahte('a2', 'İki', { deleted: true })]);
+    s.yumusakSilindi = db.authors.length === 1 && !db.authors.some(x => x.id === 'a2');
+
+    applyAuthorChanges([{ type: 'removed', doc: { data: () => ({ id: 'a1', updatedAt: { seconds: 1700000002 } }) } }]);
+    s.gercekSilindi = db.authors.length === 0;
+
+    // 5c. Silinen kayıt yerel kopyaya SIZMAMALI
+    db.authors = [];
+    applyAuthorChanges([sahte('a3', 'Silik', { deleted: true })]);
+    s.silinenEklenmedi = db.authors.length === 0;
+
+    db.authors = [];
+    authorWatermark = 0;
+    return s;
+  });
+  kontrol('Canlı damga (Timestamp) okunuyor', d.msTimestamp === 1700000000000);
+  kontrol('Yerel kopyadaki damga okunuyor', d.msPlain === 1700000000000, 'okunan: ' + d.msPlain);
+  kontrol('Metin damga okunuyor', d.msIso === new Date('2026-08-05T10:00:00.000Z').getTime());
+  kontrol('Damgasız kayıt 0 dönüyor (tam liste çekmeye zorlar)', d.msYok === 0);
+  kontrol('Yeni kayıtlar listeye ekleniyor', d.eklendi);
+  kontrol('En yeni damga takip ediliyor', d.damgaIlerledi);
+  kontrol('Değişen kayıt güncelleniyor, kopyası oluşmuyor', d.guncellendi);
+  kontrol('Yumuşak silinen (deleted:true) listeden çıkıyor', d.yumusakSilindi,
+    'Silinen yazar diğer kullanıcıların ekranında kalırdı!');
+  kontrol('Gerçekten silinen kayıt listeden çıkıyor', d.gercekSilindi);
+  kontrol('Silinmiş kayıt listeye hiç eklenmiyor', d.silinenEklenmedi);
+
+  console.log('\n6) Telefon eşleştirme (webhook ile aynı kural olmalı)');
   const p = await page.evaluate(() => ['0555 123 45 67', '+90 555 123 45 67', '905551234567', '5551234567']
     .map(x => normalizePhone(x)));
   kontrol('Tüm telefon formatları aynı anahtara indirgeniyor',

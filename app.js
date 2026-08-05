@@ -495,30 +495,150 @@
       });
     }
 
+    /* ---------- Yazar listesi: yerel kopya + yalnızca değişenleri çekme ----------
+     *
+     * Önceden uygulama her açılışta "authors" koleksiyonunun TAMAMINI
+     * (800+ doküman) yeniden indiriyordu. Günde 8 personel × 5 açılış =
+     * ~32.500 okuma, yani Firebase ücretsiz planındaki günlük 50.000
+     * okuma kotasının üçte ikisi tek başına açılışlarda gidiyordu.
+     *
+     * Artık liste tarayıcıda saklanıyor ve açılışta sunucuya sadece
+     * "en son aldığım andan sonra değişenleri ver" diye soruluyor. Gün
+     * içinde 800 kaydın belki 20'si değiştiği için açılış maliyeti
+     * 800+ okumadan ~10 okumaya iniyor. Canlı senkronizasyon bozulmaz:
+     * sonradan değişen her kayıt bu sorguya yine düşer.
+     *
+     * GÜVENLİK AĞI — herhangi bir aksilikte eski davranışa döner:
+     * yerel kopya yoksa, bozuksa, çok eskiyse ya da fark sorgusu hata
+     * verirse kopya silinir ve koleksiyonun tamamı eskisi gibi çekilir.
+     * Yani en kötü ihtimalde bugünkü maliyete döneriz, veri kaybolmaz.
+     */
+    const AUTHOR_CACHE_PREFIX = "mstcrm_authors_v1_";
+    // Yerel kopya en fazla 1 gün kullanılır, sonra koleksiyonun tamamı
+    // yeniden çekilir. Bu bilinçli bir maliyet: kişi başı günde bir kez
+    // ~800 okuma (8 personel için ~6.500, kotanın %13'ü). Karşılığında,
+    // damgası atlanmış bir yazma yolu ya da fark sorgusundaki bir hata
+    // yüzünden oluşabilecek "sessiz eskime" en fazla bir gün sürer —
+    // haftalarca yanlış veri gösterilmesi ihtimali kalmaz.
+    const AUTHOR_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+    const AUTHOR_CACHE_MAX_BYTES = 3 * 1024 * 1024;          // localStorage sınırına yaklaşma
+    // Fark sorgusunu son damganın bir tık GERİSİNDEN başlatıyoruz.
+    // CRM'deki yazmalar sunucu saatiyle damgalanıyor (sıralama garantili),
+    // ama webhook yeni aday oluştururken kendi saatini kullanmak zorunda
+    // (oluşturma isteğinde sunucu damgası dönüşümü kullanılamıyor). Bu pay
+    // o küçük saat farkını kapatıyor.
+    //
+    // Payı büyük tutmak pahalıya patlar: pay içinde kalan HER kayıt her
+    // açılışta yeniden okunur. Bu yüzden hem pay dar tutuldu hem de taşıma
+    // betiği damgaları kayıtların gerçek son hareket tarihine yayıyor —
+    // hepsine aynı damga basılsaydı her açılışta 800+ kayıt yeniden
+    // okunur, kazanç sıfırlanırdı.
+    const DELTA_SAFETY_MS = 60 * 1000;
+
+    let authorWatermark = 0; // gördüğümüz en yeni "son değişiklik" damgası (ms)
+
+    // updatedAt hem Firestore Timestamp'i (canlı veri) hem de düz nesne
+    // ({seconds,...}, yerel kopyadan JSON ile geri okunmuş) olabilir.
+    function authorUpdatedMs(a) {
+      const u = a && a.updatedAt;
+      if (!u) return 0;
+      if (typeof u.toMillis === "function") return u.toMillis();
+      if (typeof u.seconds === "number") return u.seconds * 1000 + Math.floor((u.nanoseconds || 0) / 1e6);
+      const t = new Date(u).getTime();
+      return Number.isFinite(t) ? t : 0;
+    }
+
+    function authorCacheKey() {
+      const uid = (auth.currentUser && auth.currentUser.uid) || "anon";
+      return AUTHOR_CACHE_PREFIX + uid;
+    }
+    function clearAuthorCache() {
+      try { localStorage.removeItem(authorCacheKey()); } catch (e) { /* önemsiz */ }
+    }
+    function readAuthorCache() {
+      try {
+        const raw = localStorage.getItem(authorCacheKey());
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (!p || !Array.isArray(p.authors) || !p.authors.length) return null;
+        if (!p.watermark || !p.savedAt) return null;
+        if (Date.now() - p.savedAt > AUTHOR_CACHE_MAX_AGE_MS) return null;
+        return p;
+      } catch (e) { return null; }
+    }
+    let cacheWriteTimer = null;
+    function scheduleAuthorCacheWrite() {
+      // Her anlık görüntüde yarım megabaytlık JSON üretmemek için geciktir.
+      if (cacheWriteTimer) return;
+      cacheWriteTimer = setTimeout(() => {
+        cacheWriteTimer = null;
+        try {
+          if (!authorWatermark || !db.authors.length) return;
+          const payload = JSON.stringify({ savedAt: Date.now(), watermark: authorWatermark, authors: db.authors });
+          if (payload.length > AUTHOR_CACHE_MAX_BYTES) { clearAuthorCache(); return; }
+          localStorage.setItem(authorCacheKey(), payload);
+        } catch (e) { clearAuthorCache(); } // kota dolu/gizli pencere vb.
+      }, 3000);
+    }
+
+    function applyAuthorChanges(changes) {
+      changes.forEach(change => {
+        const data = change.doc.data();
+        authorWatermark = Math.max(authorWatermark, authorUpdatedMs(data));
+        const idx = db.authors.findIndex(a => a.id === data.id);
+        // "removed": doküman gerçekten silinmiş. deleted:true: yumuşak
+        // silme — kayıt sunucuda duruyor ama listede görünmemeli (bkz.
+        // deleteAuthorDoc; fark sorgusunun silmeyi de taşıyabilmesi için
+        // böyle yapıldı).
+        if (change.type === "removed" || data.deleted === true) {
+          if (idx !== -1) db.authors.splice(idx, 1);
+        } else if (idx !== -1) {
+          db.authors[idx] = data;
+        } else {
+          db.authors.unshift(data);
+        }
+      });
+    }
+
     function loadAuthors() {
+      const cache = readAuthorCache();
+      const useDelta = !!cache;
+      if (useDelta) {
+        db.authors = cache.authors;
+        authorWatermark = cache.watermark;
+      } else {
+        authorWatermark = 0;
+      }
+
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        listen(firestore.collection("authors"), snapshot => {
-          if (firstLoad) {
-            db.authors = snapshot.docs.map(d => d.data());
+        const col = firestore.collection("authors");
+        const ref = useDelta
+          ? col.where("updatedAt", ">", firebase.firestore.Timestamp.fromMillis(Math.max(0, authorWatermark - DELTA_SAFETY_MS)))
+          : col;
+
+        listen(ref, snapshot => {
+          if (firstLoad && !useDelta) {
+            const all = snapshot.docs.map(d => d.data());
+            all.forEach(a => { authorWatermark = Math.max(authorWatermark, authorUpdatedMs(a)); });
+            db.authors = all.filter(a => a.deleted !== true);
           } else {
-            snapshot.docChanges().forEach(change => {
-              const data = change.doc.data();
-              const idx = db.authors.findIndex(a => a.id === data.id);
-              if (change.type === "removed") {
-                if (idx !== -1) db.authors.splice(idx, 1);
-              } else if (idx !== -1) {
-                db.authors[idx] = data;
-              } else {
-                db.authors.unshift(data);
-              }
-            });
+            // Fark modunda ilk anlık görüntü de docChanges ile gelir
+            // (hepsi "added" tipinde), o yüzden tek yol yeterli.
+            applyAuthorChanges(snapshot.docChanges());
           }
+          scheduleAuthorCacheWrite();
           if (firstLoad) { firstLoad = false; resolve(); }
           else onDataChanged();
         }, err => {
           console.error("Yazar veri çekme hatası:", err);
-          if (firstLoad) reject(err);
+          if (!firstLoad) return;
+          // Fark sorgusu ilk açılışta patladıysa yerel kopyaya güvenmeyi
+          // bırak: kopyayı sil ve reddet. ensureDataLoaded yeniden
+          // deneyecek, o denemede kopya olmadığı için koleksiyonun tamamı
+          // eskisi gibi çekilecek.
+          if (useDelta) clearAuthorCache();
+          reject(err);
         });
       });
     }
@@ -775,6 +895,17 @@
     // için sunucudan taze okunan kopyaya) — bu yüzden fn içinde uid()/
     // new Date() gibi her çağrıda farklı sonuç üretebilecek değerler
     // ÜRETİLMEMELİ, çağıran fonksiyon tarafından önceden hesaplanmalı.
+    // Her yazar yazmasına "son değişiklik" damgası basar. Bu damga
+    // olmadan, uygulamanın açılışta "sadece değişenleri ver" sorgusu
+    // (bkz. loadAuthors) o kaydı GÖREMEZ — yani damgasız bir yazma yolu
+    // kalırsa o değişiklik diğer kullanıcıların ekranına hiç ulaşmaz.
+    // Sunucu saati kullanılıyor: cihaz saatleri yanlış olabilir, damganın
+    // karşılaştırıldığı değer ise hep sunucudan gelir.
+    function stampUpdated(obj) {
+      obj.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+      return obj;
+    }
+
     async function mutateAuthor(authorId, fn) {
       const a = db.authors.find(x => x.id === authorId);
       if (a) fn(a);
@@ -786,7 +917,7 @@
           if (!doc.exists) return;
           const server = doc.data();
           fn(server);
-          tx.set(ref, server);
+          tx.set(ref, stampUpdated(server));
         });
       } catch (e) {
         console.error("Kaydetme hatası:", e);
@@ -798,18 +929,25 @@
       db.authors.unshift(authorData);
       render();
       try {
-        await firestore.collection("authors").doc(authorData.id).set(authorData);
+        await firestore.collection("authors").doc(authorData.id).set(stampUpdated({ ...authorData }));
       } catch (e) {
         console.error("Kaydetme hatası:", e);
         alert(dbErrorText(e, "Veri kaydedilemedi"));
       }
     }
 
+    // Yumuşak silme: doküman gerçekten silinmiyor, "deleted" işareti ve
+    // yeni bir damga yazılıyor. Sebebi: açılıştaki fark sorgusu yalnızca
+    // DEĞİŞEN dokümanları görebilir, gerçekten silinmiş bir dokümanı ise
+    // hiç göremez — o zaman kaydı yerel kopyasında tutan diğer
+    // kullanıcılarda silinen yazar ekranda kalmaya devam ederdi.
+    // Yan fayda: yanlışlıkla silinen kayıt sunucuda duruyor, geri
+    // alınabilir. Listeleme tarafında deleted:true olanlar ayıklanıyor.
     async function deleteAuthorDoc(authorId) {
       db.authors = db.authors.filter(x => x.id !== authorId);
       render();
       try {
-        await firestore.collection("authors").doc(authorId).delete();
+        await firestore.collection("authors").doc(authorId).update(stampUpdated({ deleted: true }));
       } catch (e) {
         console.error("Silme hatası:", e);
         alert(dbErrorText(e, "Veri silinemedi"));
@@ -4346,7 +4484,10 @@
           for (let i = 0; i < authors.length; i += CHUNK) {
             const batch = firestore.batch();
             authors.slice(i, i + CHUNK).forEach(a => {
-              batch.set(firestore.collection("authors").doc(a.id), a);
+              // Damga şart: damgasız yazılan kayıtları açılıştaki fark
+              // sorgusu göremez, yedekten dönen veri diğer kullanıcıların
+              // ekranına hiç yansımazdı (bkz. stampUpdated).
+              batch.set(firestore.collection("authors").doc(a.id), stampUpdated({ ...a }));
             });
             await batch.commit();
           }
