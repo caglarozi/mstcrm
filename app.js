@@ -1828,11 +1828,26 @@
     // Personel yalnızca kendi görüşmelerini görür: kaydı kendisi eklemiş ya da
     // en az bir görüşmesini (log) kendisi yapmış olmalı. Admin ve muhasebe
     // tüm kayıtları görür. Ekip eşleşmesi olmayan personel hiçbirini göremez.
+    // Ortak havuz: ileri tarihli takip/randevusu olmayan ve 7 gündür yeni
+    // görüşme eklenmemiş adaylar TÜM görüşmecilere açılır — sahibi dönmediyse
+    // başka bir görüşmeci devralıp arayabilir. Görüşme eklendiği anda kayıt
+    // havuzdan çıkar (görüşmeyi ekleyen artık kaydı görmeye devam eder).
+    const POOL_STALE_DAYS = 7;
+    function isInCommonPool(a) {
+      if (!["aday", "gorusuluyor", "degerlendirme", "eseryaziyor"].includes(a.status)) return false;
+      const today = todayStr();
+      if (a.followup && a.followup >= today) return false;
+      if (a.interviewDate && a.interviewDate >= today) return false;
+      const logs = (a.logs || []).filter(l => l.date);
+      const last = logs.length ? logs.reduce((m, l) => l.date > m ? l.date : m, "") : (a.created || today);
+      return Math.round((new Date(today) - new Date(last)) / 864e5) >= POOL_STALE_DAYS;
+    }
     function canSeeAuthor(a) {
       if (currentRole !== "personel") return true;
       if (!currentStaffId) return false;
       if (a.addedBy === currentStaffId) return true;
-      return (a.logs || []).some(l => l.staffId === currentStaffId);
+      if ((a.logs || []).some(l => l.staffId === currentStaffId)) return true;
+      return isInCommonPool(a);
     }
     function visibleAuthors() { return (db.authors || []).filter(canSeeAuthor); }
 
@@ -1841,6 +1856,7 @@
       return visibleAuthors().filter(a => {
         const hay = searchKey(a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || ""));
         let statusMatch = (filterStatus === "all" || a.status === filterStatus);
+        if (filterStatus === "havuz") statusMatch = isInCommonPool(a);
         if (currentView === "authors" && (a.status === "sozlesme" || a.status === "yayinda")) {
           statusMatch = false;
         }
@@ -2492,6 +2508,14 @@
         </span>`;
       }).join("");
       
+      const havuzCount = visibleAuthors().filter(isInCommonPool).length;
+      const havuzActive = filterStatus === 'havuz';
+      const havuzStyle = havuzActive ? `background: rgba(45, 212, 191, 0.15); border-color: #2dd4bf; color: #2dd4bf; box-shadow: 0 0 14px rgba(45,212,191,0.2);` : ``;
+      bar += `<span class="pill ${havuzActive ? 'active' : ''}" style="${havuzStyle}" onclick="setFilter('havuz')" onmouseover="this.style.borderColor='#2dd4bf'" onmouseout="if(!${havuzActive}) this.style.borderColor='var(--line)'">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#2dd4bf;margin-right:8px;box-shadow:0 0 8px #2dd4bf"></span>
+          Ortak Havuz (${havuzCount})
+        </span>`;
+
       const dfStyle = filterDate !== 'all' ? `background: rgba(74, 168, 255, 0.15); border-color: #4aa8ff; color: #4aa8ff; margin-left: auto;` : `margin-left: auto; border: 1px solid rgba(255,255,255,0.15);`;
       bar += `<button class="btn ${filterDate !== 'all' ? '' : 'ghost'}" style="${dfStyle}" onclick="openDateFilterModal()">${icon('calendar', 14)} Tarih: ${filterDate === 'all' ? 'Tümü' : filterDate}</button>`;
 
@@ -2739,6 +2763,7 @@
         <div class="name">${escapeHtml(a.name)}</div>
         <div class="role">${escapeHtml(a.work) || "—"}</div>
         ${gorusmeSuresi}
+        ${isInCommonPool(a) ? `<div style="font-size:11px;color:#2dd4bf;font-weight:700;display:flex;align-items:center;gap:4px;margin-top:2px">${icon('users', 11)} ORTAK HAVUZ — herkes arayabilir</div>` : ''}
         ${contractBadge}
       </div>
       <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:6px;">
