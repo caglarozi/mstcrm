@@ -3279,18 +3279,30 @@
     // elementi) hiç yeniden oluşturulmadığı için yazarken odak (focus) ve
     // imleç konumu asla kaybolmuyor (önceki debounce denemesi render()'ı
     // hâlâ çağırdığı için input yine yeniden yaratılıp odağı kaybediyordu).
+    const STOCK_CRITICAL_LIMIT = 5;
     function stockResultsHtml() {
-      const list = db.stock.slice().sort((a, b) => a.title.localeCompare(b.title, 'tr'));
+      // Stoğu kritik sınırın (5) altına düşenler en öne (en azdan çoğa),
+      // kalanlar alfabetik sıralanır.
+      const list = db.stock.slice().sort((a, b) => {
+        const aKritik = (a.quantity || 0) < STOCK_CRITICAL_LIMIT;
+        const bKritik = (b.quantity || 0) < STOCK_CRITICAL_LIMIT;
+        if (aKritik !== bKritik) return aKritik ? -1 : 1;
+        if (aKritik && bKritik) return (a.quantity || 0) - (b.quantity || 0);
+        return a.title.localeCompare(b.title, 'tr');
+      });
       const t = searchKey(stockSearch).trim();
       const filtered = t ? list.filter(x => searchKey(x.title).includes(t)) : list;
-      return filtered.length ? filtered.map(x => `<div class="mini" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-      <div><span class="mn">${escapeHtml(x.title)}</span><div class="ms">${escapeHtml(x.type || 'Kitap')}</div></div>
+      return filtered.length ? filtered.map(x => {
+        const kritik = (x.quantity || 0) < STOCK_CRITICAL_LIMIT;
+        return `<div class="mini" style="display:flex;justify-content:space-between;align-items:center;gap:8px;${kritik ? 'border-left:3px solid var(--red);padding-left:8px;background:rgba(242,97,122,0.06);border-radius:8px' : ''}">
+      <div><span class="mn">${escapeHtml(x.title)}</span><div class="ms">${escapeHtml(x.type || 'Kitap')}${kritik ? ` <span style="color:var(--red);font-weight:700">• STOK KRİTİK</span>` : ''}</div></div>
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-weight:700;color:var(--brand)">${(x.quantity || 0).toLocaleString('tr-TR')} adet</span>
+        <span style="font-weight:700;color:${kritik ? 'var(--red)' : 'var(--brand)'}">${(x.quantity || 0).toLocaleString('tr-TR')} adet</span>
         <button class="btn ghost" style="padding:4px 8px" onclick="openStockModal('${x.id}')" title="Düzenle">${icon('edit', 13)}</button>
         <button class="btn ghost" style="padding:4px 8px" onclick="delStockItem('${x.id}')" title="Sil">${icon('trash', 13)}</button>
       </div>
-    </div>`).join('') : `<div class="empty">Kayıt bulunamadı.</div>`;
+    </div>`;
+      }).join('') : `<div class="empty">Kayıt bulunamadı.</div>`;
     }
     function setStockSearch(v) {
       stockSearch = v;
