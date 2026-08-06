@@ -658,8 +658,9 @@
           <h2 style="margin:0 0 4px;font-size:17px">${icon('trendingUp', 16)} ${new Date().getHours() < EOD_REPORT_HOUR && date === todayStr() ? 'Gün İçi Raporu' : 'Gün Sonu Raporu'}</h2>
           <div style="color:var(--muted);font-size:12px;margin-bottom:10px">${fmtDate(date)}${date === todayStr() ? ' • saat ' + String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0') + ' itibarıyla' : ''}</div>
           <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${body}</div>
-          <div class="actions" style="margin-top:16px">
-            <button class="btn" style="width:100%" onclick="closeDailyReport()">Kapat</button>
+          <div class="actions" style="margin-top:16px;display:flex;gap:8px">
+            <button class="btn ghost" style="flex:1" onclick="closeDailyReport();openMissedReport()">${icon('alertTriangle', 14)} Dönülmemişler</button>
+            <button class="btn" style="flex:1" onclick="closeDailyReport()">Kapat</button>
           </div>
         </div>`;
       let m = document.getElementById("eodReportModal");
@@ -676,6 +677,82 @@
       const m = document.getElementById("eodReportModal");
       if (m) m.classList.remove("open");
     }
+    /* ---------- Dönülmemiş yazarlar raporu ----------
+     * Görüşülmesi gerekip görüşülmemiş adayları geçmişe dönük analiz eder.
+     * Bir yazar, yeni bir görüşme (log) eklenmedikçe bu listede kalır:
+     *  - Takip tarihi geçmiş ve o tarihten sonra görüşme girilmemişse
+     *  - Hiç görüşme yapılmamışsa (eklendiği günden beri)
+     *  - Son görüşmenin üzerinden 7+ gün geçmiş ve ileri tarihli takip/randevu yoksa */
+    function getMissedAuthors() {
+      const today = todayStr();
+      const active = ["aday", "gorusuluyor", "degerlendirme", "eseryaziyor"];
+      const gunFarki = d => Math.max(0, Math.round((new Date(today) - new Date(d)) / 864e5));
+      const out = [];
+      visibleAuthors().forEach(a => {
+        if (!active.includes(a.status)) return;
+        const logs = (a.logs || []).filter(l => l.date).slice().sort((x, y) => x.date.localeCompare(y.date));
+        const lastLog = logs.length ? logs[logs.length - 1].date : null;
+        if (a.followup && a.followup < today && (!lastLog || lastLog < a.followup)) {
+          out.push({ a, reason: "takip", days: gunFarki(a.followup), text: "Takip tarihi " + gunFarki(a.followup) + " gün geçti, hâlâ dönülmedi", color: "var(--red)" });
+        } else if (!logs.length) {
+          const d = gunFarki(a.created || today);
+          if (d >= 1) out.push({ a, reason: "hic", days: d, text: d + " gündür hiç görüşme yapılmadı", color: "var(--amber)" });
+        } else {
+          const d = gunFarki(lastLog);
+          const ileriTakip = (a.followup && a.followup >= today) || (a.interviewDate && a.interviewDate >= today);
+          if (d >= 7 && !ileriTakip) {
+            out.push({ a, reason: "eski", days: d, text: "Son görüşmeden bu yana " + d + " gün geçti, yeni takip planlanmadı", color: "#9aa1b2" });
+          }
+        }
+      });
+      out.sort((x, y) => y.days - x.days);
+      return out;
+    }
+    function openMissedReport() {
+      const missed = getMissedAuthors();
+      let body;
+      if (!missed.length) {
+        body = `<div class="empty">${icon('checkCircle', 15)} Harika! Dönülmemiş yazar yok — tüm adaylarla ilgilenilmiş.</div>`;
+      } else {
+        body = missed.map(m => {
+          const adder = m.a.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(m.a.addedBy) || "Personel");
+          return `<div class="mini" onclick="closeMissedReport();closeDailyReport();openDrawer('${m.a.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0">
+              <span class="avatar" style="background:${avatarColor(m.a.name)};width:26px;height:26px;font-size:11px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;flex-shrink:0">${escapeHtml(initials(m.a.name))}</span>
+              <div style="min-width:0">
+                <span class="mn">${escapeHtml(m.a.name)}</span>
+                <div class="ms" style="color:${m.color}">${m.text}</div>
+                <div class="ms">${STATUS[m.a.status].label} • ${escapeHtml(adder)}</div>
+              </div>
+            </div>
+            <span style="font-weight:700;color:${m.color};font-size:13px;flex-shrink:0">${m.days}g</span>
+          </div>`;
+        }).join("");
+      }
+      const content = `
+        <div class="box" style="max-width:460px;padding:22px">
+          <h2 style="margin:0 0 4px;font-size:17px">${icon('alertTriangle', 16)} Dönülmemiş Yazarlar</h2>
+          <div style="color:var(--muted);font-size:12px;margin-bottom:10px">${missed.length} yazar bekliyor — yeni görüşme eklenmedikçe listede kalırlar</div>
+          <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${body}</div>
+          <div class="actions" style="margin-top:16px">
+            <button class="btn" style="width:100%" onclick="closeMissedReport()">Kapat</button>
+          </div>
+        </div>`;
+      let m = document.getElementById("missedReportModal");
+      if (!m) {
+        m = document.createElement("div");
+        m.className = "modal";
+        m.id = "missedReportModal";
+        document.body.appendChild(m);
+      }
+      m.innerHTML = content;
+      m.classList.add("open");
+    }
+    function closeMissedReport() {
+      const m = document.getElementById("missedReportModal");
+      if (m) m.classList.remove("open");
+    }
+
     function checkDailyReport() {
       if (!db.authors || !db.authors.length) return;
       if (new Date().getHours() < EOD_REPORT_HOUR) return;
@@ -1831,7 +1908,9 @@
     <div class="card stat"><div class="n">${avgDays !== null ? avgDays + ' gün' : '—'}</div><div class="l">Ort. sözleşmeye dönüşüm süresi</div></div>
   </div>`;
 
-      const reportBtn = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      const missedCount = getMissedAuthors().length;
+      const reportBtn = `<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <button class="btn ghost" style="${missedCount ? 'border-color:var(--red);color:var(--red)' : ''}" onclick="openMissedReport()">${icon('alertTriangle', 14)} Dönülmemiş Yazarlar${missedCount ? ' (' + missedCount + ')' : ''}</button>
     <button class="btn ghost" onclick="openDailyReport()">${icon('trendingUp', 14)} Gün Sonu Raporu</button>
   </div>`;
 
