@@ -102,6 +102,12 @@ function kontrol(ad, kosul, detay) {
     s.msPlain     = authorUpdatedMs({ updatedAt: { seconds: 1700000000, nanoseconds: 0 } });
     s.msIso       = authorUpdatedMs({ updatedAt: '2026-08-05T10:00:00.000Z' });
     s.msYok       = authorUpdatedMs({});
+    // Geleceğe düşen damga watermark'ı ilerletMEmeli. 2026-08-06'da
+    // canlıda tam bu oldu: taşıma betiği bugün tarihli kayda 15:00
+    // damgası bastı, saat 10:05'ti; watermark geleceğe sıçrayınca o
+    // andan sonraki tüm gerçek değişiklikler görünmez oldu.
+    s.msGelecek   = authorUpdatedMs({ updatedAt: { seconds: Math.floor(Date.now() / 1000) + 7 * 24 * 3600 } });
+    s.msYakinGelecek = authorUpdatedMs({ updatedAt: { seconds: Math.floor(Date.now() / 1000) + 60 } });
 
     // 5b. Değişiklik uygulama: ekleme / güncelleme / yumuşak silme / gerçek silme
     const sahte = (id, ad, extra) => ({ type: 'added', doc: { data: () => Object.assign({ id, name: ad, updatedAt: { seconds: 1700000001 } }, extra || {}) } });
@@ -134,6 +140,9 @@ function kontrol(ad, kosul, detay) {
   kontrol('Yerel kopyadaki damga okunuyor', d.msPlain === 1700000000000, 'okunan: ' + d.msPlain);
   kontrol('Metin damga okunuyor', d.msIso === new Date('2026-08-05T10:00:00.000Z').getTime());
   kontrol('Damgasız kayıt 0 dönüyor (tam liste çekmeye zorlar)', d.msYok === 0);
+  kontrol('Geleceğe düşen damga watermark ilerletmiyor', d.msGelecek === 0,
+    'Watermark geleceğe sıçrarsa sonraki tüm değişiklikler görünmez olur — 06.08.2026 canlı hatası!');
+  kontrol('Saat farkı payı (1 saat) içindeki damga kabul ediliyor', d.msYakinGelecek > 0);
   kontrol('Yeni kayıtlar listeye ekleniyor', d.eklendi);
   kontrol('En yeni damga takip ediliyor', d.damgaIlerledi);
   kontrol('Değişen kayıt güncelleniyor, kopyası oluşmuyor', d.guncellendi);

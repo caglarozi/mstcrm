@@ -542,10 +542,20 @@
     function authorUpdatedMs(a) {
       const u = a && a.updatedAt;
       if (!u) return 0;
-      if (typeof u.toMillis === "function") return u.toMillis();
-      if (typeof u.seconds === "number") return u.seconds * 1000 + Math.floor((u.nanoseconds || 0) / 1e6);
-      const t = new Date(u).getTime();
-      return Number.isFinite(t) ? t : 0;
+      let ms;
+      if (typeof u.toMillis === "function") ms = u.toMillis();
+      else if (typeof u.seconds === "number") ms = u.seconds * 1000 + Math.floor((u.nanoseconds || 0) / 1e6);
+      else ms = new Date(u).getTime();
+      if (!Number.isFinite(ms)) return 0;
+      // GELECEK TARİH SAVUNMASI: tek bir kaydın damgası bir şekilde
+      // geleceğe düşerse (bozuk cihaz saati, hatalı toplu güncelleme),
+      // watermark oraya sıçrar ve o andan sonraki GERÇEK değişikliklerin
+      // hepsi fark sorgusunun altında kalıp görünmez olur — uygulama
+      // sessizce eskimeye başlar. Bu yüzden makul bir ufkun (1 saat)
+      // ötesindeki damgalar watermark'ı ilerletmez. Kayıt yine normal
+      // şekilde işlenir, sadece "en yeni an" olarak sayılmaz.
+      if (ms > Date.now() + 60 * 60 * 1000) return 0;
+      return ms;
     }
 
     function authorCacheKey() {

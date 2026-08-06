@@ -56,15 +56,43 @@ function sonHareket(a) {
   const snap = await db.collection('authors').get();
   console.log(`${snap.size} yazar okundu.`);
 
+  // GELECEK TARİH TUZAĞI: kayıtların tarihi "YYYY-MM-DD" biçiminde, saati
+  // yok; bu yüzden günün ortasına (12:00 UTC = 15:00 TR) sabitliyoruz.
+  // Ama BUGÜN tarihli kayıtlar için bu saat henüz gelmemiş olabilir —
+  // damga geleceğe düşer. O zaman uygulamanın watermark'ı da geleceğe
+  // kayar ve bugün yapılan GERÇEK değişiklikler fark sorgusunun altında
+  // kalıp hiç görünmez. (Bu hata canlı veri testinde yakalandı.)
+  //
+  // Çözüm: hiçbir damga "şimdi"nin ilerisine yazılmaz. Tavanı aşanlar
+  // tavandan geriye doğru saniye saniye yayılır — hepsi aynı ana
+  // yığılırsa güvenlik payının içinde kalır ve her açılışta yeniden
+  // okunurlardı.
+  const TAVAN = Date.now() - 10 * 60 * 1000; // şimdiden 10 dk geri
+
   const guncellenecek = [];
-  let zatenVar = 0, tarihsiz = 0;
+  let zatenVar = 0, tarihsiz = 0, gelecekten = 0;
+  const tavanaTakilan = [];
   snap.forEach(doc => {
     const a = doc.data();
-    if (a.updatedAt) { zatenVar++; return; }
+    // Damgası olan ama GELECEĞE yazılmış kayıtlar düzeltilir (betiğin
+    // eski sürümü bunları geleceğe yazmıştı).
+    if (a.updatedAt) {
+      const ms = a.updatedAt.toMillis ? a.updatedAt.toMillis() : 0;
+      if (ms <= Date.now()) { zatenVar++; return; }
+      gelecekten++;
+    }
     let t = sonHareket(a);
-    if (!t) { t = new Date('2020-01-01T12:00:00Z'); tarihsiz++; } // hiç tarihi yoksa çok eskiye at
+    if (!t) { t = new Date('2020-01-01T12:00:00Z'); tarihsiz++; }
+    if (t.getTime() > TAVAN) { tavanaTakilan.push({ ref: doc.ref, ad: a.name }); return; }
     guncellenecek.push({ ref: doc.ref, t, ad: a.name });
   });
+
+  // Tavana takılanları tavandan geriye doğru 1'er saniye arayla yay.
+  tavanaTakilan.forEach((u, i) => {
+    guncellenecek.push({ ref: u.ref, t: new Date(TAVAN - i * 1000), ad: u.ad });
+  });
+  if (gelecekten) console.log(`Geleceğe yazılmış ${gelecekten} damga düzeltilecek.`);
+  if (tavanaTakilan.length) console.log(`Tarihi bugüne/geleceğe düşen ${tavanaTakilan.length} kayıt, ${new Date(TAVAN).toLocaleString('tr-TR')} ve öncesine yayıldı.`);
 
   console.log(`Zaten damgalı: ${zatenVar} · Damgalanacak: ${guncellenecek.length} (tarihi hiç olmayan: ${tarihsiz})`);
 
