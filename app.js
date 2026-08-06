@@ -116,11 +116,12 @@
       aday: { label: "Aday", color: "#9aa1b2" },
       gorusuluyor: { label: "Görüşülüyor", color: "#4aa8ff" },
       degerlendirme: { label: "Değerlendirmede", color: "#f4b740" },
+      eseryaziyor: { label: "Eseri Yazıyor", color: "#c084fc" },
       sozlesme: { label: "Sözleşme", color: "#2563eb" },
       yayinda: { label: "Yayında", color: "#37c98a" },
       arsiv: { label: "Arşiv", color: "#5b6070" }
     };
-    const PIPELINE = ["aday", "gorusuluyor", "degerlendirme", "sozlesme", "yayinda"];
+    const PIPELINE = ["aday", "gorusuluyor", "degerlendirme", "eseryaziyor", "sozlesme", "yayinda"];
     const PACKAGES = {
       vip: { label: "VIP Paket", withVat: 70800, noVat: 59000 },
       pro: { label: "Profesyonel Paket", withVat: 42000, noVat: 35000 },
@@ -2492,7 +2493,7 @@
       // Devam eden görüşmelerde ismin altında kaç gündür görüşüldüğü yazar
       // (başlangıç: kaydın eklendiği tarih; kart açılmadan görünsün diye).
       let gorusmeSuresi = '';
-      if ((a.status === 'aday' || a.status === 'gorusuluyor' || a.status === 'degerlendirme') && a.created) {
+      if ((a.status === 'aday' || a.status === 'gorusuluyor' || a.status === 'degerlendirme' || a.status === 'eseryaziyor') && a.created) {
         const gDays = Math.max(0, Math.round((new Date().setHours(0, 0, 0, 0) - new Date(a.created)) / 864e5));
         const gTxt = gDays === 0 ? 'Bugün eklendi' : gDays + ' gündür görüşülüyor';
         const gCol = gDays >= 30 ? 'var(--red)' : gDays >= 14 ? 'var(--amber)' : 'var(--muted)';
