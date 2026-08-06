@@ -1739,7 +1739,15 @@
       c.classList.add("view-enter");
     }
 
-    function searchTerm() { return document.getElementById("search").value.toLowerCase().trim(); }
+    // Türkçe duyarlı, büyük/küçük harf ve aksan farkı gözetmeyen arama
+    // anahtarı: "KIRMIZI", "kırmızı" ve "Kirmizi" aynı anahtara iner —
+    // aramalarda İ/i, I/ı, ş/s, ğ/g, ü/u, ö/o, ç/c farkları eşleşmeyi bozmaz.
+    function searchKey(s) {
+      return (s || "").normalize("NFC").toLocaleLowerCase("tr")
+        .replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g")
+        .replace(/ü/g, "u").replace(/ö/g, "o").replace(/ç/g, "c");
+    }
+    function searchTerm() { return searchKey(document.getElementById("search").value).trim(); }
     // Personel yalnızca kendi görüşmelerini görür: kaydı kendisi eklemiş ya da
     // en az bir görüşmesini (log) kendisi yapmış olmalı. Admin ve muhasebe
     // tüm kayıtları görür. Ekip eşleşmesi olmayan personel hiçbirini göremez.
@@ -1754,7 +1762,7 @@
     function filteredAuthors() {
       const t = searchTerm();
       return visibleAuthors().filter(a => {
-        const hay = (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase();
+        const hay = searchKey(a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || ""));
         let statusMatch = (filterStatus === "all" || a.status === filterStatus);
         if (currentView === "authors" && (a.status === "sozlesme" || a.status === "yayinda")) {
           statusMatch = false;
@@ -2732,7 +2740,7 @@
 
     function viewContracts() {
       const t = searchTerm();
-      const match = a => !t || (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase().includes(t);
+      const match = a => !t || searchKey(a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).includes(t);
       const getCDate = a => new Date(getContractDate(a) || 0).getTime();
       const sozlesme = visibleAuthors().filter(a => a.status === "sozlesme" && match(a)).sort((x, y) => getCDate(y) - getCDate(x));
       const yayinda = visibleAuthors().filter(a => a.status === "yayinda" && match(a)).sort((x, y) => getCDate(y) - getCDate(x));
@@ -2919,7 +2927,7 @@
 
     function getAccountingAuthors() {
       const t = searchTerm();
-      const match = a => !t || (a.name + " " + (a.work || "")).toLowerCase().includes(t);
+      const match = a => !t || searchKey(a.name + " " + (a.work || "")).includes(t);
       const contracted = visibleAuthors().filter(a => (a.status === "sozlesme" || a.status === "yayinda") && match(a));
       // Sözleşmesi bitip arşivlenen ama ödeme geçmişi olan yazarlar da listede kalsın.
       const archivedWithPayments = visibleAuthors().filter(a => a.status !== "sozlesme" && a.status !== "yayinda" && (a.payments || []).length > 0 && match(a));
@@ -3194,8 +3202,8 @@
     // hâlâ çağırdığı için input yine yeniden yaratılıp odağı kaybediyordu).
     function stockResultsHtml() {
       const list = db.stock.slice().sort((a, b) => a.title.localeCompare(b.title, 'tr'));
-      const t = stockSearch.trim().toLowerCase();
-      const filtered = t ? list.filter(x => x.title.toLowerCase().includes(t)) : list;
+      const t = searchKey(stockSearch).trim();
+      const filtered = t ? list.filter(x => searchKey(x.title).includes(t)) : list;
       return filtered.length ? filtered.map(x => `<div class="mini" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
       <div><span class="mn">${escapeHtml(x.title)}</span><div class="ms">${escapeHtml(x.type || 'Kitap')}</div></div>
       <div style="display:flex;align-items:center;gap:10px">
@@ -3275,8 +3283,8 @@
     // başlık/yön değişikliklerinin stoğu doğru yansıtması sağlanır.
     async function applyPrintOrderToStock(title, deltaQuantity) {
       if (!title || !deltaQuantity) return;
-      const norm = title.trim().toLowerCase();
-      const existing = db.stock.find(s => s.title.trim().toLowerCase() === norm);
+      const norm = searchKey(title).trim();
+      const existing = db.stock.find(s => searchKey(s.title).trim() === norm);
       if (existing) {
         const newQty = Math.max(0, (existing.quantity || 0) + deltaQuantity);
         await updateStockItem(existing.id, { quantity: newQty });
@@ -3644,7 +3652,7 @@
     function viewFollowups() {
       const t = searchTerm();
       const matchSearch = a =>
-        !t || (a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).toLowerCase().includes(t);
+        !t || searchKey(a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).includes(t);
 
       const list = visibleAuthors().filter(a => {
         if (a.status === "sozlesme" || a.status === "yayinda" || a.status === "arsiv") return false;
@@ -4601,7 +4609,7 @@
     function viewTeam() {
       db.staff = db.staff || [];
       const t = searchTerm();
-      const staff = db.staff.filter(s => !t || (s.name + " " + (s.role || "")).toLowerCase().includes(t));
+      const staff = db.staff.filter(s => !t || searchKey(s.name + " " + (s.role || "")).includes(t));
       // Her üyenin istatistikleri
       const stats = staff.map(s => {
         const logs = [];
@@ -5269,12 +5277,12 @@
       const container = document.getElementById("bulkMessageRecipients");
       if (!container) return;
       
-      const search = filterText.toLowerCase().trim();
+      const search = searchKey(filterText).trim();
       let html = "";
-      
+
       window.bulkMessageTempList.forEach((a, i) => {
-        const nameMatches = a.name.toLowerCase().includes(search);
-        const workMatches = (a.work || "").toLowerCase().includes(search);
+        const nameMatches = searchKey(a.name).includes(search);
+        const workMatches = searchKey(a.work || "").includes(search);
         
         if (search && !nameMatches && !workMatches) return;
         
