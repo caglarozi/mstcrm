@@ -69,3 +69,4 @@ node_modules/
 .dataconnect
 
 firebase-debug.log
+kota-log.csv

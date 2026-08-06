@@ -19,6 +19,26 @@
     // gerektiğinde (ör. WebSocket'i engelleyen bir ağ/proxy) long polling'e
     // düşer, aksi halde normal (daha hızlı ve güvenilir) bağlantıyı kullanır.
     firestore.settings({ experimentalAutoDetectLongPolling: true });
+    // NOT — burada bir süre enablePersistence({synchronizeTabs:true}) vardı
+    // (okuma kotasını düşürmek için) ama 2026-08-05'te GERİ ALINDI:
+    //
+    // Önbellek açıkken onSnapshot ilk olarak YEREL kopyadan tetikleniyor.
+    // loadAuthors/loadStock/... içindeki "firstLoad" dalı bu ilk anlık
+    // görüntüyü kesin doğru kabul edip db.authors = [...] atamasını yapıyor.
+    // Cihazda henüz önbellek yoksa bu görüntü BOŞ geliyor; ekrana boş liste
+    // basılıyor ve ardından sunucudan gelen veriyle doldurulması bekleniyor.
+    // Kota dolu olduğu için sunucu senkronizasyonu reddedilince liste boş
+    // KALIYOR — kullanıcıya bütün kayıtlar silinmiş gibi görünüyor.
+    // Önbellek yokken aynı durumda uygulama bunun yerine "Veriler
+    // yüklenemedi, sayfayı yenileyin" diyip açıkça hata veriyor.
+    //
+    // Ayrıca sessiz bir veri kaybı riski: mutateStaff yerel db.staff'ı
+    // olduğu gibi sunucuya geri yazıyor — yerel kopya boşken personel
+    // listesinde bir işlem yapılırsa liste sunucuda da silinebilirdi.
+    //
+    // Önbellek tekrar açılacaksa önce load* fonksiyonları ilk anlık
+    // görüntüyü snapshot.metadata.fromCache ile ayırt edecek şekilde
+    // düzeltilmeli (yani sunucudan gelen ilk görüntü beklenmeli).
     const auth = firebase.auth();
     const storage = firebase.storage();
     storage.setMaxUploadRetryTime(15000); // 15 saniye sonra sonsuz döngüyü kır ve hata ver
@@ -444,10 +464,27 @@
       }
     }
 
+    // Açık olan tüm Firestore dinleyicileri. Önceden onSnapshot'ın geri
+    // döndürdüğü "aboneliği iptal et" fonksiyonu atılıyordu; load() bir
+    // hata yüzünden tekrar denendiğinde (ensureDataLoaded 4 kez deniyor)
+    // ilk denemede BAŞARILI olan koleksiyonlara ikinci, üçüncü, dördüncü
+    // kez daha dinleyici bağlanıyordu. Her yeni dinleyici koleksiyonun
+    // tamamını baştan okuduğu için, kota hatası alındığında okuma sayısı
+    // 4 katına çıkıyor ve sorun kendi kendini büyütüyordu. Artık her
+    // load() öncesi eskiler kapatılıyor.
+    let activeListeners = [];
+    function listen(ref, onNext, onError) {
+      activeListeners.push(ref.onSnapshot(onNext, onError));
+    }
+    function stopAllListeners() {
+      activeListeners.forEach(unsub => { try { unsub(); } catch (e) { /* zaten kapalı */ } });
+      activeListeners = [];
+    }
+
     function loadStaff() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("crm").doc("staff").onSnapshot(doc => {
+        listen(firestore.collection("crm").doc("staff"), doc => {
           db.staff = doc.exists ? (doc.data().staff || []) : [];
           if (firstLoad) { firstLoad = false; resolve(); }
           else onDataChanged();
@@ -458,30 +495,160 @@
       });
     }
 
+    /* ---------- Yazar listesi: yerel kopya + yalnızca değişenleri çekme ----------
+     *
+     * Önceden uygulama her açılışta "authors" koleksiyonunun TAMAMINI
+     * (800+ doküman) yeniden indiriyordu. Günde 8 personel × 5 açılış =
+     * ~32.500 okuma, yani Firebase ücretsiz planındaki günlük 50.000
+     * okuma kotasının üçte ikisi tek başına açılışlarda gidiyordu.
+     *
+     * Artık liste tarayıcıda saklanıyor ve açılışta sunucuya sadece
+     * "en son aldığım andan sonra değişenleri ver" diye soruluyor. Gün
+     * içinde 800 kaydın belki 20'si değiştiği için açılış maliyeti
+     * 800+ okumadan ~10 okumaya iniyor. Canlı senkronizasyon bozulmaz:
+     * sonradan değişen her kayıt bu sorguya yine düşer.
+     *
+     * GÜVENLİK AĞI — herhangi bir aksilikte eski davranışa döner:
+     * yerel kopya yoksa, bozuksa, çok eskiyse ya da fark sorgusu hata
+     * verirse kopya silinir ve koleksiyonun tamamı eskisi gibi çekilir.
+     * Yani en kötü ihtimalde bugünkü maliyete döneriz, veri kaybolmaz.
+     */
+    const AUTHOR_CACHE_PREFIX = "mstcrm_authors_v1_";
+    // Yerel kopya en fazla 1 gün kullanılır, sonra koleksiyonun tamamı
+    // yeniden çekilir. Bu bilinçli bir maliyet: kişi başı günde bir kez
+    // ~800 okuma (8 personel için ~6.500, kotanın %13'ü). Karşılığında,
+    // damgası atlanmış bir yazma yolu ya da fark sorgusundaki bir hata
+    // yüzünden oluşabilecek "sessiz eskime" en fazla bir gün sürer —
+    // haftalarca yanlış veri gösterilmesi ihtimali kalmaz.
+    const AUTHOR_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+    const AUTHOR_CACHE_MAX_BYTES = 3 * 1024 * 1024;          // localStorage sınırına yaklaşma
+    // Fark sorgusunu son damganın bir tık GERİSİNDEN başlatıyoruz.
+    // CRM'deki yazmalar sunucu saatiyle damgalanıyor (sıralama garantili),
+    // ama webhook yeni aday oluştururken kendi saatini kullanmak zorunda
+    // (oluşturma isteğinde sunucu damgası dönüşümü kullanılamıyor). Bu pay
+    // o küçük saat farkını kapatıyor.
+    //
+    // Payı büyük tutmak pahalıya patlar: pay içinde kalan HER kayıt her
+    // açılışta yeniden okunur. Bu yüzden hem pay dar tutuldu hem de taşıma
+    // betiği damgaları kayıtların gerçek son hareket tarihine yayıyor —
+    // hepsine aynı damga basılsaydı her açılışta 800+ kayıt yeniden
+    // okunur, kazanç sıfırlanırdı.
+    const DELTA_SAFETY_MS = 60 * 1000;
+
+    let authorWatermark = 0; // gördüğümüz en yeni "son değişiklik" damgası (ms)
+
+    // updatedAt hem Firestore Timestamp'i (canlı veri) hem de düz nesne
+    // ({seconds,...}, yerel kopyadan JSON ile geri okunmuş) olabilir.
+    function authorUpdatedMs(a) {
+      const u = a && a.updatedAt;
+      if (!u) return 0;
+      let ms;
+      if (typeof u.toMillis === "function") ms = u.toMillis();
+      else if (typeof u.seconds === "number") ms = u.seconds * 1000 + Math.floor((u.nanoseconds || 0) / 1e6);
+      else ms = new Date(u).getTime();
+      if (!Number.isFinite(ms)) return 0;
+      // GELECEK TARİH SAVUNMASI: tek bir kaydın damgası bir şekilde
+      // geleceğe düşerse (bozuk cihaz saati, hatalı toplu güncelleme),
+      // watermark oraya sıçrar ve o andan sonraki GERÇEK değişikliklerin
+      // hepsi fark sorgusunun altında kalıp görünmez olur — uygulama
+      // sessizce eskimeye başlar. Bu yüzden makul bir ufkun (1 saat)
+      // ötesindeki damgalar watermark'ı ilerletmez. Kayıt yine normal
+      // şekilde işlenir, sadece "en yeni an" olarak sayılmaz.
+      if (ms > Date.now() + 60 * 60 * 1000) return 0;
+      return ms;
+    }
+
+    function authorCacheKey() {
+      const uid = (auth.currentUser && auth.currentUser.uid) || "anon";
+      return AUTHOR_CACHE_PREFIX + uid;
+    }
+    function clearAuthorCache() {
+      try { localStorage.removeItem(authorCacheKey()); } catch (e) { /* önemsiz */ }
+    }
+    function readAuthorCache() {
+      try {
+        const raw = localStorage.getItem(authorCacheKey());
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (!p || !Array.isArray(p.authors) || !p.authors.length) return null;
+        if (!p.watermark || !p.savedAt) return null;
+        if (Date.now() - p.savedAt > AUTHOR_CACHE_MAX_AGE_MS) return null;
+        return p;
+      } catch (e) { return null; }
+    }
+    let cacheWriteTimer = null;
+    function scheduleAuthorCacheWrite() {
+      // Her anlık görüntüde yarım megabaytlık JSON üretmemek için geciktir.
+      if (cacheWriteTimer) return;
+      cacheWriteTimer = setTimeout(() => {
+        cacheWriteTimer = null;
+        try {
+          if (!authorWatermark || !db.authors.length) return;
+          const payload = JSON.stringify({ savedAt: Date.now(), watermark: authorWatermark, authors: db.authors });
+          if (payload.length > AUTHOR_CACHE_MAX_BYTES) { clearAuthorCache(); return; }
+          localStorage.setItem(authorCacheKey(), payload);
+        } catch (e) { clearAuthorCache(); } // kota dolu/gizli pencere vb.
+      }, 3000);
+    }
+
+    function applyAuthorChanges(changes) {
+      changes.forEach(change => {
+        const data = change.doc.data();
+        authorWatermark = Math.max(authorWatermark, authorUpdatedMs(data));
+        const idx = db.authors.findIndex(a => a.id === data.id);
+        // "removed": doküman gerçekten silinmiş. deleted:true: yumuşak
+        // silme — kayıt sunucuda duruyor ama listede görünmemeli (bkz.
+        // deleteAuthorDoc; fark sorgusunun silmeyi de taşıyabilmesi için
+        // böyle yapıldı).
+        if (change.type === "removed" || data.deleted === true) {
+          if (idx !== -1) db.authors.splice(idx, 1);
+        } else if (idx !== -1) {
+          db.authors[idx] = data;
+        } else {
+          db.authors.unshift(data);
+        }
+      });
+    }
+
     function loadAuthors() {
+      const cache = readAuthorCache();
+      const useDelta = !!cache;
+      if (useDelta) {
+        db.authors = cache.authors;
+        authorWatermark = cache.watermark;
+      } else {
+        authorWatermark = 0;
+      }
+
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("authors").onSnapshot(snapshot => {
-          if (firstLoad) {
-            db.authors = snapshot.docs.map(d => d.data());
+        const col = firestore.collection("authors");
+        const ref = useDelta
+          ? col.where("updatedAt", ">", firebase.firestore.Timestamp.fromMillis(Math.max(0, authorWatermark - DELTA_SAFETY_MS)))
+          : col;
+
+        listen(ref, snapshot => {
+          if (firstLoad && !useDelta) {
+            const all = snapshot.docs.map(d => d.data());
+            all.forEach(a => { authorWatermark = Math.max(authorWatermark, authorUpdatedMs(a)); });
+            db.authors = all.filter(a => a.deleted !== true);
           } else {
-            snapshot.docChanges().forEach(change => {
-              const data = change.doc.data();
-              const idx = db.authors.findIndex(a => a.id === data.id);
-              if (change.type === "removed") {
-                if (idx !== -1) db.authors.splice(idx, 1);
-              } else if (idx !== -1) {
-                db.authors[idx] = data;
-              } else {
-                db.authors.unshift(data);
-              }
-            });
+            // Fark modunda ilk anlık görüntü de docChanges ile gelir
+            // (hepsi "added" tipinde), o yüzden tek yol yeterli.
+            applyAuthorChanges(snapshot.docChanges());
           }
+          scheduleAuthorCacheWrite();
           if (firstLoad) { firstLoad = false; resolve(); }
           else onDataChanged();
         }, err => {
           console.error("Yazar veri çekme hatası:", err);
-          if (firstLoad) reject(err);
+          if (!firstLoad) return;
+          // Fark sorgusu ilk açılışta patladıysa yerel kopyaya güvenmeyi
+          // bırak: kopyayı sil ve reddet. ensureDataLoaded yeniden
+          // deneyecek, o denemede kopya olmadığı için koleksiyonun tamamı
+          // eskisi gibi çekilecek.
+          if (useDelta) clearAuthorCache();
+          reject(err);
         });
       });
     }
@@ -489,7 +656,7 @@
     function loadExpenses() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("expenses").onSnapshot(snapshot => {
+        listen(firestore.collection("expenses"), snapshot => {
           if (firstLoad) {
             db.expenses = snapshot.docs.map(d => d.data());
           } else {
@@ -588,7 +755,7 @@
     function loadTasks() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("tasks").onSnapshot(snapshot => {
+        listen(firestore.collection("tasks"), snapshot => {
           if (firstLoad) {
             db.tasks = snapshot.docs.map(d => d.data());
           } else {
@@ -619,7 +786,7 @@
     function loadStock() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("stock").onSnapshot(snapshot => {
+        listen(firestore.collection("stock"), snapshot => {
           if (firstLoad) {
             db.stock = snapshot.docs.map(d => d.data());
           } else {
@@ -647,7 +814,7 @@
     function loadPrintOrders() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("printOrders").onSnapshot(snapshot => {
+        listen(firestore.collection("printOrders"), snapshot => {
           if (firstLoad) {
             db.printOrders = snapshot.docs.map(d => d.data());
           } else {
@@ -678,7 +845,7 @@
     function loadPackageContracts() {
       return new Promise((resolve, reject) => {
         let firstLoad = true;
-        firestore.collection("packageContracts").onSnapshot(snapshot => {
+        listen(firestore.collection("packageContracts"), snapshot => {
           const next = {};
           snapshot.forEach(doc => { next[doc.id] = doc.data(); });
           db.packageContracts = next;
@@ -692,6 +859,9 @@
     }
 
     async function load() {
+      // Yeniden denemede aynı koleksiyona ikinci kez dinleyici bağlanmasın
+      // (bkz. activeListeners açıklaması) — her deneme temiz başlar.
+      stopAllListeners();
       db.staff = db.staff || [];
       db.authors = db.authors || [];
       db.expenses = db.expenses || [];
@@ -702,6 +872,32 @@
       await Promise.all([loadStaff(), loadAuthors(), loadExpenses(), loadTasks(), loadStock(), loadPrintOrders(), loadPackageContracts()]);
     }
 
+    // Firestore hatasını kullanıcıya anlaşılır bir cümleye çevirir. Önceden
+    // her hata için tek tip "Lütfen internet bağlantınızı kontrol edin"
+    // deniyordu; oysa uygulamanın gerçek arızası genellikle bağlantı değil,
+    // Firebase ücretsiz (Spark) paketinin günlük kotasının dolmasıydı —
+    // yanlış mesaj yüzünden sorun uzun süre internet arızası sanıldı.
+    // Hata kodunu da yazıyoruz ki teknik olmayan kullanıcı ekran
+    // görüntüsünü iletince sebep tek bakışta anlaşılsın.
+    function dbErrorText(e, baseMessage) {
+      const code = String((e && e.code) || "").replace(/^firestore\//, "");
+      if (code === "resource-exhausted") {
+        return baseMessage + "\n\nSebep: Günlük veri kotası doldu. Bu bir internet sorunu DEĞİL. " +
+          "BU KAYIT SUNUCUYA GİTMEDİ — sayfayı yenilerseniz kaybolur. Birkaç dakika sonra tekrar deneyin; " +
+          "kota her gece sıfırlanır.";
+      }
+      if (code === "permission-denied") {
+        return baseMessage + "\n\nSebep: Bu işlem için yetkiniz yok ya da hesabınızın onayı kaldırılmış. Yöneticinize bildirin.";
+      }
+      if (code === "unavailable" || code === "deadline-exceeded" || code === "aborted") {
+        return baseMessage + "\n\nSebep: Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
+      }
+      if (code === "invalid-argument" || code === "not-found") {
+        return baseMessage + "\n\nSebep: Kayıt verisinde bir sorun var (kod: " + code + "). Yöneticinize bildirin.";
+      }
+      return baseMessage + "\n\n(Hata kodu: " + (code || "bilinmiyor") + ") Sorun sürerse bu kodu yöneticinize iletin.";
+    }
+
     // Tek bir yazarın dokümanını, sunucudaki en güncel haliyle güvenli
     // şekilde günceller (iki kişi farklı yazarları aynı anda düzenlese bile
     // artık birbirini hiç etkilemez, çünkü her yazar ayrı doküman). fn iki
@@ -709,6 +905,17 @@
     // için sunucudan taze okunan kopyaya) — bu yüzden fn içinde uid()/
     // new Date() gibi her çağrıda farklı sonuç üretebilecek değerler
     // ÜRETİLMEMELİ, çağıran fonksiyon tarafından önceden hesaplanmalı.
+    // Her yazar yazmasına "son değişiklik" damgası basar. Bu damga
+    // olmadan, uygulamanın açılışta "sadece değişenleri ver" sorgusu
+    // (bkz. loadAuthors) o kaydı GÖREMEZ — yani damgasız bir yazma yolu
+    // kalırsa o değişiklik diğer kullanıcıların ekranına hiç ulaşmaz.
+    // Sunucu saati kullanılıyor: cihaz saatleri yanlış olabilir, damganın
+    // karşılaştırıldığı değer ise hep sunucudan gelir.
+    function stampUpdated(obj) {
+      obj.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+      return obj;
+    }
+
     async function mutateAuthor(authorId, fn) {
       const a = db.authors.find(x => x.id === authorId);
       if (a) fn(a);
@@ -720,11 +927,11 @@
           if (!doc.exists) return;
           const server = doc.data();
           fn(server);
-          tx.set(ref, server);
+          tx.set(ref, stampUpdated(server));
         });
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Veri kaydedilemedi"));
       }
     }
 
@@ -732,21 +939,28 @@
       db.authors.unshift(authorData);
       render();
       try {
-        await firestore.collection("authors").doc(authorData.id).set(authorData);
+        await firestore.collection("authors").doc(authorData.id).set(stampUpdated({ ...authorData }));
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Veri kaydedilemedi"));
       }
     }
 
+    // Yumuşak silme: doküman gerçekten silinmiyor, "deleted" işareti ve
+    // yeni bir damga yazılıyor. Sebebi: açılıştaki fark sorgusu yalnızca
+    // DEĞİŞEN dokümanları görebilir, gerçekten silinmiş bir dokümanı ise
+    // hiç göremez — o zaman kaydı yerel kopyasında tutan diğer
+    // kullanıcılarda silinen yazar ekranda kalmaya devam ederdi.
+    // Yan fayda: yanlışlıkla silinen kayıt sunucuda duruyor, geri
+    // alınabilir. Listeleme tarafında deleted:true olanlar ayıklanıyor.
     async function deleteAuthorDoc(authorId) {
       db.authors = db.authors.filter(x => x.id !== authorId);
       render();
       try {
-        await firestore.collection("authors").doc(authorId).delete();
+        await firestore.collection("authors").doc(authorId).update(stampUpdated({ deleted: true }));
       } catch (e) {
         console.error("Silme hatası:", e);
-        alert("Veri silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Veri silinemedi"));
       }
     }
 
@@ -759,7 +973,7 @@
         await firestore.collection("expenses").doc(expenseData.id).set(expenseData);
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Gider kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Gider kaydedilemedi"));
       }
     }
     async function updateExpense(expenseId, updates) {
@@ -770,7 +984,7 @@
         await firestore.collection("expenses").doc(expenseId).update(updates);
       } catch (e) {
         console.error("Güncelleme hatası:", e);
-        alert("Gider güncellenemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Gider güncellenemedi"));
       }
     }
     async function deleteExpenseDoc(expenseId) {
@@ -780,7 +994,7 @@
         await firestore.collection("expenses").doc(expenseId).delete();
       } catch (e) {
         console.error("Silme hatası:", e);
-        alert("Gider silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Gider silinemedi"));
       }
     }
 
@@ -791,7 +1005,7 @@
         await firestore.collection("stock").doc(item.id).set(item);
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Stok kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Stok kaydedilemedi"));
       }
     }
     async function updateStockItem(id, updates) {
@@ -802,7 +1016,7 @@
         await firestore.collection("stock").doc(id).update(updates);
       } catch (e) {
         console.error("Güncelleme hatası:", e);
-        alert("Stok güncellenemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Stok güncellenemedi"));
       }
     }
     async function deleteStockItem(id) {
@@ -812,7 +1026,7 @@
         await firestore.collection("stock").doc(id).delete();
       } catch (e) {
         console.error("Silme hatası:", e);
-        alert("Stok silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Stok silinemedi"));
       }
     }
 
@@ -823,7 +1037,7 @@
         await firestore.collection("printOrders").doc(order.id).set(order);
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Baskı siparişi kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Baskı siparişi kaydedilemedi"));
       }
     }
     async function updatePrintOrder(id, updates) {
@@ -834,7 +1048,7 @@
         await firestore.collection("printOrders").doc(id).update(updates);
       } catch (e) {
         console.error("Güncelleme hatası:", e);
-        alert("Baskı siparişi güncellenemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Baskı siparişi güncellenemedi"));
       }
     }
     async function deletePrintOrder(id) {
@@ -844,7 +1058,7 @@
         await firestore.collection("printOrders").doc(id).delete();
       } catch (e) {
         console.error("Silme hatası:", e);
-        alert("Baskı siparişi silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Baskı siparişi silinemedi"));
       }
     }
 
@@ -868,7 +1082,7 @@
         });
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Veri kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Veri kaydedilemedi"));
       }
     }
 
@@ -2966,7 +3180,7 @@
           await firestore.collection("tasks").doc(taskId).update(updates);
         } catch (e) {
           console.error("Güncelleme hatası:", e);
-          alert("Görev güncellenemedi. Lütfen internet bağlantınızı kontrol edin.");
+          alert(dbErrorText(e, "Görev güncellenemedi"));
         }
         return;
       }
@@ -2985,7 +3199,7 @@
         sendTaskPush(task); // beklenmez (fire-and-forget) — kayıt akışını yavaşlatmasın
       } catch (e) {
         console.error("Kaydetme hatası:", e);
-        alert("Görev kaydedilemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Görev kaydedilemedi"));
       }
     }
     async function completeTask(taskId) {
@@ -3003,7 +3217,7 @@
         await firestore.collection("tasks").doc(taskId).update(updates);
       } catch (e) {
         console.error("Güncelleme hatası:", e);
-        alert("Görev güncellenemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Görev güncellenemedi"));
       }
     }
     // Admin Görevler sekmesine girince, henüz "görülmedi" işaretli tüm
@@ -3028,7 +3242,7 @@
         await firestore.collection("tasks").doc(taskId).delete();
       } catch (e) {
         console.error("Silme hatası:", e);
-        alert("Görev silinemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert(dbErrorText(e, "Görev silinemedi"));
       }
     }
     let taskTab = "aktif";
@@ -3494,6 +3708,12 @@
 
       const payload = {
         name, status, email: g("f_email"), phone: g("f_phone"),
+        // Numaranın sadeleştirilmiş hali (son 10 hane). WhatsApp/arama
+        // webhook'u gelen numarayı bu alanda TEK sorguyla arayabilsin diye
+        // kaydediliyor; öncesinde webhook her arama/mesaj için yazarların
+        // TAMAMINI (800+ doküman) tarıyordu ve günlük okuma kotasını
+        // tek başına bitiriyordu.
+        phoneNorm: normalizePhone(g("f_phone")),
         genres: g("f_genres").split(",").map(s => s.trim()).filter(Boolean),
         temp: +g("f_temp"), work: g("f_work"), interviewDate: g("f_interviewDate"), interviewTime: g("f_interviewTime") || null, followup: g("f_followup"), source: g("f_source"), notes: g("f_notes"),
         package: g("f_package") || null,
@@ -4325,7 +4545,10 @@
           for (let i = 0; i < authors.length; i += CHUNK) {
             const batch = firestore.batch();
             authors.slice(i, i + CHUNK).forEach(a => {
-              batch.set(firestore.collection("authors").doc(a.id), a);
+              // Damga şart: damgasız yazılan kayıtları açılıştaki fark
+              // sorgusu göremez, yedekten dönen veri diğer kullanıcıların
+              // ekranına hiç yansımazdı (bkz. stampUpdated).
+              batch.set(firestore.collection("authors").doc(a.id), stampUpdated({ ...a }));
             });
             await batch.commit();
           }
