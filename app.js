@@ -598,6 +598,96 @@
     }
     setInterval(checkAppointmentReminders, 30000);
 
+    /* ---------- Gün sonu raporu (20:00) ----------
+     * Her gün 20:00'de otomatik açılır (uygulama açıksa; günde bir kez).
+     * Paneldeki butonla istenildiği an da görüntülenebilir. Personel yalnızca
+     * kendi raporunu, sistem yöneticisi tüm görüşmecilerinkini görür. */
+    const EOD_REPORT_KEY = "mstcrm_eodReportShown_v1";
+    const EOD_REPORT_HOUR = 20;
+    function dailyReportStatsFor(staffKey, date) {
+      // O gün bu görüşmecinin "dokunduğu" kayıtlar: o gün ekledikleri +
+      // o gün görüşme (log) girdikleri.
+      const records = (db.authors || []).filter(a => {
+        const createdToday = a.created === date && (a.addedBy || "admin") === staffKey;
+        const loggedToday = (a.logs || []).some(l => l.date === date && (l.staffId || "admin") === staffKey);
+        return createdToday || loggedToday;
+      });
+      const olumlu = records.filter(a => a.status === "sozlesme" || a.status === "yayinda").length;
+      const olumsuz = records.filter(a => a.status === "arsiv").length;
+      const devam = records.length - olumlu - olumsuz;
+      // Kaçırılan aramalar: o gün girilen, "ulaşılamadı/cevapsız" içerikli telefon kayıtları
+      const kacirilan = (db.authors || []).reduce((top, a) =>
+        top + (a.logs || []).filter(l => l.date === date && (l.staffId || "admin") === staffKey && l.type === "Telefon" && UNREACHED_CALL_RE.test(l.text || "")).length, 0);
+      const sonuclanan = olumlu + olumsuz;
+      const basari = sonuclanan > 0 ? Math.round(olumlu / sonuclanan * 100) : null;
+      return { gorusme: records.length, kacirilan, olumlu, olumsuz, devam, basari };
+    }
+    function openDailyReport(date) {
+      date = date || todayStr();
+      let keys;
+      if (currentRole === "personel") {
+        if (!currentStaffId) { customAlert("Rapor hazırlanamadı", "Hesabınız ekip listesiyle eşleşmediği için kişisel rapor oluşturulamıyor."); return; }
+        keys = [currentStaffId];
+      } else {
+        keys = (db.staff || []).map(s => s.id).concat(["admin"]);
+      }
+      const chip = (label, val, color) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${color};background:${color}18;border:1px solid ${color}44;border-radius:20px;padding:2px 8px;white-space:nowrap"><b>${val}</b> ${label}</span>`;
+      const rows = keys.map(k => ({ name: k === "admin" ? "Sistem Yöneticisi" : (staffName(k) || "Personel"), st: dailyReportStatsFor(k, date) }))
+        .filter(r => currentRole === "personel" || r.st.gorusme > 0 || r.st.kacirilan > 0);
+      let body;
+      if (!rows.length) {
+        body = `<div class="empty">Bugün için raporlanacak görüşme bulunmuyor.</div>`;
+      } else {
+        body = rows.map(r => `<div style="padding:10px 0;border-bottom:1px dashed var(--line)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span class="avatar" style="background:${avatarColor(r.name)};width:24px;height:24px;font-size:10px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%">${escapeHtml(initials(r.name))}</span>
+            <b style="font-size:14px">${escapeHtml(r.name)}</b>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${chip("görüşme", r.st.gorusme, "#4aa8ff")}
+            ${chip("kaçırılan arama", r.st.kacirilan, "#9aa1b2")}
+            ${chip("olumlu", r.st.olumlu, "#37c98a")}
+            ${chip("olumsuz", r.st.olumsuz, "#ef5350")}
+            ${chip("devam eden", r.st.devam, "#f4b740")}
+            ${r.st.basari !== null ? chip("başarı", "%" + r.st.basari, "#a78bfa") : chip("başarı", "%—", "#9aa1b2")}
+          </div>
+        </div>`).join("");
+      }
+      const content = `
+        <div class="box" style="max-width:440px;padding:22px">
+          <h2 style="margin:0 0 4px;font-size:17px">${icon('trendingUp', 16)} Gün Sonu Raporu</h2>
+          <div style="color:var(--muted);font-size:12px;margin-bottom:10px">${fmtDate(date)}</div>
+          <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${body}</div>
+          <div class="actions" style="margin-top:16px">
+            <button class="btn" style="width:100%" onclick="closeDailyReport()">Kapat</button>
+          </div>
+        </div>`;
+      let m = document.getElementById("eodReportModal");
+      if (!m) {
+        m = document.createElement("div");
+        m.className = "modal";
+        m.id = "eodReportModal";
+        document.body.appendChild(m);
+      }
+      m.innerHTML = content;
+      m.classList.add("open");
+    }
+    function closeDailyReport() {
+      const m = document.getElementById("eodReportModal");
+      if (m) m.classList.remove("open");
+    }
+    function checkDailyReport() {
+      if (!db.authors || !db.authors.length) return;
+      if (new Date().getHours() < EOD_REPORT_HOUR) return;
+      const today = todayStr();
+      let last = null;
+      try { last = localStorage.getItem(EOD_REPORT_KEY); } catch (e) { /* engellenmis olabilir */ }
+      if (last === today) return;
+      try { localStorage.setItem(EOD_REPORT_KEY, today); } catch (e) { /* engellenmis olabilir */ }
+      openDailyReport(today);
+    }
+    setInterval(checkDailyReport, 60000);
+
     /* ---------- Yazar listesi: yerel kopya + yalnızca değişenleri çekme ----------
      *
      * Önceden uygulama her açılışta "authors" koleksiyonunun TAMAMINI
@@ -1733,7 +1823,11 @@
     <div class="card stat"><div class="n">${avgDays !== null ? avgDays + ' gün' : '—'}</div><div class="l">Ort. sözleşmeye dönüşüm süresi</div></div>
   </div>`;
 
-      return stats + `<div class="grid grid-2col" style="gap:16px">${follow}${recent}</div>`;
+      const reportBtn = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <button class="btn ghost" onclick="openDailyReport()">${icon('trendingUp', 14)} Gün Sonu Raporu</button>
+  </div>`;
+
+      return reportBtn + stats + `<div class="grid grid-2col" style="gap:16px">${follow}${recent}</div>`;
     }
 
     function viewSettings() {
