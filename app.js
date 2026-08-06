@@ -554,6 +554,50 @@
       render();
     }
 
+    /* ---------- Randevu hatırlatıcısı ----------
+     * Bugünün randevularını (interviewDate + interviewTime) yarım dakikada
+     * bir kontrol eder; saate 10 dk kala ekranda uyarı çıkarır. Aynı randevu
+     * için bir kez uyarır (localStorage'da tutulur, sayfa yenilense de
+     * tekrarlamaz). Personel yalnızca kendi görebildiği kayıtlar için uyarılır. */
+    const APPT_NOTIFIED_KEY = "mstcrm_apptNotified_v1";
+    const APPT_REMIND_BEFORE_MIN = 10;
+    function getNotifiedAppts() {
+      try { return JSON.parse(localStorage.getItem(APPT_NOTIFIED_KEY)) || {}; } catch (e) { return {}; }
+    }
+    function markApptNotified(key) {
+      const m = getNotifiedAppts();
+      m[key] = true;
+      // Geçmiş günlerin kayıtlarını temizle ki liste şişmesin
+      const today = todayStr();
+      Object.keys(m).forEach(k => { const d = k.split("|")[1]; if (d && d < today) delete m[k]; });
+      try { localStorage.setItem(APPT_NOTIFIED_KEY, JSON.stringify(m)); } catch (e) { /* dolu olabilir, kritik değil */ }
+    }
+    function checkAppointmentReminders() {
+      if (!db.authors || !db.authors.length) return;
+      const now = new Date();
+      const today = todayStr();
+      const notified = getNotifiedAppts();
+      const due = [];
+      visibleAuthors().forEach(a => {
+        if (!a.interviewDate || !a.interviewTime || a.interviewDate !== today) return;
+        const parts = a.interviewTime.split(":");
+        const h = +parts[0], m = +parts[1];
+        if (isNaN(h) || isNaN(m)) return;
+        const t = new Date(); t.setHours(h, m, 0, 0);
+        const diffMin = (t - now) / 60000;
+        const key = a.id + "|" + a.interviewDate + "|" + a.interviewTime;
+        if (diffMin <= APPT_REMIND_BEFORE_MIN && diffMin > -1 && !notified[key]) {
+          due.push({ name: a.name, time: a.interviewTime, inMin: Math.max(0, Math.round(diffMin)) });
+          markApptNotified(key);
+        }
+      });
+      if (due.length) {
+        const lines = due.map(d => '"' + d.name + '" — saat ' + d.time + (d.inMin > 0 ? " (" + d.inMin + " dk sonra)" : " (ŞİMDİ)")).join(" • ");
+        customAlert("🔔 Randevu Hatırlatması!", (due.length > 1 ? "Yaklaşan randevularınız: " : "Yaklaşan randevunuz: ") + lines);
+      }
+    }
+    setInterval(checkAppointmentReminders, 30000);
+
     /* ---------- Yazar listesi: yerel kopya + yalnızca değişenleri çekme ----------
      *
      * Önceden uygulama her açılışta "authors" koleksiyonunun TAMAMINI
