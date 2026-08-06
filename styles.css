@@ -603,11 +603,15 @@
 
     .author {
       cursor: pointer;
+      /* Yükseklik sabit 160px'ti; süre etiketi ve ORTAK HAVUZ rozeti gibi
+         ek satırlar eklendiğinde ilgi düzeyi çubukları ile WhatsApp
+         simgesi kesiliyordu — kart artık içeriğe göre uzar. */
       min-height: 160px;
-      height: 160px;
+      height: auto;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      gap: 10px;
       transition: transform .12s, border-color .12s, box-shadow .12s;
     }
 
@@ -1485,7 +1489,11 @@
       position: relative;
       border-radius: var(--radius);
       overflow: hidden;
-      height: 160px;
+      /* Sabit 160px, süre etiketi ve ORTAK HAVUZ rozeti gibi ek satırlarda
+         ilgi düzeyi çubukları ile WhatsApp simgesini kesiyordu — kap artık
+         kartla birlikte uzar. */
+      min-height: 160px;
+      height: auto;
       display: flex;
       flex-direction: column;
     }
