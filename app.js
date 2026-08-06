@@ -615,9 +615,17 @@
       const olumlu = records.filter(a => a.status === "sozlesme" || a.status === "yayinda").length;
       const olumsuz = records.filter(a => a.status === "arsiv").length;
       const devam = records.length - olumlu - olumsuz;
-      // Kaçırılan aramalar: o gün girilen, "ulaşılamadı/cevapsız" içerikli telefon kayıtları
-      const kacirilan = (db.authors || []).reduce((top, a) =>
-        top + (a.logs || []).filter(l => l.date === date && (l.staffId || "admin") === staffKey && l.type === "Telefon" && UNREACHED_CALL_RE.test(l.text || "")).length, 0);
+      // Kaçırılan aramalar: o gün ulaşılması GEREKTİĞİ halde (takip tarihi o
+      // gün ya da geçmiş, veya randevusu o gün) hiç aranmamış adaylar.
+      // Arayıp ulaşamadıklarımız sayılmaz — o arama yapılmıştır ve görüşme
+      // kaydı olarak zaten "görüşme" sayısına girer.
+      const kacirilan = (db.authors || []).filter(a => {
+        if (!["aday", "gorusuluyor", "degerlendirme", "eseryaziyor"].includes(a.status)) return false;
+        if ((a.addedBy || "admin") !== staffKey) return false;
+        const aranmaliydi = (a.followup && a.followup <= date) || (a.interviewDate === date);
+        if (!aranmaliydi) return false;
+        return !(a.logs || []).some(l => l.date === date);
+      }).length;
       const sonuclanan = olumlu + olumsuz;
       const basari = sonuclanan > 0 ? Math.round(olumlu / sonuclanan * 100) : null;
       return { gorusme: records.length, kacirilan, olumlu, olumsuz, devam, basari };
