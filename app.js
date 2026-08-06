@@ -495,6 +495,64 @@
       });
     }
 
+    /* ---------- Güncelleme (bakım) modu ----------
+     * Admin, Ayarlar'dan açar; crm/maintenance dokümanı üzerinden TÜM
+     * kullanıcıların ekranında anlık olarak "güncelleme yapılıyor, veri
+     * kaydetmeyin" uyarısı belirir. Kapatınca uyarı herkesten kalkar. */
+    let maintenanceMode = { active: false, message: "" };
+    let maintenanceWasActive = false;
+    const MAINTENANCE_DEFAULT_MSG = "Şu anda sistemde güncelleme yapılıyor. Lütfen güncelleme bitene kadar YENİ VERİ KAYDETMEYİN — kaydettikleriniz kaybolabilir.";
+    function loadMaintenance() {
+      return new Promise(resolve => {
+        let firstLoad = true;
+        listen(firestore.collection("crm").doc("maintenance"), doc => {
+          maintenanceMode = doc.exists ? (doc.data() || {}) : {};
+          updateMaintenanceBanner();
+          if (firstLoad) { firstLoad = false; resolve(); }
+        }, err => {
+          // Uyarı sistemi çalışmasa bile uygulama açılmaya devam etmeli.
+          console.error("Bakım modu dinleyici hatası:", err);
+          if (firstLoad) { firstLoad = false; resolve(); }
+        });
+      });
+    }
+    function updateMaintenanceBanner() {
+      const active = !!maintenanceMode.active;
+      let b = document.getElementById("maintenanceBanner");
+      if (active) {
+        const msg = maintenanceMode.message || MAINTENANCE_DEFAULT_MSG;
+        if (!b) {
+          b = document.createElement("div");
+          b.id = "maintenanceBanner";
+          b.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:10500;background:linear-gradient(90deg,#b45309,#d97706);color:#fff;padding:10px 16px;text-align:center;font-size:13px;font-weight:600;box-shadow:0 2px 12px rgba(0,0,0,0.4)";
+          document.body.appendChild(b);
+        }
+        b.textContent = "⚠️ " + msg;
+        // Mod ilk kez aktifleştiğinde (veya kullanıcı bakım sırasında
+        // giriş yaptığında) dikkat çekmek için ayrıca uyarı ekranı çıkar.
+        if (!maintenanceWasActive) customAlert("Güncelleme Yapılıyor!", msg);
+      } else if (b) {
+        b.remove();
+        if (maintenanceWasActive) customAlert("Güncelleme Tamamlandı", "Sistem güncellemesi bitti, çalışmaya devam edebilirsiniz.");
+      }
+      maintenanceWasActive = active;
+    }
+    async function toggleMaintenanceMode() {
+      const newActive = !maintenanceMode.active;
+      try {
+        await firestore.collection("crm").doc("maintenance").set({
+          active: newActive,
+          message: "",
+          by: currentStaffId || "admin",
+          at: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error("Bakım modu yazma hatası:", e);
+        alert("Güncelleme modu değiştirilemedi. " + dbErrorText(e, ""));
+      }
+      render();
+    }
+
     /* ---------- Yazar listesi: yerel kopya + yalnızca değişenleri çekme ----------
      *
      * Önceden uygulama her açılışta "authors" koleksiyonunun TAMAMINI
@@ -869,7 +927,7 @@
       db.stock = db.stock || [];
       db.printOrders = db.printOrders || [];
       db.packageContracts = db.packageContracts || {};
-      await Promise.all([loadStaff(), loadAuthors(), loadExpenses(), loadTasks(), loadStock(), loadPrintOrders(), loadPackageContracts()]);
+      await Promise.all([loadStaff(), loadAuthors(), loadExpenses(), loadTasks(), loadStock(), loadPrintOrders(), loadPackageContracts(), loadMaintenance()]);
     }
 
     // Firestore hatasını kullanıcıya anlaşılır bir cümleye çevirir. Önceden
@@ -1649,6 +1707,18 @@
       <button class="btn ghost" onclick="exportData()">${icon('download', 14)} JSON</button>
     </div>
   </div>`;
+
+      if (currentRole === "admin") {
+        const mAktif = !!maintenanceMode.active;
+        html += `<div class="card settings-card" style="margin-bottom:16px;max-width:520px;${mAktif ? 'border-color:var(--amber)' : ''}">
+    <h3 style="margin:0 0 8px;font-size:14px">${icon('alertTriangle', 15)} Güncelleme Modu</h3>
+    <div style="color:var(--muted);font-size:12px;margin-bottom:12px">Açıkken tüm kullanıcıların ekranında "güncelleme yapılıyor, lütfen veri kaydetmeyin" uyarısı belirir. CRM'de değişiklik yapmaya başlamadan önce açın, işiniz bitince kapatın — uyarı herkesten anında kalkar.</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <button class="btn ${mAktif ? '' : 'ghost'}" style="${mAktif ? 'background:rgba(244,183,64,0.2);border-color:var(--amber);color:var(--amber)' : ''}" onclick="toggleMaintenanceMode()">${mAktif ? 'Güncelleme Modunu KAPAT' : 'Güncelleme Modunu AÇ'}</button>
+      <span style="font-size:12px;color:${mAktif ? 'var(--amber)' : 'var(--muted)'}">${mAktif ? '⚠️ Şu anda AÇIK — kullanıcılar uyarıyı görüyor' : 'Kapalı'}</span>
+    </div>
+  </div>`;
+      }
 
       html += `<div class="card settings-card" style="margin-bottom:16px;max-width:520px">
     <h3 style="margin:0 0 8px;font-size:14px">${icon('user', 15)} Hesabım</h3>
