@@ -655,8 +655,8 @@
       }
       const content = `
         <div class="box" style="max-width:440px;padding:22px">
-          <h2 style="margin:0 0 4px;font-size:17px">${icon('trendingUp', 16)} Gün Sonu Raporu</h2>
-          <div style="color:var(--muted);font-size:12px;margin-bottom:10px">${fmtDate(date)}</div>
+          <h2 style="margin:0 0 4px;font-size:17px">${icon('trendingUp', 16)} ${new Date().getHours() < EOD_REPORT_HOUR && date === todayStr() ? 'Gün İçi Raporu' : 'Gün Sonu Raporu'}</h2>
+          <div style="color:var(--muted);font-size:12px;margin-bottom:10px">${fmtDate(date)}${date === todayStr() ? ' • saat ' + String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0') + ' itibarıyla' : ''}</div>
           <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${body}</div>
           <div class="actions" style="margin-top:16px">
             <button class="btn" style="width:100%" onclick="closeDailyReport()">Kapat</button>
@@ -2411,6 +2411,7 @@
       const gbActive = authorsGroupBy === 'staff';
       const gbStyle = gbActive ? `background: rgba(167, 139, 250, 0.15); border-color: #a78bfa; color: #a78bfa;` : `border: 1px solid rgba(255,255,255,0.15);`;
       bar += `<button class="btn ${gbActive ? '' : 'ghost'}" style="${gbStyle}" onclick="setAuthorsGroupBy('${gbActive ? 'date' : 'staff'}')">${icon('users', 14)} Görüşmeciye Göre</button>`;
+      bar += `<button class="btn ghost" style="border: 1px solid rgba(255,255,255,0.15);" onclick="openDailyReport()" title="Bugünün şu ana kadarki raporu">${icon('trendingUp', 14)} Rapor</button>`;
 
       bar += `</div>`;
       
