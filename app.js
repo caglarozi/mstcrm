@@ -3388,6 +3388,7 @@
         <button class="btn" style="flex:1" onclick="openLogModal('${a.id}')">+ Görüşme</button>
         ${(a.status === "sozlesme" || a.status === "yayinda") ? `<button class="btn" style="flex:1; background:rgba(55,201,138,0.15); border-color:#37c98a; color:#37c98a" onclick="openBookModal('${a.id}')">+ Eser</button>` : ''}
         <button class="btn ghost" onclick="openAuthorModal('${a.id}')">${icon('edit', 15)}</button>
+        <button class="btn ghost" onclick="openTransferModal('${a.id}')" title="Başka danışmana devret">${icon('users', 15)}</button>
         <button class="btn ghost" onclick="delAuthor('${a.id}')" title="Sil">${icon('trash', 15)}</button>
       </div>
     </div>
@@ -3546,6 +3547,56 @@
       if (!(await customConfirm("Bu yazar ve tüm kayıtları silinsin mi?"))) return;
       await deleteAuthorDoc(id);
       closeDrawer(); render();
+    }
+
+    /* ---------- Görüşme devri (danışmanlar arası transfer) ---------- */
+    function openTransferModal(authorId) {
+      const a = db.authors.find(x => x.id === authorId); if (!a) return;
+      const candidates = (db.staff || []).filter(s => s.id !== a.addedBy);
+      if (!candidates.length) { customAlert("Devredilecek danışman yok", "Ekipte bu kaydı devredebileceğiniz başka bir danışman bulunmuyor."); return; }
+      let content = `
+        <div class="box" style="max-width: 320px; padding: 20px;">
+          <h2 style="margin-top:0; font-size:16px;">${icon('users', 15)} Görüşmeyi Devret</h2>
+          <div style="color:var(--muted);font-size:12px;margin-bottom:12px">"${escapeHtml(a.name)}" kaydı seçtiğiniz danışmana devredilir; bundan sonra onun panelinde görünür ve onun istatistiklerine sayılır.</div>
+          <div style="display:flex; flex-direction:column; gap:8px; max-height:320px; overflow-y:auto; padding-right:4px;">` +
+        candidates.map(s => `<button class="btn ghost" style="justify-content:flex-start; width:100%;" onclick="transferAuthor('${a.id}','${s.id}')">
+            <span class="avatar" style="background:${avatarColor(s.name)};width:22px;height:22px;font-size:10px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;margin-right:8px">${escapeHtml(initials(s.name))}</span>
+            ${escapeHtml(s.name)}${s.role ? ' <span style="color:var(--muted);font-size:11px">(' + escapeHtml(s.role) + ')</span>' : ''}
+          </button>`).join("") +
+        `</div>
+          <div class="actions" style="margin-top:16px;">
+            <button class="btn ghost" style="width:100%" onclick="closeTransferModal()">Vazgeç</button>
+          </div>
+        </div>`;
+      let m = document.getElementById("transferModal");
+      if (!m) {
+        m = document.createElement("div");
+        m.className = "modal";
+        m.id = "transferModal";
+        document.body.appendChild(m);
+      }
+      m.innerHTML = content;
+      m.classList.add("open");
+    }
+    function closeTransferModal() {
+      const m = document.getElementById("transferModal");
+      if (m) m.classList.remove("open");
+    }
+    async function transferAuthor(authorId, newStaffId) {
+      const a = db.authors.find(x => x.id === authorId); if (!a) return;
+      const fromName = a.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(a.addedBy) || "Personel");
+      const toName = staffName(newStaffId) || "Personel";
+      closeTransferModal();
+      // Devir hem sahipliği (addedBy) taşır hem de geçmişe iz düşer: yeni
+      // danışman adına bir devir notu eklenir — günlük görünümde kayıt o
+      // günden itibaren yeni danışmanın sütununda görünür.
+      await mutateAuthor(authorId, x => {
+        x.addedBy = newStaffId;
+        x.logs = x.logs || [];
+        x.logs.push({ type: "Not", date: todayStr(), time: null, text: "Görüşme devri: " + fromName + " → " + toName, staffId: newStaffId });
+      });
+      render();
+      openDrawer(authorId);
     }
 
     /* ---------- Görüşme kaydı ---------- */
