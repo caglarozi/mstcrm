@@ -764,6 +764,70 @@ async function handleDailyDigest(env) {
   return { sent, pendingCount: pending.length };
 }
 
+// Reklam iyileştirmeleri senkronu (bkz. PANEL-REKLAM-ENTEGRASYONU.md ve
+// app.js'teki "Reklam İyileştirmeleri" kartı): Yazar yönetim panelinin
+// (app.mstyayincilik.com) 115 kurallık Meta reklam denetimini panelin MCP
+// ucundan çalıştırır ve sonucu CRM panosunun okuduğu crm/reklam_durumu
+// dokümanına yazar. Denetim motoru ve Meta erişimi panelde kalır — bu
+// worker yalnızca sonucu taşır. MST_PANEL_MCP_URL gizli tutulur (wrangler
+// secret) çünkü adresteki ?key= panelin tüm yönetim araçlarına erişim verir.
+async function handleReklamSync(env) {
+  if (!env.MST_PANEL_MCP_URL) throw new Error("MST_PANEL_MCP_URL tanımlı değil");
+
+  const resp = await fetch(env.MST_PANEL_MCP_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json, text/event-stream" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "reklam_durumu", arguments: { gun: 7 } }
+    })
+  });
+  if (!resp.ok) throw new Error("Panel MCP isteği başarısız: " + resp.status);
+  const rpc = await resp.json();
+  if (rpc.error) throw new Error("Panel MCP hatası: " + JSON.stringify(rpc.error));
+
+  // MCP araç cevabı content bloklarına sarılı gelir; denetim JSON'ı ilk
+  // text bloğundadır.
+  const blok = ((rpc.result || {}).content || []).find(c => c.type === "text");
+  if (!blok) throw new Error("Panel MCP cevabında içerik bloğu yok");
+  const denetim = JSON.parse(blok.text);
+  if (denetim.ok === false) throw new Error("Panel denetimi başarısız: " + (denetim.hata || "sebep belirtilmedi"));
+
+  // Doküman şeması PANEL-REKLAM-ENTEGRASYONU.md'de. Kart 3-5 öneri
+  // gösterecek şekilde tasarlandı — yalnızca uygulanabilir bulgular,
+  // en fazla 5 tane; hepsini yazmak panoyu boğar.
+  const doc = {
+    guncellenme: new Date().toISOString(),
+    donem: denetim.donem || "son 7 gün",
+    ozet: denetim.ozet || {},
+    trend: denetim.trend || {},
+    sayilar: {
+      toplamKural: denetim.toplamKural || 0,
+      kontrolEdilen: denetim.kontrolEdilen || 0,
+      ihlal: denetim.ihlalSayisi || 0,
+      temiz: denetim.temizSayisi || 0,
+      uygulanabilir: denetim.uygulanabilirSayi || 0
+    },
+    bulgular: (denetim.ihlaller || [])
+      .filter(x => x.uygulanabilir)
+      .slice(0, 5)
+      .map(x => ({
+        no: x.no || 0,
+        grup: x.grup || "",
+        aksiyon: x.aksiyon || "",
+        olcum: x.olcum || "",
+        neden: x.neden || "",
+        etki: x.etki || ""
+      }))
+  };
+
+  const token = await getAccessToken(env);
+  await patchFirestoreDoc(env.FIREBASE_PROJECT_ID, token, "crm/reklam_durumu", doc);
+  return { yazildi: true, bulgu: doc.bulgular.length };
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -1033,9 +1097,14 @@ export default {
     return new Response("Not found", { status: 404 });
   },
 
-  // wrangler.toml [triggers] crons ile zamanlanmış, her sabah otomatik
-  // çalışan görev — bkz. handleDailyDigest.
+  // wrangler.toml [triggers] crons ile zamanlanmış görevler. Hangi işin
+  // çalışacağını tetikleyen cron ifadesi belirler: 6 saatte bir reklam
+  // senkronu (handleReklamSync), her sabah günlük özet (handleDailyDigest).
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(handleDailyDigest(env).catch(e => console.error("Günlük özet hatası:", e)));
+    if (event.cron === "30 */6 * * *") {
+      ctx.waitUntil(handleReklamSync(env).catch(e => console.error("Reklam senkron hatası:", e)));
+    } else {
+      ctx.waitUntil(handleDailyDigest(env).catch(e => console.error("Günlük özet hatası:", e)));
+    }
   }
 };

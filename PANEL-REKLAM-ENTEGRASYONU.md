@@ -3,7 +3,15 @@
 CRM tarafı **hazır ve canlıda**: yönetici panoyu açtığında "Reklam
 İyileştirmeleri" kartı `crm/reklam_durumu` dokümanını okuyup gösteriyor.
 
-Geriye tek iş kaldı: **Yazar yönetim panelinin (app.mstyayincilik.com) bu
+> **UYGULANDI (2026-08-10):** Yazma işi panelin kendisine değil, Cloudflare
+> Worker'a verildi — `whatsapp-webhook` içindeki `handleReklamSync` 6 saatte
+> bir panelin MCP ucundaki `reklam_durumu` denetimini çağırıp sonucu bu
+> dokümana yazıyor. Denetim motoru yine panelde; worker yalnızca kurye.
+> Panel tarafında hiçbir değişiklik gerekmedi. Devreye almak için:
+> `npx wrangler secret put MST_PANEL_MCP_URL` (panelin ?key='li MCP adresi)
+> ve `npx wrangler deploy`. Aşağısı, tarihçe ve şema başvurusu olarak durur.
+
+Geriye tek iş kalmıştı: **Yazar yönetim panelinin (app.mstyayincilik.com) bu
 dokümanı belirli aralıklarla yazması.** Bu dosya onu tarif eder.
 
 ## Neden bu yöntem

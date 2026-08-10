@@ -7,5 +7,7 @@ FIREBASE_PROJECT_ID = "mst-crm"
 
 # Her gün 06:00 UTC = 09:00 Türkiye saati (Türkiye yaz saati uygulamadığı
 # için sabit UTC+3) — "Bugün ilgilenmen gerekenler" özet bildirimi.
+# 6 saatte bir (xx:30) — yönetim panelindeki reklam denetimini çalıştırıp
+# sonucu CRM panosundaki karta yazan senkron (bkz. handleReklamSync).
 [triggers]
-crons = ["0 6 * * *"]
+crons = ["0 6 * * *", "30 */6 * * *"]
