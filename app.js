@@ -318,10 +318,12 @@
           return;
         }
         dd.innerHTML = unseenCompleted.map(t => {
-          const assigneeName = staffName(t.assignedTo) || "—";
+          // Ortak görevde görevi kimin kapattığı önemli; eski kayıtlarda
+          // completedBy yok, o zaman atanan kişiye düşülüyor.
+          const doneName = staffName(t.completedBy) || staffName(t.assignedTo) || "—";
           return `<div class="notifItem" onclick="closeTaskNotifDropdown();goToTasksView();" style="padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:2px">
       <div style="font-size:13px;font-weight:600;color:var(--txt)">${icon('checkCircle', 12)} ${escapeHtml(t.title)}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(assigneeName)} tamamladı${t.completedDate ? ' • ' + fmtDate(t.completedDate) : ''}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(doneName)} tamamladı${t.completedDate ? ' • ' + fmtDate(t.completedDate) : ''}${isSharedTask(t) ? ' • ortak görev' : ''}</div>
     </div>`;
         }).join("") + `<div style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px">
       <button class="btn ghost" style="width:100%" onclick="closeTaskNotifDropdown();goToTasksView();">Tümünü Gör</button>
@@ -329,7 +331,7 @@
         return;
       }
 
-      const myPending = (db.tasks || []).filter(t => t.assignedTo === currentStaffId && t.status !== "tamamlandı")
+      const myPending = (db.tasks || []).filter(t => isTaskFor(t, currentStaffId) && t.status !== "tamamlandı")
         .sort((a, b) => {
           if (!a.dueDate && !b.dueDate) return 0;
           if (!a.dueDate) return 1;
@@ -988,15 +990,20 @@
     // cihazlarına FCM push göndertir (client SDK'nın FCM gönderme yetkisi
     // yok, servis hesabı worker'da). Başarısız olsa da görev kaydını
     // etkilemez — bildirim "olsa iyi olur" katmanı.
-    async function sendTaskPush(task) {
+    // hedefler verilmezse görevin atandığı herkese gider. Worker uç noktası
+    // tek personel alıyor, o yüzden ortak görevde atanan başına bir istek
+    // atılıyor — worker'ı değiştirmeye gerek kalmıyor.
+    async function sendTaskPush(task, hedefler) {
       try {
         if (!auth.currentUser) return;
+        const ids = (hedefler && hedefler.length) ? hedefler : taskAssignees(task);
+        if (!ids.length) return;
         const idToken = await auth.currentUser.getIdToken();
-        await fetch(NOTIFY_TASK_WORKER_URL, {
+        await Promise.all(ids.map(staffId => fetch(NOTIFY_TASK_WORKER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
-          body: JSON.stringify({ staffId: task.assignedTo, taskId: task.id, title: task.title, dueDate: task.dueDate || null })
-        });
+          body: JSON.stringify({ staffId, taskId: task.id, title: task.title, dueDate: task.dueDate || null })
+        })));
       } catch (e) {
         console.error("Push gönderilemedi:", e);
       }
@@ -1019,10 +1026,11 @@
     }
     function notifyTaskCompleted(task) {
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-      const assigneeName = staffName(task.assignedTo) || "Bir personel";
+      // Ortak görevde "kime atandı" değil "kim kapattı" önemli.
+      const doneName = staffName(task.completedBy) || staffName(task.assignedTo) || "Bir personel";
       try {
         new Notification("Görev tamamlandı", {
-          body: `${assigneeName}: ${task.title}`,
+          body: `${doneName}: ${task.title}`,
           icon: "logo.jpeg"
         });
       } catch (e) {
@@ -1048,7 +1056,7 @@
                 if (!wasCompleted && data.status === "tamamlandı" && currentRole === "admin") notifyTaskCompleted(data);
               } else {
                 db.tasks.unshift(data);
-                if (change.type === "added" && data.assignedTo === currentStaffId) notifyNewTask(data);
+                if (change.type === "added" && isTaskFor(data, currentStaffId)) notifyNewTask(data);
               }
             });
           }
@@ -1745,7 +1753,7 @@
         // adı/rol değişiklikleri yüzünden güvenilmez olduğundan kaldırıldı.)
         const badgeCount = currentRole === "admin"
           ? (db.tasks || []).filter(t => t.status === "tamamlandı" && t.completionSeen !== true).length
-          : (db.tasks || []).filter(t => t.assignedTo === currentStaffId && t.status !== "tamamlandı").length;
+          : (db.tasks || []).filter(t => isTaskFor(t, currentStaffId) && t.status !== "tamamlandı").length;
         if (badgeCount > 0) {
           badge.textContent = badgeCount > 9 ? "9+" : String(badgeCount);
           badge.style.display = "flex";
@@ -3490,6 +3498,68 @@
     }
 
     /* ---------- Görevler ---------- */
+    /* ---------- Ortak görev ----------
+     * Bir görev birden fazla kişiye atanabilir. ESKİ kayıtlarda yalnızca
+     * assignedTo (tek personel) var, YENİ kayıtlarda asıl kaynak assignees
+     * dizisi. assignedTo yine de ilk kişiyle doldurulmaya devam ediyor:
+     * gözden kaçmış bir okuma yolu kalırsa boş isim yerine bir isim görsün.
+     * Bu yüzden her yerde doğrudan alan okumak yerine taskAssignees()
+     * kullanılmalı — tek kişilik eski görevleri de tek elemanlı dizi olarak
+     * döndürüp iki biçimi tek yola indiriyor.
+     *
+     * Tamamlama kuralı: İLK tamamlayan görevi HERKES için kapatır. Bu yüzden
+     * kişi bazlı durum tutulmuyor, tek bir status alanı yetiyor; kimin
+     * kapattığı completedBy'da duruyor.
+     */
+    function taskAssignees(t) {
+      if (!t) return [];
+      if (Array.isArray(t.assignees) && t.assignees.length) return t.assignees;
+      return t.assignedTo ? [t.assignedTo] : [];
+    }
+    function isTaskFor(t, staffId) {
+      return !!staffId && taskAssignees(t).indexOf(staffId) !== -1;
+    }
+    function isSharedTask(t) { return taskAssignees(t).length > 1; }
+    function taskAssigneeNames(t) {
+      const names = taskAssignees(t).map(id => staffName(id) || "—");
+      return names.length ? names.join(", ") : "—";
+    }
+
+    function renderAssigneePicker(selectedIds) {
+      const box = document.getElementById("tsk_assignees");
+      if (!box) return;
+      const sel = selectedIds || [];
+      box.innerHTML = (db.staff || []).map(s => {
+        const on = sel.indexOf(s.id) !== -1;
+        return `<label class="assigneeChip${on ? ' selected' : ''}">
+        <input type="checkbox" value="${s.id}"${on ? ' checked' : ''} onchange="onAssigneeToggle(this)">
+        ${escapeHtml(s.name)}
+      </label>`;
+      }).join("");
+      updateAssigneeHint();
+    }
+    function onAssigneeToggle(cb) {
+      const chip = cb.closest("label");
+      if (chip) chip.classList.toggle("selected", cb.checked);
+      updateAssigneeHint();
+    }
+    function selectedAssignees() {
+      return Array.from(document.querySelectorAll("#tsk_assignees input[type=checkbox]"))
+        .filter(c => c.checked).map(c => c.value);
+    }
+    function updateAssigneeHint() {
+      const el = document.getElementById("tsk_assigneeHint");
+      if (!el) return;
+      const n = selectedAssignees().length;
+      if (n > 1) {
+        el.className = "assigneeHint ortak";
+        el.textContent = `Ortak görev — ${n} kişiye atanacak. İlk tamamlayan görevi herkes için kapatır.`;
+      } else {
+        el.className = "assigneeHint";
+        el.textContent = n === 1 ? "Tek kişiye atanacak." : "En az bir kişi seç.";
+      }
+    }
+
     function openTaskModal(taskId) {
       const t = taskId ? db.tasks.find(x => x.id === taskId) : null;
       document.getElementById("taskModalTitle").textContent = t ? "Görevi Düzenle" : "Görev Ekle";
@@ -3497,9 +3567,7 @@
       document.getElementById("tsk_title").value = t ? t.title : "";
       document.getElementById("tsk_description").value = t ? (t.description || "") : "";
       document.getElementById("tsk_dueDate").value = t ? (t.dueDate || "") : "";
-      const sel = document.getElementById("tsk_assignedTo");
-      sel.innerHTML = (db.staff || []).map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
-      if (t) sel.value = t.assignedTo;
+      renderAssigneePicker(t ? taskAssignees(t) : []);
       document.getElementById("taskModal").classList.add("open");
     }
     function closeTaskModal() { document.getElementById("taskModal").classList.remove("open"); }
@@ -3507,19 +3575,24 @@
       const taskId = document.getElementById("tsk_id").value;
       const title = document.getElementById("tsk_title").value.trim();
       if (!title) { alert("Başlık zorunlu."); return; }
-      const assignedTo = document.getElementById("tsk_assignedTo").value;
-      if (!assignedTo) { alert("Kime atanacağını seç."); return; }
+      const assignees = selectedAssignees();
+      if (!assignees.length) { alert("Görevin kime atanacağını seç (en az bir kişi)."); return; }
       const description = document.getElementById("tsk_description").value.trim();
       const dueDate = document.getElementById("tsk_dueDate").value || null;
 
       if (taskId) {
-        const updates = { title, description, assignedTo, dueDate };
         const t = db.tasks.find(x => x.id === taskId);
+        const oncekiAtananlar = taskAssignees(t);
+        const updates = { title, description, assignees, assignedTo: assignees[0], dueDate };
         if (t) Object.assign(t, updates);
         closeTaskModal();
         render();
         try {
           await firestore.collection("tasks").doc(taskId).update(updates);
+          // Düzenlemede göreve YENİ eklenen kişilere push at; zaten atanmış
+          // olanlar aynı görev için ikinci kez bildirim almasın.
+          const yeniEklenenler = assignees.filter(id => oncekiAtananlar.indexOf(id) === -1);
+          if (yeniEklenenler.length && t) sendTaskPush(t, yeniEklenenler);
         } catch (e) {
           console.error("Güncelleme hatası:", e);
           alert(dbErrorText(e, "Görev güncellenemedi"));
@@ -3528,10 +3601,11 @@
       }
 
       const task = {
-        id: uid(), title, description, assignedTo,
+        id: uid(), title, description,
+        assignees, assignedTo: assignees[0],
         assignedBy: currentStaffId || "admin",
         dueDate, status: "bekliyor", report: null, completedDate: null,
-        created: todayStr()
+        completedBy: null, created: todayStr()
       };
       db.tasks.unshift(task);
       closeTaskModal();
@@ -3547,11 +3621,16 @@
     async function completeTask(taskId) {
       const reportEl = document.getElementById("tsk_report_" + taskId);
       const report = reportEl ? reportEl.value.trim() : "";
-      if (!(await customConfirm("Bu görev tamamlandı olarak işaretlensin mi?", "Evet, Tamamlandı"))) return;
+      // Ortak görevde tamamlama görevi HERKES için kapatır — kullanıcı bunu
+      // bilerek onaylasın diye soru metni ona göre değişiyor.
+      const soru = isSharedTask(db.tasks.find(x => x.id === taskId))
+        ? "Bu ORTAK görev tamamlandı olarak işaretlensin mi?\n\nGörev, atanan diğer kişiler için de kapanacak."
+        : "Bu görev tamamlandı olarak işaretlensin mi?";
+      if (!(await customConfirm(soru, "Evet, Tamamlandı"))) return;
       // completionSeen: false — atayan admin bunu Görevler'i (ya da zili)
       // görene kadar "yeni tamamlandı" olarak işaretli kalır. Tarayıcı
       // bildirim izni gerektirmeyen, güvenilir çalışan gösterge bu.
-      const updates = { status: "tamamlandı", report: report || null, completedDate: todayStr(), completionSeen: false };
+      const updates = { status: "tamamlandı", report: report || null, completedDate: todayStr(), completedBy: currentStaffId || "admin", completionSeen: false };
       const t = db.tasks.find(x => x.id === taskId);
       if (t) Object.assign(t, updates);
       render();
@@ -3609,7 +3688,7 @@
     }
     function viewTasks() {
       const isTaskAdmin = currentRole === "admin";
-      const relevantTasks = isTaskAdmin ? db.tasks : db.tasks.filter(t => t.assignedTo === currentStaffId);
+      const relevantTasks = isTaskAdmin ? db.tasks : db.tasks.filter(t => isTaskFor(t, currentStaffId));
 
       let html = "";
       if (isTaskAdmin) {
@@ -3643,7 +3722,7 @@
 
       // Seçili personel varsa listeler ona göre süzülür (hem aktif hem tamamlanan)
       const filteredTasks = (isTaskAdmin && selectedTaskStaffId)
-        ? relevantTasks.filter(t => t.assignedTo === selectedTaskStaffId)
+        ? relevantTasks.filter(t => isTaskFor(t, selectedTaskStaffId))
         : relevantTasks;
 
       const pending = filteredTasks.filter(t => t.status !== "tamamlandı").sort((a, b) => {
@@ -3658,7 +3737,8 @@
       const today = new Date(); today.setHours(0, 0, 0, 0);
 
       const taskCard = t => {
-        const assigneeName = staffName(t.assignedTo) || "—";
+        const assigneeName = taskAssigneeNames(t);
+        const ortak = isSharedTask(t);
         let dueBadge = "";
         if (t.dueDate && t.status !== "tamamlandı") {
           const days = Math.round((new Date(t.dueDate) - today) / 864e5);
@@ -3669,12 +3749,19 @@
           dueBadge = `<span style="color:var(--muted);font-size:12px">${icon('calendar', 12)} ${fmtDate(t.dueDate)}</span>`;
         }
 
+        // Ortak görev tamamlandığında "kim kapattı" bilgisi rozete yazılır —
+        // görev herkeste kapandığı için diğerleri neden kapandığını görsün.
+        const doneByName = staffName(t.completedBy);
         const statusBadge = t.status === "tamamlandı"
-          ? `<span class="badge" style="background:rgba(55,201,138,.15);color:#37c98a">${icon('checkCircle', 12)} Tamamlandı</span>`
+          ? `<span class="badge" style="background:rgba(55,201,138,.15);color:#37c98a">${icon('checkCircle', 12)} Tamamlandı${ortak && doneByName ? ' — ' + escapeHtml(doneByName) : ''}</span>`
           : `<span class="badge" style="background:rgba(244,183,64,.15);color:#f4b740">${icon('clock', 12)} Bekliyor</span>`;
 
+        const sharedBadge = ortak
+          ? `<span class="badge" style="background:rgba(59,130,246,.15);color:var(--brand-2)">${icon('users', 12)} Ortak görev • ${taskAssignees(t).length} kişi</span>`
+          : "";
+
         let actionArea = "";
-        if (t.status !== "tamamlandı" && t.assignedTo === currentStaffId) {
+        if (t.status !== "tamamlandı" && isTaskFor(t, currentStaffId)) {
           actionArea = `<div style="margin-top:10px">
         <textarea id="tsk_report_${t.id}" placeholder="Tamamlandığında kısa bir rapor yaz (opsiyonel)..." style="min-height:60px"></textarea>
         <button class="btn" style="margin-top:6px" onclick="completeTask('${t.id}')">${icon('checkCircle', 14)} Tamamlandı Olarak İşaretle</button>
@@ -3696,7 +3783,8 @@
           ${t.description ? `<div style="color:var(--muted);font-size:13px;margin-top:2px">${escapeHtml(t.description)}</div>` : ""}
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
             ${statusBadge}
-            ${isTaskAdmin ? `<span style="font-size:12px;color:var(--muted)">${icon('user', 12)} ${escapeHtml(assigneeName)}</span>` : ""}
+            ${sharedBadge}
+            ${(isTaskAdmin || ortak) ? `<span style="font-size:12px;color:var(--muted)">${icon('user', 12)} ${escapeHtml(assigneeName)}</span>` : ""}
             ${dueBadge}
           </div>
         </div>
@@ -3709,7 +3797,9 @@
       // ---- Ekip kartları (sadece admin) — avatar + başarı yüzdesi halkası ----
       if (isTaskAdmin && (db.staff || []).length) {
         const ringCard = s => {
-          const st = taskStatsFor(relevantTasks.filter(t => t.assignedTo === s.id));
+          // Ortak görev, atandığı HER personelin istatistiğine sayılır —
+          // "bu işin içinde kimler vardı" sorusunun doğru cevabı bu.
+          const st = taskStatsFor(relevantTasks.filter(t => isTaskFor(t, s.id)));
           const initials = (s.name || "?").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
           const ringColor = !st.total ? "var(--muted)" : st.pct >= 70 ? "var(--green)" : st.pct >= 40 ? "var(--amber)" : "var(--red)";
           const r = 26, c = 2 * Math.PI * r;
