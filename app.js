@@ -632,6 +632,44 @@
       const basari = sonuclanan > 0 ? Math.round(olumlu / sonuclanan * 100) : null;
       return { gorusme: records.length, kacirilan, olumlu, olumsuz, devam, basari };
     }
+    // Sayılar "kaç görüşme yapıldı" der; bu döküm "NE konuşuldu" der — gün
+    // sonunda raporun asıl okunan kısmı bu. dailyReportStatsFor ile AYNI
+    // "dokunulan kayıt" tanımını kullanır (o gün eklenen + o gün görüşme
+    // notu girilen), yoksa sayılarla döküm birbirini tutmaz.
+    function dailyConversationsFor(staffKey, date) {
+      return (db.authors || []).map(a => {
+        const notes = (a.logs || []).filter(l => l.date === date && (l.staffId || "admin") === staffKey);
+        const createdToday = a.created === date && (a.addedBy || "admin") === staffKey;
+        if (!notes.length && !createdToday) return null;
+        return { a, notes, createdToday };
+      }).filter(Boolean)
+        // Çok konuşulan kayıt üste; eşitlikte ada göre (Türkçe sıralama).
+        .sort((x, y) => (y.notes.length - x.notes.length) ||
+          String(x.a.name || "").localeCompare(String(y.a.name || ""), "tr"));
+    }
+
+    function dailyConversationsHtml(items) {
+      if (!items.length) return "";
+      return items.map(({ a, notes, createdToday }) => {
+        const st = STATUS[a.status] || { label: a.status || "—", color: "#9aa1b2" };
+        const notlar = notes.length
+          ? notes.map(l => `<div style="font-size:12px;color:var(--txt);margin-top:3px;line-height:1.45">
+            <span style="color:var(--muted)">${escapeHtml(l.type || "Not")}:</span> ${escapeHtml(l.text || "").trim() || "<i style='color:var(--muted)'>(boş not)</i>"}
+          </div>`).join("")
+          : `<div style="font-size:12px;color:var(--muted);margin-top:3px;font-style:italic">Kayıt açıldı, henüz görüşme notu girilmemiş.</div>`;
+        return `<div style="padding:7px 0 7px 10px;border-left:2px solid ${st.color};margin-top:8px">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <b style="font-size:12.5px">${escapeHtml(a.name || "—")}</b>
+            ${a.phone ? `<span style="font-size:11px;color:var(--muted)">${escapeHtml(a.phone)}</span>` : ""}
+            <span style="font-size:10px;color:${st.color};background:${st.color}18;border:1px solid ${st.color}44;border-radius:20px;padding:1px 7px">${escapeHtml(st.label)}</span>
+            ${createdToday ? `<span style="font-size:10px;color:var(--muted)">• bugün eklendi</span>` : ""}
+            ${notes.length > 1 ? `<span style="font-size:10px;color:var(--muted)">• ${notes.length} görüşme</span>` : ""}
+          </div>
+          ${notlar}
+        </div>`;
+      }).join("");
+    }
+
     function openDailyReport(date) {
       date = date || todayStr();
       let keys;
@@ -642,8 +680,15 @@
         keys = (db.staff || []).map(s => s.id).concat(["admin"]);
       }
       const chip = (label, val, color) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${color};background:${color}18;border:1px solid ${color}44;border-radius:20px;padding:2px 8px;white-space:nowrap"><b>${val}</b> ${label}</span>`;
-      const rows = keys.map(k => ({ name: k === "admin" ? "Sistem Yöneticisi" : (staffName(k) || "Personel"), st: dailyReportStatsFor(k, date) }))
-        .filter(r => currentRole === "personel" || r.st.gorusme > 0 || r.st.kacirilan > 0);
+      const rows = keys.map(k => {
+        const items = dailyConversationsFor(k, date);
+        return {
+          name: k === "admin" ? "Sistem Yöneticisi" : (staffName(k) || "Personel"),
+          st: dailyReportStatsFor(k, date),
+          konusmaAdedi: items.length,
+          konusmalar: dailyConversationsHtml(items)
+        };
+      }).filter(r => currentRole === "personel" || r.st.gorusme > 0 || r.st.kacirilan > 0);
       let body;
       if (!rows.length) {
         body = `<div class="empty">Bugün için raporlanacak görüşme bulunmuyor.</div>`;
@@ -661,10 +706,19 @@
             ${chip("devam eden", r.st.devam, "#f4b740")}
             ${r.st.basari !== null ? chip("başarı", "%" + r.st.basari, "#a78bfa") : chip("başarı", "%—", "#9aa1b2")}
           </div>
+          ${!r.konusmalar ? "" : (currentRole === "personel"
+            // Personelin kendi raporu kısa — döküm doğrudan açık gelsin.
+            // Adminde 5 personelin dökümü tek ekrana sığmaz, sayılar
+            // okunmaz hale gelir; orada katlanmış başlar, tıklayınca açılır.
+            ? `<div style="margin-top:4px">${r.konusmalar}</div>`
+            : `<details style="margin-top:6px">
+            <summary style="cursor:pointer;font-size:11.5px;color:var(--brand-2);user-select:none;list-style:none">${icon('chevronDown', 12)} Görüşme dökümünü göster (${r.konusmaAdedi})</summary>
+            ${r.konusmalar}
+          </details>`)}
         </div>`).join("");
       }
       const content = `
-        <div class="box" style="max-width:440px;padding:22px">
+        <div class="box" style="max-width:560px;padding:22px">
           <h2 style="margin:0 0 4px;font-size:17px">${icon('trendingUp', 16)} ${new Date().getHours() < EOD_REPORT_HOUR && date === todayStr() ? 'Gün İçi Raporu' : 'Gün Sonu Raporu'}</h2>
           <div style="color:var(--muted);font-size:12px;margin-bottom:10px">${fmtDate(date)}${date === todayStr() ? ' • saat ' + String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0') + ' itibarıyla' : ''}</div>
           <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${body}</div>
