@@ -1872,6 +1872,9 @@
       if (currentView === "dashboard") {
         c.innerHTML = viewDashboard();
         setTimeout(initCharts, 0); // DOM update sonrası çalışması için
+        // Reklam verisi oturumda bir kez çekilir; sonraki render'larda
+        // hafızadaki kopya yeniden çizilir, tekrar okuma yapılmaz.
+        setTimeout(reklamDurumuYukle, 0);
       }
       else if (currentView === "authors") c.innerHTML = viewAuthors();
       else if (currentView === "contracts") c.innerHTML = viewContracts();
@@ -1932,6 +1935,134 @@
         }
         return (!t || hay.includes(t)) && statusMatch;
       });
+    }
+
+    /* ---------- Reklam iyileştirmeleri (Yazar yönetim panelinden) ----------
+     * Meta reklam denetimini PANEL (app.mstyayincilik.com) çalıştırır ve
+     * sonucunu crm/reklam_durumu dokümanına yazar; CRM sadece OKUR. Böylece
+     * CRM'in Meta'ya bağlanması, reklam jetonu tutması ya da 115 kuralı
+     * ikinci kez uygulaması gerekmiyor — motor tek yerde kalıyor.
+     *
+     * KOTA: tek doküman = tek okuma, üstelik yalnızca YÖNETİCİ panoyu
+     * açtığında çekiliyor. Personel bu maliyeti hiç ödemiyor. onSnapshot
+     * değil tek seferlik get — canlı dinleyici açıp boşuna okuma harcamıyor
+     * (reklam verisi zaten saatte bir güncellenen bir şey).
+     */
+    const REKLAM_DOC = "reklam_durumu";
+    const REKLAM_PANEL_URL = "https://app.mstyayincilik.com";
+    // Panel bu süreden uzaktır yazmadıysa veri "bayat" sayılır. Eski reklam
+    // verisiyle bütçe kararı almak zarar verir; sessizce eski veriyi
+    // göstermektense açıkça uyarmak daha güvenli.
+    const REKLAM_BAYAT_SAAT = 36;
+    let reklamDurumu = { asama: "baslamadi", veri: null, hata: null };
+
+    async function reklamDurumuYukle() {
+      if (currentRole !== "admin") return;
+      if (reklamDurumu.asama === "yukleniyor" || reklamDurumu.asama === "bitti") { reklamKartiCiz(); return; }
+      reklamDurumu.asama = "yukleniyor";
+      reklamKartiCiz();
+      try {
+        const d = await firestore.collection("crm").doc(REKLAM_DOC).get();
+        reklamDurumu = { asama: "bitti", veri: d.exists ? d.data() : null, hata: null };
+      } catch (e) {
+        console.error("Reklam durumu okunamadı:", e);
+        reklamDurumu = { asama: "bitti", veri: null, hata: dbErrorText(e, "Reklam verisi okunamadı") };
+      }
+      reklamKartiCiz();
+    }
+
+    function reklamSaatFarki(iso) {
+      const t = new Date(iso).getTime();
+      if (!Number.isFinite(t)) return null;
+      return (Date.now() - t) / 3600000;
+    }
+    // CTR'de yüksek iyi, CPM'de düşük iyi — yön aynı, anlam ters.
+    function reklamTrend(simdi, onceki, yuksekIyi) {
+      if (typeof simdi !== "number" || typeof onceki !== "number" || !onceki) return "";
+      const fark = (simdi - onceki) / onceki * 100;
+      if (Math.abs(fark) < 1) return `<span style="font-size:11px;color:var(--muted)">≈ sabit</span>`;
+      const artti = fark > 0;
+      const iyi = yuksekIyi ? artti : !artti;
+      const renk = iyi ? "#37c98a" : "#f2617a";
+      return `<span style="font-size:11px;color:${renk};font-weight:600">${artti ? "▲" : "▼"} %${Math.abs(fark).toFixed(0)}</span>`;
+    }
+    function reklamSayi(n, ondalik) {
+      if (typeof n !== "number") return "—";
+      return n.toLocaleString("tr-TR", { minimumFractionDigits: ondalik || 0, maximumFractionDigits: ondalik || 0 });
+    }
+
+    function reklamKartiIcerik() {
+      const { asama, veri, hata } = reklamDurumu;
+      if (asama === "baslamadi" || asama === "yukleniyor") {
+        return `<div class="empty" style="padding:14px">Reklam verisi yükleniyor…</div>`;
+      }
+      if (hata) return `<div class="empty" style="padding:14px;color:var(--red)">${escapeHtml(hata)}</div>`;
+      if (!veri) {
+        return `<div class="empty" style="padding:14px">
+          Yönetim paneli henüz reklam verisi yazmamış.
+          <div style="font-size:11px;margin-top:6px">Panel <code>crm/${REKLAM_DOC}</code> dokümanını yazmaya başlayınca bu kart kendiliğinden dolar.</div>
+        </div>`;
+      }
+
+      const o = veri.ozet || {}, t = veri.trend || {}, s = veri.sayilar || {};
+      const yas = reklamSaatFarki(veri.guncellenme);
+      const bayat = yas === null || yas > REKLAM_BAYAT_SAAT;
+      const yasMetni = yas === null ? "tarih bilinmiyor"
+        : yas < 1 ? "az önce güncellendi"
+          : yas < 24 ? `${Math.round(yas)} saat önce güncellendi`
+            : `${Math.round(yas / 24)} gün önce güncellendi`;
+
+      const kutu = (etiket, deger, ek) => `<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <div style="font-size:17px;font-weight:700">${deger}</div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px">${etiket} ${ek || ""}</div>
+      </div>`;
+
+      // Izgara (flex değil): flex'te son satıra tek kutu düşünce flex-grow
+      // onu satır boyunca şişiriyordu. auto-fit ile kutular hep eşit kalır.
+      const rakamlar = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;margin-bottom:12px">
+        ${kutu("Harcama", reklamSayi(o.harcama) + " ₺")}
+        ${kutu("Erişim", reklamSayi(o.erisim))}
+        ${kutu("Tıklama", reklamSayi(o.tiklama))}
+        ${kutu("CPM", reklamSayi(o.cpm) + " ₺", reklamTrend(t.simdikiCPM, t.oncekiCPM, false))}
+        ${kutu("CTR", "%" + reklamSayi(o.ctr, 2), reklamTrend(t.simdikiCTR, t.oncekiCTR, true))}
+        ${kutu("Frekans", reklamSayi(o.frekans, 1))}
+      </div>`;
+
+      const bulgular = Array.isArray(veri.bulgular) ? veri.bulgular : [];
+      const bulguHtml = bulgular.length
+        ? bulgular.map(b => `<div style="border-left:3px solid var(--brand-2);padding:8px 0 8px 10px;margin-bottom:8px">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
+              <span style="font-size:10px;color:var(--brand-2);background:rgba(59,130,246,.15);border-radius:20px;padding:1px 8px">${escapeHtml(b.grup || "")}</span>
+              <b style="font-size:13px">${escapeHtml(b.aksiyon || "—")}</b>
+            </div>
+            ${b.olcum ? `<div style="font-size:12px;color:var(--muted)">${escapeHtml(b.olcum)}</div>` : ""}
+            ${b.neden ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${escapeHtml(b.neden)}</div>` : ""}
+            ${b.etki ? `<div style="font-size:11px;color:#37c98a;margin-top:3px">Beklenen etki: ${escapeHtml(b.etki)}</div>` : ""}
+          </div>`).join("")
+        : `<div class="empty" style="padding:10px">Şu an uygulanabilir bir öneri yok.</div>`;
+
+      const sayac = (s.toplamKural || s.ihlal)
+        ? `<div style="font-size:11px;color:var(--muted);margin:2px 0 10px">
+            ${s.toplamKural || "?"} kuralın ${s.kontrolEdilen || "?"} tanesi ölçülebildi ·
+            <b style="color:var(--txt)">${s.ihlal || 0} bulgu</b> ·
+            ${s.uygulanabilir || 0} tanesi doğrudan uygulanabilir</div>`
+        : "";
+
+      return `${bayat ? `<div style="background:rgba(244,183,64,.12);border:1px solid rgba(244,183,64,.4);color:#f4b740;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:10px">
+          ${icon('alertTriangle', 13)} Veri güncel değil (${escapeHtml(yasMetni)}). Panel yazmayı durdurmuş olabilir — karar almadan önce panelden kontrol edin.
+        </div>` : ""}
+        ${rakamlar}${sayac}
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Uygulanabilir öneriler</div>
+        ${bulguHtml}
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+          <span style="font-size:11px;color:var(--muted)">${escapeHtml(veri.donem || "")} • ${escapeHtml(yasMetni)}</span>
+          <a href="${REKLAM_PANEL_URL}" target="_blank" rel="noopener" class="btn ghost" style="padding:5px 12px;font-size:12px;text-decoration:none">Panelde aç ↗</a>
+        </div>`;
+    }
+
+    function reklamKartiCiz() {
+      const el = document.getElementById("reklamKartiGovde");
+      if (el) el.innerHTML = reklamKartiIcerik();
     }
 
     function viewDashboard() {
@@ -2000,7 +2131,14 @@
     <button class="btn ghost" onclick="openDailyReport()">${icon('trendingUp', 14)} Gün Sonu Raporu</button>
   </div>`;
 
-      return reportBtn + stats + `<div class="grid grid-2col" style="gap:16px">${follow}${recent}</div>`;
+      // Reklam kartı yalnızca yöneticide. Personelin işine yaramadığı gibi,
+      // gereksiz bir Firestore okuması da doğururdu.
+      const reklamKarti = currentRole === "admin" ? `<div class="card" style="margin-bottom:16px">
+    <h4 style="margin:0 0 12px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">${icon('trendingUp', 14)} Reklam İyileştirmeleri</h4>
+    <div id="reklamKartiGovde"></div>
+  </div>` : "";
+
+      return reportBtn + stats + reklamKarti + `<div class="grid grid-2col" style="gap:16px">${follow}${recent}</div>`;
     }
 
     function viewSettings() {
