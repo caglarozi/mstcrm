@@ -1,0 +1,16 @@
+{
+  "name": "mst-crm-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Yazar CRM (Firestore) verisini Claude'a acan MCP sunucusu. Salt okunur.",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "firebase-admin": "^12.0.0"
+  }
+}
