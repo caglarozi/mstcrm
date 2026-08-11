@@ -1247,9 +1247,18 @@ async function handleCrmMcp(request, env) {
     status: status || 200, headers: { "Content-Type": "application/json" }
   });
 
+  // ÖNEMLİ: yetkisizlikte HTTP 401 DÖNMÜYORUZ, 200 + JSON-RPC hata dönüyoruz.
+  // claude.ai bir MCP ucundan 401 görürse "OAuth girişi gerekiyor" varsayıp
+  // dinamik istemci kaydı (DCR) deniyor ve "Couldn't register with ... sign-in
+  // service" hatası veriyor. Anahtar zaten adresteki ?key= ile geçiyor; erişim
+  // denetimi aynen sürüyor, sadece HTTP durum kodu OAuth akışını tetiklemiyor
+  // (çalışan mst-app bağlayıcısı da bu davranışta).
   if (!env.CRM_MCP_KEY || url.searchParams.get("key") !== env.CRM_MCP_KEY) {
-    return yanit({ jsonrpc: "2.0", id: null, error: { code: -32001, message: "Yetkisiz. Bağlantı adresinin sonuna ?key=TOKEN eklenmeli." } }, 401);
+    return yanit({ jsonrpc: "2.0", id: null, error: { code: -32001, message: "Yetkisiz. Bağlantı adresinin sonuna ?key=TOKEN eklenmeli." } });
   }
+  // GET (claude.ai'nin SSE/keşif denemesi) OAuth tetiklememeli — 405 yerine
+  // boş 200 ile "burada bekleyen olay yok" deriz; asıl protokol POST'ta yürür.
+  if (request.method === "GET") return new Response("", { status: 200, headers: { "Content-Type": "text/plain" } });
   if (request.method !== "POST") return new Response("Yalnızca POST", { status: 405 });
 
   let rpc;
