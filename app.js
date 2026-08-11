@@ -110,6 +110,46 @@
       }, 200);
     })();
 
+    /* ---------- Uygulama içi bildirim: alert() yerine toast ----------
+     * Tarayıcının "mst-crm.web.app şunu diyor" penceresi, Android uygulaması
+     * (TWA) içinde web sitesinden kalma bir görüntü veriyordu. Buradaki tüm
+     * alert() çağrıları cevap beklenmeyen bilgi/uyarı mesajı olduğundan
+     * (confirm/prompt hiç kullanılmıyor), alert imzası korunarak üstten
+     * düşen, kendiliğinden kaybolan uygulama içi bir bildirime çevrildi.
+     * Çağıran ~54 yerin hiçbirine dokunulmadı. Tema renkleri CSS
+     * değişkenlerinden geldiği için açık/koyu temaya kendiliğinden uyar. */
+    (function initToast() {
+      let wrap = null;
+      function getWrap() {
+        if (wrap && document.body.contains(wrap)) return wrap;
+        wrap = document.createElement("div");
+        wrap.id = "toastWrap";
+        wrap.setAttribute("role", "status");
+        wrap.style.cssText = "position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:12px;right:12px;z-index:4000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;";
+        document.body.appendChild(wrap);
+        return wrap;
+      }
+      window.alert = function (msg) {
+        const t = document.createElement("div");
+        t.style.cssText = "pointer-events:auto;cursor:pointer;max-width:560px;width:100%;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;box-shadow:0 10px 30px rgba(0,0,0,.35);opacity:0;transform:translateY(-8px);transition:opacity .25s,transform .25s;white-space:pre-line;";
+        t.textContent = String(msg);
+        getWrap().appendChild(t);
+        // requestAnimationFrame değil: TWA arka plandayken rAF durur,
+        // toast görünmez kalırdı. setTimeout her durumda işler.
+        setTimeout(() => { t.style.opacity = "1"; t.style.transform = "none"; }, 20);
+        // Uzun mesaja okumaya yetecek kadar süre; dokununca hemen kapanır.
+        const sure = Math.min(9000, 3500 + String(msg).length * 30);
+        const zamanlayici = setTimeout(kapat, sure);
+        t.onclick = kapat;
+        function kapat() {
+          clearTimeout(zamanlayici);
+          t.style.opacity = "0";
+          t.style.transform = "translateY(-8px)";
+          setTimeout(() => t.remove(), 260);
+        }
+      };
+    })();
+
     /* ---------- Veri katmanı (Firebase) ---------- */
     const KEY = "kalem_crm_v1";
     const STATUS = {
@@ -1546,7 +1586,7 @@
     }
     function waBtn(phone, text) {
       if (!phone) return "";
-      return `<a href="${toWaLink(phone, text)}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;justify-content:center;background:transparent;color:#25D366;border-radius:50%;width:26px;height:26px;text-decoration:none;transition:transform 0.2s;flex-shrink:0;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="WhatsApp ile Mesaj Gönder">
+      return `<a class="wa-ico" href="${toWaLink(phone, text)}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;justify-content:center;background:transparent;color:#25D366;border-radius:50%;width:26px;height:26px;text-decoration:none;transition:transform 0.2s;flex-shrink:0;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="WhatsApp ile Mesaj Gönder">
         <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
       </a>`;
     }
@@ -3530,7 +3570,7 @@
         return `<div class="mini" style="display:flex;justify-content:space-between;align-items:center;gap:8px;${kritik ? 'border-left:3px solid var(--red);padding-left:8px;background:rgba(242,97,122,0.06);border-radius:8px' : ''}">
       <div><span class="mn">${escapeHtml(x.title)}</span><div class="ms">${escapeHtml(x.type || 'Kitap')}${kritik ? ` <span style="color:var(--red);font-weight:700">• STOK KRİTİK</span>` : ''}</div></div>
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-weight:700;color:${kritik ? 'var(--red)' : 'var(--brand)'}">${(x.quantity || 0).toLocaleString('tr-TR')} adet</span>
+        <span style="font-weight:700;white-space:nowrap;color:${kritik ? 'var(--red)' : 'var(--brand)'}">${(x.quantity || 0).toLocaleString('tr-TR')} adet</span>
         <button class="btn ghost" style="padding:4px 8px" onclick="openStockModal('${x.id}')" title="Düzenle">${icon('edit', 13)}</button>
         <button class="btn ghost" style="padding:4px 8px" onclick="delStockItem('${x.id}')" title="Sil">${icon('trash', 13)}</button>
       </div>
@@ -3634,7 +3674,7 @@
     ${list.length ? list.map(o => `<div class="mini" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
       <div><span class="mn">${escapeHtml(o.title)}</span><div class="ms">${fmtDate(o.date)}${o.note ? ' • ' + escapeHtml(o.note) : ''}</div></div>
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-weight:600">${(o.quantity || 0).toLocaleString('tr-TR')} adet</span>
+        <span style="font-weight:600;white-space:nowrap">${(o.quantity || 0).toLocaleString('tr-TR')} adet</span>
         <button class="btn ghost" style="padding:4px 8px" onclick="openPrintOrderModal('${o.id}')" title="Düzenle">${icon('edit', 13)}</button>
         <button class="btn ghost" style="padding:4px 8px" onclick="delPrintOrder('${o.id}')" title="Sil">${icon('trash', 13)}</button>
       </div>

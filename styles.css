@@ -1763,9 +1763,11 @@
 
       /* Filtre pilleri (Yazarlar/Sözleşmeli/Takip Listesi): masaüstünde
          sarıyor, mobilde tek satır, native "segmented control" şeridi gibi
-         yatay kayıyor. */
+         yatay kayıyor. !important şart: bazı görünümler (Yazarlar, Matbaa,
+         Görevler...) toolbar'ı satır içi "flex-wrap:wrap" stiliyle üretiyor
+         ve o stil bu kuralı ezip pilleri 4-5 satır alt alta yığıyordu. */
       .toolbar {
-        flex-wrap: nowrap;
+        flex-wrap: nowrap !important;
         overflow-x: auto;
         scroll-snap-type: x proximity;
         -webkit-overflow-scrolling: touch;
@@ -1959,6 +1961,14 @@
       .btn.ghost[style*="padding:6px"] {
         min-width: 40px;
         min-height: 40px;
+      }
+
+      /* Yazar kartlarındaki WhatsApp ikonu satır içi 26px ile geliyor —
+         masaüstünde fare için yeterli ama parmakla ıskalanıyor. Satır içi
+         stili ezmek için !important gerekiyor. */
+      .wa-ico {
+        width: 40px !important;
+        height: 40px !important;
       }
 
       /* Yapay zeka asistanı FAB'ı — masaüstündeki bottom:32px inline
