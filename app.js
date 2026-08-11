@@ -1989,7 +1989,10 @@
      * (reklam verisi zaten saatte bir güncellenen bir şey).
      */
     const REKLAM_DOC = "reklam_durumu";
-    const REKLAM_PANEL_URL = "https://app.mstyayincilik.com";
+    // Yönetim paneli (reklam denetiminin arayüzü) — yazarların kullandığı
+    // app.mstyayincilik.com DEĞİL; o adres karttaki düğmeyi yanlış yere
+    // götürüyordu (kullanıcı bildirimi, 2026-08-11).
+    const REKLAM_PANEL_URL = "https://admin.mstyayincilik.com";
     // Panel bu süreden uzaktır yazmadıysa veri "bayat" sayılır. Eski reklam
     // verisiyle bütçe kararı almak zarar verir; sessizce eski veriyi
     // göstermektense açıkça uyarmak daha güvenli.
