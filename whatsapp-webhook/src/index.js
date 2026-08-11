@@ -158,6 +158,9 @@ function fromFirestoreValue(v) {
   if ("integerValue" in v) return parseInt(v.integerValue, 10);
   if ("doubleValue" in v) return v.doubleValue;
   if ("booleanValue" in v) return v.booleanValue;
+  // updatedAt gibi sunucu damgalari ISO metin olarak dondurulur — /mcp'nin
+  // fark sorgusu watermark'i bundan hesaplar (onceden null'a dusuyordu).
+  if ("timestampValue" in v) return v.timestampValue;
   if ("nullValue" in v) return null;
   if ("arrayValue" in v) return (v.arrayValue.values || []).map(fromFirestoreValue);
   if ("mapValue" in v) {
@@ -828,6 +831,480 @@ async function handleReklamSync(env) {
   return { yazildi: true, bulgu: doc.bulgular.length };
 }
 
+/* ================================================================
+ * /mcp — Yazar CRM claude.ai bağlayıcısı (SALT OKUNUR)
+ * ================================================================
+ * Bilgisayardaki yerel mst-crm-mcp sunucusunun internet sürümü: aynı
+ * araçlar, aynı mantık (kaynak: mst-crm-mcp/index.js + crm.js), ama
+ * claude.ai'ye özel bağlayıcı olarak eklenebilsin diye HTTP üzerinden.
+ * Adres: https://<worker>/mcp?key=CRM_MCP_KEY   (anahtar wrangler secret)
+ *
+ * SALT OKUNUR: hiçbir araç Firestore'a yazmaz/silmez.
+ *
+ * KOTA: yerel sürümdeki "sadece değişenleri oku" düzeninin aynısı, yerel
+ * dosya yerine KV ile (CRM_MCP_KV): yazar listesi KV'de tutulur, her
+ * soruda yalnızca updatedAt > watermark olan kayıtlar çekilir; kopya en
+ * geç 24 saatte bir baştan alınır. crm_kota bilerek yok — o araç
+ * kullanıcının bilgisayarındaki firebase oturumunu gerektirir, yalnızca
+ * yerel bağlantıda çalışır.
+ * ================================================================ */
+const CRM_MCP_ARACLAR = [
+  {
+    name: "crm_ozet",
+    description: "CRM'in genel durumu: toplam kayit, duruma gore dagilim, bugun eklenenler, bugunku gorusme sayisi, bekleyen tahsilat toplami. 'CRM'de durum ne', 'kac aday var' gibi sorularda ilk buraya bak.",
+    inputSchema: { type: "object", properties: {} }
+  },
+  {
+    name: "crm_gun_raporu",
+    description: "Belirli bir gunun raporu: her personel icin gorusme/kacirilan arama/olumlu/olumsuz sayilari VE o gun kimle ne konusuldugunun tam dokumu (gorusme notlari). 'Bugun ne yapildi', 'dun Nilay kimlerle gorustu' sorularinin cevabi.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tarih: { type: "string", description: "YYYY-AA-GG. Bos birakilirsa bugun." },
+        personel: { type: "string", description: "Personel adi (ornegin 'Nilay'). Bos birakilirsa herkes." }
+      }
+    }
+  },
+  {
+    name: "crm_yazar_ara",
+    description: "Yazar/aday arar: ad, telefon ya da not icerigine gore. Ozet bilgi doner (en fazla 25 sonuc). Bir kisi hakkinda soru sorulunca once bunu cagirip kimligini bul.",
+    inputSchema: {
+      type: "object",
+      properties: { sorgu: { type: "string", description: "Aranacak ad, telefon parcasi ya da kelime" } },
+      required: ["sorgu"]
+    }
+  },
+  {
+    name: "crm_yazar_detay",
+    description: "Tek bir yazarin TAM kaydi: durum gecmisi, butun gorusme notlari, odemeleri, dosyalari, kimin ekledigi. Once crm_yazar_ara ile kimligi bulun.",
+    inputSchema: {
+      type: "object",
+      properties: { sorgu: { type: "string", description: "Yazar adi ya da telefonu (tam veya parca)" } },
+      required: ["sorgu"]
+    }
+  },
+  {
+    name: "crm_gecikmis_takipler",
+    description: "Takip tarihi gecmis ama hala aranmamis adaylar — 'kimler unutulmus', 'gecikmis is var mi' sorusunun cevabi. En cok gecikenden basa dogru siralar.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        personel: { type: "string", description: "Personel adi. Bos birakilirsa herkes." },
+        limit: { type: "number", description: "Kac kayit donsun (varsayilan 30)" }
+      }
+    }
+  },
+  {
+    name: "crm_odemeler",
+    description: "Odeme/tahsilat listesi ve toplamlari. Bekleyen tutar, tahsil edilen tutar, taksitler.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        durum: { type: "string", enum: ["hepsi", "bekleyen", "odendi"], description: "Varsayilan 'bekleyen'" },
+        limit: { type: "number", description: "Kac kayit donsun (varsayilan 40)" }
+      }
+    }
+  },
+  {
+    name: "crm_personel_performans",
+    description: "Son N gunde personel bazli performans: gorusme, kacirilan arama, sozlesmeye donen, arsivlenen sayilari.",
+    inputSchema: {
+      type: "object",
+      properties: { gun: { type: "number", description: "Kac gun geriye bakilsin (varsayilan 7)" } }
+    }
+  }
+];
+
+const CRM_DURUM = {
+  aday: "Aday", gorusuluyor: "Görüşülüyor", degerlendirme: "Değerlendirme",
+  eseryaziyor: "Eser Yazıyor", sozlesme: "Sözleşme", yayinda: "Yayında", arsiv: "Arşiv"
+};
+const CRM_AKTIF_DURUMLAR = ["aday", "gorusuluyor", "degerlendirme", "eseryaziyor"];
+
+/* Tarih yardımcıları — Türkiye saati (sabit UTC+3, DST yok) */
+function crmBugun() {
+  return new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+function crmGunEkle(tarih, gun) {
+  const d = new Date(tarih + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + gun);
+  return d.toISOString().slice(0, 10);
+}
+function crmDamgaMs(u) {
+  if (!u) return 0;
+  const ms = new Date(u).getTime();
+  if (!Number.isFinite(ms)) return 0;
+  // Geleceğe düşmüş tek bir damga watermark'i ileri fırlatmasın
+  if (ms > Date.now() + 3600 * 1000) return 0;
+  return ms;
+}
+function crmPersonelAdi(liste, id) {
+  if (id === "admin") return "Sistem Yöneticisi";
+  if (id === "onenote-import") return "OneNote aktarımı";
+  const s = liste.find(x => x.id === id);
+  return s ? s.name : (id || "—");
+}
+
+/* Gün raporu mantığı — app.js ve yerel MCP ile birebir aynı */
+function crmGunIstatistigi(list, staffKey, tarih) {
+  const kayitlar = list.filter(a => {
+    const bugunEklendi = a.created === tarih && (a.addedBy || "admin") === staffKey;
+    const bugunNot = (a.logs || []).some(l => l.date === tarih && (l.staffId || "admin") === staffKey);
+    return bugunEklendi || bugunNot;
+  });
+  const olumlu = kayitlar.filter(a => a.status === "sozlesme" || a.status === "yayinda").length;
+  const olumsuz = kayitlar.filter(a => a.status === "arsiv").length;
+  const kacirilan = list.filter(a => {
+    if (!CRM_AKTIF_DURUMLAR.includes(a.status)) return false;
+    if ((a.addedBy || "admin") !== staffKey) return false;
+    const aranmaliydi = (a.followup && a.followup <= tarih) || (a.interviewDate === tarih);
+    if (!aranmaliydi) return false;
+    return !(a.logs || []).some(l => l.date === tarih);
+  }).length;
+  const sonuclanan = olumlu + olumsuz;
+  return {
+    gorusme: kayitlar.length, kacirilan, olumlu, olumsuz,
+    devamEden: kayitlar.length - olumlu - olumsuz,
+    basariYuzde: sonuclanan > 0 ? Math.round(olumlu / sonuclanan * 100) : null
+  };
+}
+function crmGunDokumu(list, staffKey, tarih) {
+  return list.map(a => {
+    const notlar = (a.logs || []).filter(l => l.date === tarih && (l.staffId || "admin") === staffKey);
+    const bugunEklendi = a.created === tarih && (a.addedBy || "admin") === staffKey;
+    if (!notlar.length && !bugunEklendi) return null;
+    return {
+      yazar: a.name, telefon: a.phone || null,
+      durum: CRM_DURUM[a.status] || a.status,
+      bugunEklendi,
+      notlar: notlar.map(l => ({ tur: l.type || "Not", metin: (l.text || "").trim() }))
+    };
+  }).filter(Boolean).sort((x, y) => y.notlar.length - x.notlar.length);
+}
+
+/* Yazar listesi: KV kopyası + fark sorgusu. sayac.okuma'ya maliyet işlenir. */
+async function crmYazarlariGetir(env, token, sayac) {
+  const simdi = Date.now();
+  const proje = env.FIREBASE_PROJECT_ID;
+  let eski = null;
+  if (env.CRM_MCP_KV) {
+    try { eski = await env.CRM_MCP_KV.get("authors", "json"); } catch (e) { /* kopyasız devam */ }
+  }
+  if (eski && (!Array.isArray(eski.authors) || !eski.authors.length || !eski.watermark ||
+    !eski.savedAt || simdi - eski.savedAt > 24 * 3600 * 1000)) eski = null;
+
+  if (eski) {
+    const esik = new Date(Math.max(0, eski.watermark - 60 * 1000)).toISOString();
+    const resp = await fetch(`https://firestore.googleapis.com/v1/projects/${proje}/databases/(default)/documents:runQuery`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: "authors" }],
+          where: { fieldFilter: { field: { fieldPath: "updatedAt" }, op: "GREATER_THAN", value: { timestampValue: esik } } }
+        }
+      })
+    });
+    const satirlar = await resp.json();
+    if (!resp.ok) throw new Error("Firestore fark sorgusu hatası: " + JSON.stringify(satirlar).slice(0, 300));
+    const harita = new Map(eski.authors.map(a => [a.id, a]));
+    let wm = eski.watermark;
+    let degisen = 0;
+    (Array.isArray(satirlar) ? satirlar : []).forEach(r => {
+      if (!r.document) return;
+      const a = docToObject(r.document);
+      degisen++;
+      wm = Math.max(wm, crmDamgaMs(a.updatedAt));
+      if (a.deleted === true) harita.delete(a.id); else harita.set(a.id, a);
+    });
+    sayac.okuma += degisen;
+    const authors = [...harita.values()];
+    // Değişiklik yoksa KV'ye yeniden yazmayız (savedAt eski kalır ve kopya
+    // 24 saatte bir kendiliğinden baştan alınır — yerel sürümle aynı düzen).
+    if (degisen && env.CRM_MCP_KV) {
+      try { await env.CRM_MCP_KV.put("authors", JSON.stringify({ watermark: wm, savedAt: eski.savedAt, authors })); } catch (e) { /* pahalılaşır ama çalışır */ }
+    }
+    return authors;
+  }
+
+  // Kopya yok ya da bayat: tek seferlik tam okuma (sayfalı)
+  const authors = [];
+  let wm = 0;
+  let pageToken;
+  do {
+    const u = new URL(`https://firestore.googleapis.com/v1/projects/${proje}/databases/(default)/documents/authors`);
+    u.searchParams.set("pageSize", "300");
+    if (pageToken) u.searchParams.set("pageToken", pageToken);
+    const resp = await fetch(u, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error("Firestore okuma hatası: " + JSON.stringify(data).slice(0, 300));
+    (data.documents || []).forEach(d => {
+      const a = docToObject(d);
+      sayac.okuma++;
+      wm = Math.max(wm, crmDamgaMs(a.updatedAt));
+      if (a.deleted !== true) authors.push(a);
+    });
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  if (env.CRM_MCP_KV) {
+    try { await env.CRM_MCP_KV.put("authors", JSON.stringify({ watermark: wm, savedAt: simdi, authors })); } catch (e) { /* pahalılaşır ama çalışır */ }
+  }
+  return authors;
+}
+
+async function crmPersonelGetir(env, token, sayac) {
+  const resp = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/crm/staff`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  sayac.okuma += 1;
+  if (resp.status === 404) return [];
+  const doc = await resp.json();
+  if (!resp.ok) throw new Error("Personel okuma hatası: " + JSON.stringify(doc).slice(0, 200));
+  const obj = docToObject(doc);
+  return obj.staff || [];
+}
+
+/* Araç gövdeleri — yerel mst-crm-mcp/index.js'teki islem.* ile birebir */
+const CRM_MCP_ISLEM = {
+  async crm_ozet({ list, staff }) {
+    const bugun = crmBugun();
+    const durumlar = {};
+    list.forEach(a => {
+      const d = CRM_DURUM[a.status] || a.status || "—";
+      durumlar[d] = (durumlar[d] || 0) + 1;
+    });
+    let bekleyenTutar = 0, tahsilEdilen = 0;
+    list.forEach(a => (a.payments || []).forEach(p => {
+      const t = Number(p.amount) || 0;
+      if (p.status === "Bekliyor") bekleyenTutar += t; else tahsilEdilen += t;
+    }));
+    return {
+      tarih: bugun,
+      toplamKayit: list.length,
+      durumDagilimi: durumlar,
+      bugunEklenenKayit: list.filter(a => a.created === bugun).length,
+      bugunGorusulenKayit: list.filter(a => (a.logs || []).some(l => l.date === bugun)).length,
+      gecikmisTakip: list.filter(a => CRM_AKTIF_DURUMLAR.includes(a.status) && a.followup && a.followup < bugun).length,
+      bekleyenTahsilat: Math.round(bekleyenTutar),
+      tahsilEdilenToplam: Math.round(tahsilEdilen),
+      personelSayisi: staff.length
+    };
+  },
+
+  async crm_gun_raporu({ list, staff, args }) {
+    const t = args.tarih || crmBugun();
+    let anahtarlar = staff.map(s => s.id).concat(["admin"]);
+    if (args.personel) {
+      const bulunan = staff.filter(s => (s.name || "").toLowerCase().includes(args.personel.toLowerCase()));
+      if (!bulunan.length) return { hata: `"${args.personel}" adinda personel bulunamadi.`, personeller: staff.map(s => s.name) };
+      anahtarlar = bulunan.map(s => s.id);
+    }
+    const satirlar = anahtarlar.map(k => ({
+      personel: crmPersonelAdi(staff, k),
+      ...crmGunIstatistigi(list, k, t),
+      dokum: crmGunDokumu(list, k, t)
+    })).filter(r => r.gorusme > 0 || r.kacirilan > 0);
+    return {
+      tarih: t,
+      not: satirlar.length ? undefined : "Bu tarihte hicbir personelin kaydi yok.",
+      personeller: satirlar
+    };
+  },
+
+  async crm_yazar_ara({ list, staff, args }) {
+    const q = String(args.sorgu || "").toLowerCase().trim();
+    const rakam = q.replace(/\D/g, "");
+    const bulunan = list.filter(a => {
+      const ad = (a.name || "").toLowerCase();
+      const tel = String(a.phone || "").replace(/\D/g, "");
+      const notlar = (a.logs || []).map(l => l.text || "").join(" ").toLowerCase();
+      return ad.includes(q) ||
+        (rakam.length >= 4 && tel.includes(rakam)) ||
+        (q.length >= 4 && notlar.includes(q));
+    });
+    return {
+      bulunan: bulunan.length,
+      gosterilen: Math.min(bulunan.length, 25),
+      sonuclar: bulunan.slice(0, 25).map(a => ({
+        ad: a.name, telefon: a.phone || null,
+        durum: CRM_DURUM[a.status] || a.status,
+        gorusmeSayisi: (a.logs || []).length,
+        sonGorusme: (a.logs || []).map(l => l.date).sort().pop() || null,
+        kayitTarihi: a.created,
+        gorusmeci: crmPersonelAdi(staff, a.addedBy)
+      }))
+    };
+  },
+
+  async crm_yazar_detay({ list, staff, args }) {
+    const r = await CRM_MCP_ISLEM.crm_yazar_ara({ list, staff, args });
+    if (!r.bulunan) return { hata: `"${args.sorgu}" icin kayit bulunamadi.` };
+    const q = String(args.sorgu).toLowerCase().trim();
+    const rakam = q.replace(/\D/g, "");
+    const a = list.find(x => (x.name || "").toLowerCase() === q) ||
+      list.find(x => rakam.length >= 7 && String(x.phone || "").replace(/\D/g, "").includes(rakam)) ||
+      list.find(x => (x.name || "").toLowerCase().includes(q));
+    if (!a) return { hata: "Kayit secilemedi.", adaylar: r.sonuclar.map(s => s.ad) };
+    const digerEslesmeler = r.bulunan > 1
+      ? r.sonuclar.map(s => s.ad).filter(n => n !== a.name).slice(0, 8) : undefined;
+    return {
+      ad: a.name, telefon: a.phone || null, eposta: a.email || null,
+      durum: CRM_DURUM[a.status] || a.status,
+      kayitTarihi: a.created,
+      gorusmeci: crmPersonelAdi(staff, a.addedBy),
+      kaynak: a.source || null, paket: a.package || null,
+      sozlesmeTarihi: a.contractDate || null,
+      takipTarihi: a.followup || null,
+      randevu: a.interviewDate ? `${a.interviewDate}${a.interviewTime ? " " + a.interviewTime : ""}` : null,
+      notlar: a.notes || null,
+      durumGecmisi: (a.statusHistory || []).map(h => `${h.date}: ${CRM_DURUM[h.status] || h.status}`),
+      gorusmeler: (a.logs || []).map(l => ({
+        tarih: l.date, tur: l.type || "Not",
+        gorusmeci: crmPersonelAdi(staff, l.staffId || "admin"),
+        metin: (l.text || "").trim()
+      })),
+      odemeler: (a.payments || []).map(p => ({
+        tutar: p.amount, tarih: p.date, durum: p.status,
+        aciklama: p.notes || null, ekleyen: crmPersonelAdi(staff, p.addedBy)
+      })),
+      dosyalar: (a.files || []).map(f => ({ ad: f.name, tur: f.type, tarih: f.date })),
+      digerEslesmeler
+    };
+  },
+
+  async crm_gecikmis_takipler({ list, staff, args }) {
+    const bugun = crmBugun();
+    let sonuc = list.filter(a =>
+      CRM_AKTIF_DURUMLAR.includes(a.status) && a.followup && a.followup < bugun);
+    if (args.personel) {
+      const p = staff.filter(s => (s.name || "").toLowerCase().includes(args.personel.toLowerCase())).map(s => s.id);
+      if (!p.length) return { hata: `"${args.personel}" adinda personel bulunamadi.` };
+      sonuc = sonuc.filter(a => p.includes(a.addedBy));
+    }
+    sonuc.sort((x, y) => String(x.followup).localeCompare(String(y.followup)));
+    const n = args.limit || 30;
+    return {
+      toplamGecikmis: sonuc.length,
+      gosterilen: Math.min(sonuc.length, n),
+      kayitlar: sonuc.slice(0, n).map(a => ({
+        ad: a.name, telefon: a.phone || null,
+        durum: CRM_DURUM[a.status] || a.status,
+        takipTarihi: a.followup,
+        gecikmeGun: Math.round((new Date(bugun) - new Date(a.followup)) / 864e5),
+        gorusmeci: crmPersonelAdi(staff, a.addedBy),
+        sonGorusme: (a.logs || []).map(l => l.date).sort().pop() || null
+      }))
+    };
+  },
+
+  async crm_odemeler({ list, staff, args }) {
+    const hepsi = list.flatMap(a => (a.payments || []).map(p => ({ ...p, yazar: a.name })));
+    const d = args.durum || "bekleyen";
+    let sec = hepsi;
+    if (d === "bekleyen") sec = hepsi.filter(p => p.status === "Bekliyor");
+    else if (d === "odendi") sec = hepsi.filter(p => p.status !== "Bekliyor");
+    sec.sort((x, y) => String(x.date).localeCompare(String(y.date)));
+    const n = args.limit || 40;
+    const topla = arr => Math.round(arr.reduce((s, p) => s + (Number(p.amount) || 0), 0));
+    return {
+      filtre: d,
+      toplamKayit: sec.length,
+      toplamTutar: topla(sec),
+      genelBekleyen: topla(hepsi.filter(p => p.status === "Bekliyor")),
+      genelTahsilEdilen: topla(hepsi.filter(p => p.status !== "Bekliyor")),
+      gosterilen: Math.min(sec.length, n),
+      odemeler: sec.slice(0, n).map(p => ({
+        yazar: p.yazar, tutar: p.amount, tarih: p.date, durum: p.status,
+        aciklama: p.notes || null, ekleyen: crmPersonelAdi(staff, p.addedBy)
+      }))
+    };
+  },
+
+  async crm_personel_performans({ list, staff, args }) {
+    const n = args.gun || 7;
+    const bugun = crmBugun();
+    const gunler = [];
+    for (let i = 0; i < n; i++) gunler.push(crmGunEkle(bugun, -i));
+    const anahtarlar = staff.map(s => s.id).concat(["admin"]);
+    const satirlar = anahtarlar.map(k => {
+      const top = { gorusme: 0, kacirilan: 0, olumlu: 0, olumsuz: 0 };
+      gunler.forEach(g => {
+        const s = crmGunIstatistigi(list, k, g);
+        top.gorusme += s.gorusme; top.kacirilan += s.kacirilan;
+        top.olumlu += s.olumlu; top.olumsuz += s.olumsuz;
+      });
+      return { personel: crmPersonelAdi(staff, k), ...top };
+    }).filter(r => r.gorusme > 0 || r.kacirilan > 0)
+      .sort((a, b) => b.gorusme - a.gorusme);
+    return { donem: `${gunler[gunler.length - 1]} → ${bugun} (${n} gun)`, personeller: satirlar };
+  }
+};
+
+async function handleCrmMcp(request, env) {
+  const url = new URL(request.url);
+  const yanit = (obj, status) => new Response(JSON.stringify(obj), {
+    status: status || 200, headers: { "Content-Type": "application/json" }
+  });
+
+  if (!env.CRM_MCP_KEY || url.searchParams.get("key") !== env.CRM_MCP_KEY) {
+    return yanit({ jsonrpc: "2.0", id: null, error: { code: -32001, message: "Yetkisiz. Bağlantı adresinin sonuna ?key=TOKEN eklenmeli." } }, 401);
+  }
+  if (request.method !== "POST") return new Response("Yalnızca POST", { status: 405 });
+
+  let rpc;
+  try { rpc = await request.json(); } catch (e) {
+    return yanit({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Geçersiz JSON" } }, 400);
+  }
+  const id = rpc.id;
+  // Bildirimler (id'siz — örn. notifications/initialized) cevap istemez
+  if (id === undefined || id === null) return new Response(null, { status: 202 });
+
+  try {
+    if (rpc.method === "initialize") {
+      return yanit({
+        jsonrpc: "2.0", id,
+        result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "yazar-crm", version: "1.0.0" } }
+      });
+    }
+    if (rpc.method === "ping") return yanit({ jsonrpc: "2.0", id, result: {} });
+    if (rpc.method === "tools/list") return yanit({ jsonrpc: "2.0", id, result: { tools: CRM_MCP_ARACLAR } });
+
+    if (rpc.method === "tools/call") {
+      const ad = rpc.params && rpc.params.name;
+      const args = (rpc.params && rpc.params.arguments) || {};
+      const fn = CRM_MCP_ISLEM[ad];
+      if (!fn) {
+        return yanit({ jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: `Bilinmeyen araç: ${ad}` }] } });
+      }
+      const sayac = { okuma: 0 };
+      const token = await getAccessToken(env);
+      const list = await crmYazarlariGetir(env, token, sayac);
+      const staff = await crmPersonelGetir(env, token, sayac);
+      const sonuc = await fn({ list, staff, args });
+      return yanit({
+        jsonrpc: "2.0", id,
+        result: { content: [{ type: "text", text: JSON.stringify({ ...sonuc, _firestoreOkuma: sayac.okuma }, null, 2) }] }
+      });
+    }
+    return yanit({ jsonrpc: "2.0", id, error: { code: -32601, message: "Bilinmeyen metot: " + rpc.method } });
+  } catch (e) {
+    const kotaHatasi = /RESOURCE_EXHAUSTED|Quota exceeded/i.test(String(e.message));
+    return yanit({
+      jsonrpc: "2.0", id,
+      result: {
+        isError: true,
+        content: [{
+          type: "text",
+          text: kotaHatasi
+            ? "Firestore günlük kotası dolmuş (RESOURCE_EXHAUSTED). Bu bir internet sorunu DEĞİL; kota her gün 10:00'da (TR) sıfırlanır."
+            : "Hata: " + e.message
+        }]
+      }
+    });
+  }
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -837,6 +1314,11 @@ const CORS_HEADERS = {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    // claude.ai bağlayıcısı: Yazar CRM'e salt okunur MCP erişimi
+    if (url.pathname === "/mcp") {
+      return handleCrmMcp(request, env);
+    }
 
     if (url.pathname === "/chat" && request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });

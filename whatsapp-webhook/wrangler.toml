@@ -11,3 +11,10 @@ FIREBASE_PROJECT_ID = "mst-crm"
 # sonucu CRM panosundaki karta yazan senkron (bkz. handleReklamSync).
 [triggers]
 crons = ["0 6 * * *", "30 */6 * * *"]
+
+# /mcp ucunun (claude.ai bağlayıcısı) yazar önbelleği — "sadece değişenleri
+# oku" düzeni sayesinde her soru koleksiyonun tamamını okumaz (bkz.
+# handleCrmMcp). Gerekli secret: CRM_MCP_KEY (adresteki ?key= değeri).
+[[kv_namespaces]]
+binding = "CRM_MCP_KV"
+id = "65b8696466354527890fd715f471d791"
