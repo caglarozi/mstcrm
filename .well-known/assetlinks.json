@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.mstyayincilik.crm",
+      "sha256_cert_fingerprints": [
+        "1C:8D:67:54:D3:5B:F8:EB:57:06:EC:DF:70:DE:9D:6E:50:AA:83:93:2B:3F:74:F6:61:3F:91:43:1E:BE:87:BE"
+      ]
+    }
+  }
+]
