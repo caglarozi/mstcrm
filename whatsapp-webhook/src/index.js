@@ -1324,6 +1324,16 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // claude.ai bağlayıcı eklerken origin'de OAuth keşif adreslerini yoklar.
+    // Bunlara TEMİZ 404 dönmeliyiz ki "OAuth yok, doğrudan bağlan" sonucuna
+    // varsın. Eskiden bu yollar bilinmeyen GET olarak WhatsApp doğrulama
+    // koluna düşüp 403 dönüyordu; claude.ai 403'ü "OAuth var ama erişemedim"
+    // sanıp dinamik istemci kaydı (DCR) deniyor ve "Couldn't register with …
+    // sign-in service" hatası veriyordu. Çalışan mst-app da 404 dönüyor.
+    if (url.pathname.startsWith("/.well-known/")) {
+      return new Response("Not found", { status: 404 });
+    }
+
     // claude.ai bağlayıcısı: Yazar CRM'e salt okunur MCP erişimi
     if (url.pathname === "/mcp") {
       return handleCrmMcp(request, env);
