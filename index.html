@@ -246,8 +246,10 @@
           onclick="toggleTaskNotifDropdown()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
           <span id="taskNotifBadge" style="display:none;position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 4px;box-shadow:0 0 0 2px var(--bg)"></span>
+          <!-- Arka plan sabit koyuydu; açık temada içindeki koyu yazılar
+               okunmuyor, kutu siyah görünüyordu — renkler artık temadan. -->
           <div id="taskNotifDropdown" onclick="event.stopPropagation()"
-            style="position:absolute;top:calc(100% + 12px);right:-8px;background:rgba(15, 20, 35, 0.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(59,130,246,0.3);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.6);width:280px;max-height:360px;overflow-y:auto;padding:6px;z-index:999;display:none;animation:fadeIn 0.2s ease-out;cursor:default;">
+            style="position:absolute;top:calc(100% + 12px);right:-8px;background:var(--panel);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.35);width:280px;max-height:360px;overflow-y:auto;padding:6px;z-index:999;display:none;animation:fadeIn 0.2s ease-out;cursor:default;">
           </div>
         </div>
 

@@ -1728,10 +1728,13 @@
         order: 2;
       }
 
+      /* Zil sağ üst köşede — kutu zile SAĞDAN hizalanıp SOLA doğru açılmalı.
+         Önceki left:-8px kuralı (zil soldayken yazılmıştı) kutuyu sağa,
+         ekran dışına taşırıyordu. */
       #taskNotifDropdown {
-        right: auto !important;
-        left: -8px !important;
-        width: min(280px, calc(100vw - 32px)) !important;
+        left: auto !important;
+        right: -8px !important;
+        width: min(300px, calc(100vw - 24px)) !important;
       }
 
       .spacer {
@@ -1858,7 +1861,10 @@
         bottom: calc(-1 * (20px + env(safe-area-inset-bottom, 0px)));
         margin: 20px -20px calc(-1 * (20px + env(safe-area-inset-bottom, 0px)));
         padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
-        background: rgba(20, 22, 31, 0.95);
+        /* Renk temadan gelmeli: eski sabit koyu rgba, açık temada formun
+           altında siyah bir bant gibi görünüyordu. */
+        background: var(--panel);
+        background: color-mix(in srgb, var(--panel) 95%, transparent);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         border-top: 1px solid var(--line);
