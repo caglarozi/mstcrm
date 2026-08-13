@@ -599,47 +599,56 @@
     </div>
   </div>`;
 
-      // Çözülenler listenin sonuna iner; bekleyenler tarihe göre en yeni üstte
-      items.sort((a, b) => {
-        const aCozuldu = a.status === "cozuldu" ? 1 : 0;
-        const bCozuldu = b.status === "cozuldu" ? 1 : 0;
-        if (aCozuldu !== bCozuldu) return aCozuldu - bCozuldu;
-        return (b.date || "").localeCompare(a.date || "");
-      });
-      const bekleyen = items.filter(f => f.status !== "cozuldu").length;
-      html += `<div class="card" style="max-width:640px">
-    <h3 style="margin:0 0 12px;font-size:14px">${icon('clock', 15)} Kutudakiler (${items.length})${bekleyen ? ` <span style="color:var(--amber);font-size:12px;font-weight:400">• ${bekleyen} bekliyor</span>` : ""}</h3>`;
-      if (!items.length) {
-        html += `<div class="empty">Kutu şimdilik boş.</div>`;
-      } else {
-        html += items.map(f => {
-          const sikayet = f.type === "sikayet";
-          const cozuldu = f.status === "cozuldu";
-          const gorusuluyor = f.status === "gorusuluyor";
-          const badge = sikayet
-            ? `<span class="badge" style="background:rgba(242,97,122,.15);color:#f2617a;border:1px solid rgba(242,97,122,.4)">⚠️ Şikayet</span>`
-            : `<span class="badge" style="background:rgba(74,168,255,.15);color:#4aa8ff;border:1px solid rgba(74,168,255,.4)">💡 Dilek</span>`;
-          const durumBadge = cozuldu
-            ? `<span class="badge" style="background:rgba(55,201,138,.15);color:#37c98a;border:1px solid rgba(55,201,138,.4)">✔ Çözüldü</span>`
-            : gorusuluyor
-              ? `<span class="badge" style="background:rgba(244,183,64,.15);color:#f4b740;border:1px solid rgba(244,183,64,.4)">💬 Görüşülüyor</span>`
-              : `<span class="badge" style="background:rgba(154,161,178,.15);color:#9aa1b2;border:1px solid rgba(154,161,178,.4)">Yeni</span>`;
-          // Silme yok — admin durumu işaretler, kayıt kutuda kalır.
-          const adminBtns = currentRole === "admin" ? `<div style="display:flex;gap:6px;flex-shrink:0">
+      const myIds = new Set(getMyFeedbackIds());
+      const row = f => {
+        const sikayet = f.type === "sikayet";
+        const cozuldu = f.status === "cozuldu";
+        const gorusuluyor = f.status === "gorusuluyor";
+        const badge = sikayet
+          ? `<span class="badge" style="background:rgba(242,97,122,.15);color:#f2617a;border:1px solid rgba(242,97,122,.4)">⚠️ Şikayet</span>`
+          : `<span class="badge" style="background:rgba(74,168,255,.15);color:#4aa8ff;border:1px solid rgba(74,168,255,.4)">💡 Dilek</span>`;
+        const durumBadge = cozuldu
+          ? `<span class="badge" style="background:rgba(55,201,138,.15);color:#37c98a;border:1px solid rgba(55,201,138,.4)">✔ Çözüldü</span>`
+          : gorusuluyor
+            ? `<span class="badge" style="background:rgba(244,183,64,.15);color:#f4b740;border:1px solid rgba(244,183,64,.4)">💬 Görüşülüyor</span>`
+            : `<span class="badge" style="background:rgba(154,161,178,.15);color:#9aa1b2;border:1px solid rgba(154,161,178,.4)">Yeni</span>`;
+        const adminBtns = currentRole === "admin" ? `
             ${!gorusuluyor && !cozuldu ? `<button class="btn ghost" style="padding:4px 10px;font-size:11px;border-color:rgba(244,183,64,.4);color:#f4b740" onclick="setFeedbackStatus('${f.id}','gorusuluyor')">💬 Görüşülüyor</button>` : ""}
-            ${!cozuldu ? `<button class="btn ghost" style="padding:4px 10px;font-size:11px;border-color:rgba(55,201,138,.4);color:#37c98a" onclick="setFeedbackStatus('${f.id}','cozuldu')">✔ Çözüldü</button>` : `<button class="btn ghost" style="padding:4px 10px;font-size:11px" onclick="setFeedbackStatus('${f.id}','gorusuluyor')">↩ Yeniden Aç</button>`}
-          </div>` : "";
-          return `<div style="padding:12px 0;border-bottom:1px dashed var(--line);${cozuldu ? 'opacity:.6' : ''}">
+            ${!cozuldu ? `<button class="btn ghost" style="padding:4px 10px;font-size:11px;border-color:rgba(55,201,138,.4);color:#37c98a" onclick="setFeedbackStatus('${f.id}','cozuldu')">✔ Çözüldü</button>` : `<button class="btn ghost" style="padding:4px 10px;font-size:11px" onclick="setFeedbackStatus('${f.id}','gorusuluyor')">↩ Yeniden Aç</button>`}` : "";
+        // Gönderen kendi mesajını silebilir — "benim mi" bilgisi yalnızca bu
+        // tarayıcının hafızasında tutulur, sunucuda kimlik yine yoktur.
+        const ownDelBtn = myIds.has(f.id) ? `<button class="btn ghost" style="padding:4px 8px" onclick="delFeedback('${f.id}')" title="Mesajını sil (yalnızca sen görüyorsun bu butonu)">${icon('trash', 13)}</button>` : "";
+        return `<div style="padding:12px 0;border-bottom:1px dashed var(--line);${cozuldu ? 'opacity:.65' : ''}">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${badge}${durumBadge}<span style="color:var(--muted);font-size:11px">${fmtDate(f.date)}</span>${cozuldu && f.resolvedDate ? `<span style="color:#37c98a;font-size:11px">→ ${fmtDate(f.resolvedDate)} tarihinde çözüldü</span>` : ""}</div>
-          ${adminBtns}
+          <div style="display:flex;gap:6px;flex-shrink:0">${adminBtns}${ownDelBtn}</div>
         </div>
         <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escapeHtml(f.text)}</div>
       </div>`;
-        }).join("");
-      }
+      };
+
+      const bekleyenler = items.filter(f => f.status !== "cozuldu").sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+      const cozulenler = items.filter(f => f.status === "cozuldu").sort((a, b) => (b.resolvedDate || b.date || "").localeCompare(a.resolvedDate || a.date || ""));
+
+      html += `<div class="card" style="max-width:640px;margin-bottom:16px">
+    <h3 style="margin:0 0 12px;font-size:14px">${icon('clock', 15)} Kutudakiler (${bekleyenler.length})</h3>`;
+      html += bekleyenler.length ? bekleyenler.map(row).join("") : `<div class="empty">Bekleyen dilek/şikayet yok.</div>`;
+      html += `</div>`;
+
+      html += `<div class="card" style="max-width:640px;border-color:rgba(55,201,138,.35)">
+    <h3 style="margin:0 0 12px;font-size:14px;color:#37c98a">✔ Çözülenler (${cozulenler.length})</h3>`;
+      html += cozulenler.length ? cozulenler.map(row).join("") : `<div class="empty">Henüz çözülen kayıt yok.</div>`;
       html += `</div>`;
       return html;
+    }
+    const MY_FEEDBACK_KEY = "mstcrm_myFeedback_v1";
+    function getMyFeedbackIds() {
+      try { return JSON.parse(localStorage.getItem(MY_FEEDBACK_KEY)) || []; } catch (e) { return []; }
+    }
+    function rememberMyFeedback(id) {
+      const l = getMyFeedbackIds();
+      l.push(id);
+      try { localStorage.setItem(MY_FEEDBACK_KEY, JSON.stringify(l)); } catch (e) { /* engellenmis olabilir */ }
     }
     async function setFeedbackStatus(id, status) {
       if (currentRole !== "admin") return;
@@ -653,14 +662,17 @@
       const type = document.getElementById("fb_type").value;
       const text = document.getElementById("fb_text").value.trim();
       if (!text) { alert("Mesaj boş olamaz."); return; }
-      // Kimlik bilgisi bilerek eklenmiyor — gönderi anonim.
+      // Kimlik bilgisi bilerek eklenmiyor — gönderi anonim. Yalnızca bu
+      // tarayıcı, silme yetkisi için kendi gönderdiklerinin id'sini hatırlar.
       const entry = { id: uid(), type, text, date: todayStr() };
+      rememberMyFeedback(entry.id);
       await mutateFeedback(d => { if (!d.items.some(x => x.id === entry.id)) d.items.push(entry); });
       customAlert("Teşekkürler! 📮", "Mesajınız kutuya anonim olarak bırakıldı.");
     }
     async function delFeedback(id) {
-      if (currentRole !== "admin") return;
-      if (!(await customConfirm("Bu mesaj kutudan silinsin mi?", "Evet, Sil"))) return;
+      // Yalnızca mesajı gönderen silebilir (bu tarayıcıdan gönderilmişse).
+      if (!getMyFeedbackIds().includes(id)) return;
+      if (!(await customConfirm("Kendi mesajınızı kutudan silmek istiyor musunuz?", "Evet, Sil"))) return;
       await mutateFeedback(d => { d.items = d.items.filter(x => x.id !== id); });
     }
 
