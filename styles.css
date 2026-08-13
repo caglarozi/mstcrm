@@ -1122,6 +1122,31 @@
       accent-color: #a78bfa;
     }
 
+    /* Öncelik yıldızları. Dokunmatik ekranda rahat basılsın diye
+       butonlar geniş tutuldu. */
+    .yildizSecici {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      margin-bottom: 4px;
+    }
+
+    .yildizSecici .yildizBtn {
+      background: none;
+      border: none;
+      padding: 4px 3px;
+      margin: 0;
+      cursor: pointer;
+      line-height: 0;
+      border-radius: 6px;
+      transition: transform .12s, background .18s;
+    }
+
+    .yildizSecici .yildizBtn:hover {
+      transform: scale(1.15);
+      background: rgba(148, 163, 184, .12);
+    }
+
     input,
     select,
     textarea {

@@ -1547,6 +1547,44 @@
       size = size || 14;
       return `<svg width="${size}" height="${size}" viewBox="0 0 20 20" fill="currentColor" style="flex-shrink:0;vertical-align:-2px;color:var(--red)"><path fill-rule="evenodd" clip-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z"/></svg>`;
     }
+    /* ---------- Görev önceliği (1-5 yıldız) ----------
+     * Öncelik, aktif ve havuz listelerinde BİRİNCİL sıralama ölçütü: yüksek
+     * yıldız üste çıkar, eşitlikte son tarihe göre sıralanır. Yıldız vermek
+     * sıralamayı değiştirmiyorsa anlamı da kalmazdı.
+     */
+    const ONCELIK_ETIKET = { 1: "Çok düşük", 2: "Düşük", 3: "Normal", 4: "Yüksek", 5: "Çok acil" };
+    const ONCELIK_RENK = { 1: "#9aa1b2", 2: "#9aa1b2", 3: "#4aa8ff", 4: "#f4b740", 5: "#f2617a" };
+    const ONCELIK_VARSAYILAN = 3;
+    // Eski kayıtlarda öncelik alanı yok. Hepsini en alta itmek yerine
+    // "Normal" sayıyoruz ki yeni görevlerle makul şekilde harmanlansınlar —
+    // yoksa 50+ eski görev bir anda listenin dibine düşerdi.
+    function gorevOnceligi(t) {
+      const n = t && Number(t.oncelik);
+      return (Number.isFinite(n) && n >= 1 && n <= 5) ? Math.round(n) : ONCELIK_VARSAYILAN;
+    }
+    function yildizIkon(dolu, size, renk) {
+      size = size || 13;
+      return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${dolu ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" style="flex-shrink:0;vertical-align:-2px;color:${renk}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+    }
+    function oncelikRozeti(t) {
+      const n = gorevOnceligi(t);
+      let s = "";
+      for (let i = 1; i <= 5; i++) s += yildizIkon(i <= n, 13, i <= n ? ONCELIK_RENK[n] : "var(--line)");
+      return `<span title="Öncelik: ${ONCELIK_ETIKET[n]}" style="display:inline-flex;align-items:center;gap:1px">${s}</span>`;
+    }
+
+    let seciliOncelik = ONCELIK_VARSAYILAN;
+    function secOncelik(n) {
+      seciliOncelik = Math.min(5, Math.max(1, Number(n) || ONCELIK_VARSAYILAN));
+      const box = document.getElementById("tsk_oncelik");
+      if (!box) return;
+      let s = "";
+      for (let i = 1; i <= 5; i++) {
+        s += `<button type="button" class="yildizBtn" onclick="secOncelik(${i})" title="${ONCELIK_ETIKET[i]}" aria-label="${ONCELIK_ETIKET[i]}">${yildizIkon(i <= seciliOncelik, 24, i <= seciliOncelik ? ONCELIK_RENK[seciliOncelik] : "var(--line)")}</button>`;
+      }
+      box.innerHTML = s + `<span style="margin-left:10px;font-size:12.5px;color:${ONCELIK_RENK[seciliOncelik]};font-weight:600">${ONCELIK_ETIKET[seciliOncelik]}</span>`;
+    }
+
     function initials(n) { return n.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase(); }
     function avatarColor(n) {
       const colors = ["#7c6cff", "#4aa8ff", "#37c98a", "#f4b740", "#f2617a", "#a99bff", "#22c1c3"];
@@ -4019,6 +4057,7 @@
       document.getElementById("tsk_description").value = t ? (t.description || "") : "";
       document.getElementById("tsk_dueDate").value = t ? (t.dueDate || "") : "";
       document.getElementById("tsk_havuz").checked = !!(t && t.havuzda === true);
+      secOncelik(t ? gorevOnceligi(t) : ONCELIK_VARSAYILAN);
       // Başlıktaki açıklama role göre değişir: personel çoklu seçim yapamaz,
       // ona "birden fazla kişi seçebilirsin" demek yanıltıcı olur.
       const lblHint = document.getElementById("tsk_assigneeLabelHint");
@@ -4055,8 +4094,8 @@
         const updates = havuz
           // Havuza geri alınan görevin sahibi de temizlenmeli, yoksa kayıt
           // hem havuzda hem birinin listesinde görünür.
-          ? { title, description, dueDate, havuzda: true, assignees: [], assignedTo: null, alanKisi: null, alinmaTarihi: null }
-          : { title, description, dueDate, havuzda: false, assignees, assignedTo: assignees[0] };
+          ? { title, description, dueDate, oncelik: seciliOncelik, havuzda: true, assignees: [], assignedTo: null, alanKisi: null, alinmaTarihi: null }
+          : { title, description, dueDate, oncelik: seciliOncelik, havuzda: false, assignees, assignedTo: assignees[0] };
         if (t) Object.assign(t, updates);
         closeTaskModal();
         render();
@@ -4077,6 +4116,7 @@
         id: uid(), title, description,
         assignees, assignedTo: havuz ? null : assignees[0],
         havuzda: havuz, alanKisi: null, alinmaTarihi: null,
+        oncelik: seciliOncelik,
         assignedBy: currentStaffId || "admin",
         dueDate, status: "bekliyor", report: null, completedDate: null,
         completedBy: null, created: todayStr()
@@ -4212,7 +4252,11 @@
       // Havuz görevleri kendi sekmesinde durur; "Aktif" listesi yalnızca
       // sahibi belli olan görevleri gösterir, yoksa kişinin listesi
       // üstlenmediği işlerle karışır.
+      // Sıralama: ÖNCE öncelik (çok yıldız üstte), sonra son tarih, sonra
+      // eklenme. Yıldız sıralamayı değiştirmeseydi anlamı kalmazdı.
       const havuzSirala = (a, b) => {
+        const oncelikFarki = gorevOnceligi(b) - gorevOnceligi(a);
+        if (oncelikFarki) return oncelikFarki;
         if (!a.dueDate && !b.dueDate) return new Date(b.created) - new Date(a.created);
         if (!a.dueDate) return 1;
         if (!b.dueDate) return -1;
@@ -4227,12 +4271,7 @@
       const havuzGorevleri = havuzAktifler;
       const sahipliGorevler = filteredTasks.filter(t => !isHavuzGorevi(t));
 
-      const pending = sahipliGorevler.filter(t => t.status !== "tamamlandı").sort((a, b) => {
-        if (!a.dueDate && !b.dueDate) return new Date(b.created) - new Date(a.created);
-        if (!a.dueDate) return 1;
-        if (!b.dueDate) return -1;
-        return new Date(a.dueDate) - new Date(b.dueDate);
-      });
+      const pending = sahipliGorevler.filter(t => t.status !== "tamamlandı").sort(havuzSirala);
       const completed = sahipliGorevler.filter(t => t.status === "tamamlandı")
         .sort((a, b) => new Date(b.completedDate || b.created) - new Date(a.completedDate || a.created));
 
@@ -4314,6 +4353,7 @@
           <div style="font-weight:600;font-size:15px">${escapeHtml(t.title)}</div>
           ${t.description ? `<div style="color:var(--muted);font-size:13px;margin-top:2px">${escapeHtml(t.description)}</div>` : ""}
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
+            ${oncelikRozeti(t)}
             ${statusBadge}
             ${sharedBadge}
             ${(!havuzda && (isTaskAdmin || ortak)) ? `<span style="font-size:12px;color:var(--muted)">${icon('user', 12)} ${escapeHtml(assigneeName)}</span>` : ""}
