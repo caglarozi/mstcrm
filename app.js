@@ -1701,6 +1701,101 @@
       return `<span title="Öncelik: ${ONCELIK_ETIKET[n]}" style="display:inline-flex;align-items:center;gap:1px">${s}</span>`;
     }
 
+    /* ---------- Görev değerlendirmesi (tamamlanınca 5 üzerinden puan) ----------
+     * Ekipteki HER kullanıcı tamamlanmış bir göreve 1-5 puan verebilir.
+     * Herkesin tek oyu vardır ve istediğinde değiştirebilir. Kart ortalamayı
+     * ve oy sayısını gösterir; personel kartında o kişinin ALDIĞI puanların
+     * ortalaması çıkar.
+     *
+     * Oylar { kimlik: puan } haritasında tutulur ve Firestore'a NOKTALI ALAN
+     * YOLUYLA yazılır (degerlendirmeler.<kimlik>). Tüm haritayı geri
+     * yazsaydık, iki kişi aynı anda oy verdiğinde biri diğerinin oyunu
+     * silerdi.
+     */
+    function gorevDegerlendirmeleri(t) {
+      const d = t && t.degerlendirmeler;
+      return (d && typeof d === "object") ? d : {};
+    }
+    function gecerliPuanlar(t) {
+      return Object.values(gorevDegerlendirmeleri(t))
+        .map(Number).filter(n => Number.isFinite(n) && n >= 1 && n <= 5);
+    }
+    function gorevOrtalamaPuan(t) {
+      const p = gecerliPuanlar(t);
+      if (!p.length) return null;
+      return p.reduce((a, b) => a + b, 0) / p.length;
+    }
+    // Oy verirken kullanılan kimlik: personelde ekip kimliği, yöneticide "admin".
+    function degerlendirenKimligi() {
+      if (currentStaffId) return currentStaffId;
+      return currentRole === "admin" ? "admin" : null;
+    }
+    function benimPuanim(t) {
+      const k = degerlendirenKimligi();
+      if (!k) return null;
+      const n = Number(gorevDegerlendirmeleri(t)[k]);
+      return (Number.isFinite(n) && n >= 1 && n <= 5) ? n : null;
+    }
+    function puanRengi(ort) {
+      if (ort === null) return "var(--muted)";
+      if (ort >= 4.5) return "#37c98a";
+      if (ort >= 3.5) return "#4aa8ff";
+      if (ort >= 2.5) return "#f4b740";
+      return "#f2617a";
+    }
+
+    async function puanVer(taskId, puan) {
+      const kim = degerlendirenKimligi();
+      if (!kim) { customAlert("Puan verilemedi", "Hesabınız ekip listesiyle eşleşmediği için değerlendirme yapamıyorsunuz."); return; }
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!t || t.status !== "tamamlandı") return;
+      const n = Math.min(5, Math.max(1, Number(puan) || 0));
+
+      t.degerlendirmeler = Object.assign({}, gorevDegerlendirmeleri(t), { [kim]: n });
+      render();
+      try {
+        // Noktalı alan yolu yalnızca kendi oyumuzu yazar, başkasınınkine
+        // dokunmaz — aynı anda oy verilse ikisi de korunur.
+        await firestore.collection("tasks").doc(taskId).update({ ["degerlendirmeler." + kim]: n });
+      } catch (e) {
+        console.error("Puan verilemedi:", e);
+        alert(dbErrorText(e, "Puan kaydedilemedi"));
+      }
+    }
+
+    function degerlendirmeKutusu(t) {
+      if (t.status !== "tamamlandı") return "";
+      const ort = gorevOrtalamaPuan(t);
+      const oySayisi = gecerliPuanlar(t).length;
+      const benim = benimPuanim(t);
+      const renk = puanRengi(ort);
+      const kim = degerlendirenKimligi();
+
+      const ortalamaSatiri = ort === null
+        ? `<span style="font-size:12px;color:var(--muted)">Henüz puan verilmemiş</span>`
+        : `<span style="display:inline-flex;align-items:center;gap:4px">
+        <b style="font-size:15px;color:${renk}">${ort.toFixed(1).replace(".", ",")}</b>
+        <span style="font-size:11px;color:var(--muted)">/ 5 · ${oySayisi} oy</span>
+      </span>`;
+
+      const benimYildizlar = kim
+        ? [1, 2, 3, 4, 5].map(i =>
+          `<button type="button" class="yildizBtn" onclick="puanVer('${t.id}',${i})" title="${i} puan ver" aria-label="${i} puan ver">${yildizIkon(benim !== null && i <= benim, 20, (benim !== null && i <= benim) ? "#f4b740" : "var(--line)")}</button>`
+        ).join("")
+        : "";
+
+      return `<div style="margin-top:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600">Değerlendirme</div>
+          ${ortalamaSatiri}
+        </div>
+        ${kim ? `<div style="display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--muted)">${benim === null ? "Sen de puan ver:" : "Senin puanın:"}</span>
+          <span style="display:inline-flex;align-items:center">${benimYildizlar}</span>
+        </div>` : ""}
+      </div>`;
+    }
+
     let seciliOncelik = ONCELIK_VARSAYILAN;
     function secOncelik(n) {
       seciliOncelik = Math.min(5, Math.max(1, Number(n) || ONCELIK_VARSAYILAN));
@@ -4381,7 +4476,13 @@
       const overdue = active.filter(t => t.dueDate && new Date(t.dueDate) < today);
       const onTime = done.filter(t => !t.dueDate || (t.completedDate && new Date(t.completedDate) <= new Date(t.dueDate)));
       const pct = tasks.length ? Math.round(done.length / tasks.length * 100) : 0;
-      return { total: tasks.length, done: done.length, active: active.length, overdue: overdue.length, pct, score: done.length * 10 + onTime.length * 5 };
+      // Kişinin ALDIĞI değerlendirme puanlarının ortalaması. Yalnızca oy
+      // almış tamamlanan görevler sayılır; hiç oy yoksa null (— gösterilir),
+      // 0 değil — "puansız" ile "kötü puan" karışmasın.
+      const puanlananlar = done.map(gorevOrtalamaPuan).filter(n => n !== null);
+      const puanOrt = puanlananlar.length
+        ? puanlananlar.reduce((a, b) => a + b, 0) / puanlananlar.length : null;
+      return { total: tasks.length, done: done.length, active: active.length, overdue: overdue.length, pct, score: done.length * 10 + onTime.length * 5, puanOrt, puanlananSayi: puanlananlar.length };
     }
     function viewTasks() {
       const isTaskAdmin = currentRole === "admin";
@@ -4412,6 +4513,7 @@
     ${statCard("Geciken", overall.overdue, overall.overdue ? "var(--red)" : "var(--muted)")}
     ${statCard("Tamamlanan", overall.done, "var(--green)")}
     ${statCard("Başarı", "%" + overall.pct, pctColor)}
+    ${statCard("Değerlendirme", overall.puanOrt === null ? "—" : overall.puanOrt.toFixed(1).replace(".", ",") + " / 5", puanRengi(overall.puanOrt))}
     ${statCard("Toplam Puan", overall.score, "var(--brand-2)")}
   </div>`;
       }
@@ -4508,6 +4610,9 @@
         ${t.ozelestiri ? metinKutusu("Özeleştiri", t.ozelestiri, "#f4b740") : ""}
       </div>`;
         }
+        // Değerlendirme kutusu rapor/özeleştiriden BAĞIMSIZ: ikisi de boş
+        // bırakılmış bir görev de puanlanabilmeli.
+        if (t.status === "tamamlandı") actionArea += degerlendirmeKutusu(t);
 
         // Erteleme geçmişi: bir görev havuzda dönüp duruyorsa sebepleri
         // görmek asıl bilgi. Son sebep açık, öncekiler sayı olarak.
@@ -4582,6 +4687,9 @@
         <span style="color:var(--green)" title="Tamamlanan">${icon('checkCircle', 10)} ${st.done}</span>
       </div>
       <div style="font-size:11px;color:var(--brand-2);font-weight:700;margin-top:4px" title="Başarı puanı: tamamlama 10p + zamanında bitirme 5p">★ ${st.score} puan</div>
+      ${st.puanOrt === null
+          ? `<div style="font-size:10px;color:var(--muted);margin-top:2px" title="Tamamlanan görevlerine henüz kimse puan vermemiş">değerlendirme —</div>`
+          : `<div style="font-size:11px;color:${puanRengi(st.puanOrt)};font-weight:700;margin-top:2px" title="Ekibin bu kişinin tamamladığı işlere verdiği puanların ortalaması (${st.puanlananSayi} görev)">${yildizIkon(true, 10, puanRengi(st.puanOrt))} ${st.puanOrt.toFixed(1).replace(".", ",")} / 5</div>`}
     </div>`;
         };
         html += `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px">${db.staff.map(ringCard).join("")}</div>`;
