@@ -173,7 +173,7 @@
       pesin: { label: "Peşin Kredi Kartı", vatIncluded: true, installments: false }
     };
 
-    let db = { staff: [], authors: [], expenses: [], tasks: [], stock: [], printOrders: [], packageContracts: {} };
+    let db = { staff: [], authors: [], expenses: [], tasks: [], stock: [], printOrders: [], packageContracts: {}, feedback: [] };
     let currentView = "dashboard";
     let filterStatus = "all";
     let filterDate = "all";
@@ -546,6 +546,95 @@
           if (firstLoad) reject(err);
         });
       });
+    }
+
+    /* ---------- Şikayet & Dilek kutusu (ANONİM) ----------
+     * Gönderilerde kimlik bilgisi (staffId/addedBy) BİLEREK tutulmaz —
+     * kim gönderdiği hiçbir yerde kaydedilmez. Silme yalnızca admin. */
+    function loadFeedback() {
+      return new Promise(resolve => {
+        let firstLoad = true;
+        listen(firestore.collection("crm").doc("feedback"), doc => {
+          db.feedback = doc.exists ? (doc.data().items || []) : [];
+          if (firstLoad) { firstLoad = false; resolve(); }
+          else onDataChanged();
+        }, err => {
+          console.error("Şikayet-dilek dinleyici hatası:", err);
+          if (firstLoad) { firstLoad = false; resolve(); }
+        });
+      });
+    }
+    async function mutateFeedback(fn) {
+      const wrapper = { items: db.feedback || [] };
+      fn(wrapper);
+      db.feedback = wrapper.items;
+      render();
+      const ref = firestore.collection("crm").doc("feedback");
+      try {
+        await firestore.runTransaction(async tx => {
+          const doc = await tx.get(ref);
+          const server = { items: doc.exists ? (doc.data().items || []) : [] };
+          fn(server);
+          tx.set(ref, { items: server.items });
+        });
+      } catch (e) {
+        console.error("Kaydetme hatası:", e);
+        alert(dbErrorText(e, "Mesaj kaydedilemedi"));
+      }
+    }
+    function viewFeedback() {
+      const items = (db.feedback || []).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+      let html = `<div class="card settings-card" style="max-width:640px;margin-bottom:16px">
+    <h3 style="margin:0 0 8px;font-size:14px">📮 Şikayet & Dilek Kutusu</h3>
+    <div style="color:var(--muted);font-size:12px;margin-bottom:12px">Buraya yazdıklarınız <b style="color:var(--txt)">tamamen anonimdir</b> — kim gönderdiği hiçbir şekilde kaydedilmez ve kimseye gösterilmez. Çekinmeden yazabilirsiniz.</div>
+    <label>Tür</label>
+    <select id="fb_type">
+      <option value="dilek">💡 Dilek / Öneri</option>
+      <option value="sikayet">⚠️ Şikayet</option>
+    </select>
+    <label style="margin-top:10px">Mesajınız</label>
+    <textarea id="fb_text" rows="4" placeholder="Dileğinizi ya da şikayetinizi yazın..." style="width:100%;resize:vertical"></textarea>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="submitFeedback()">Anonim Olarak Gönder</button>
+    </div>
+  </div>`;
+
+      html += `<div class="card" style="max-width:640px">
+    <h3 style="margin:0 0 12px;font-size:14px">${icon('clock', 15)} Kutudakiler (${items.length})</h3>`;
+      if (!items.length) {
+        html += `<div class="empty">Kutu şimdilik boş.</div>`;
+      } else {
+        html += items.map(f => {
+          const sikayet = f.type === "sikayet";
+          const badge = sikayet
+            ? `<span class="badge" style="background:rgba(242,97,122,.15);color:#f2617a;border:1px solid rgba(242,97,122,.4)">⚠️ Şikayet</span>`
+            : `<span class="badge" style="background:rgba(74,168,255,.15);color:#4aa8ff;border:1px solid rgba(74,168,255,.4)">💡 Dilek</span>`;
+          const delBtn = currentRole === "admin" ? `<button class="btn ghost" style="padding:4px 8px" onclick="delFeedback('${f.id}')" title="Sil">${icon('trash', 13)}</button>` : "";
+          return `<div style="padding:12px 0;border-bottom:1px dashed var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:8px">${badge}<span style="color:var(--muted);font-size:11px">${fmtDate(f.date)}</span></div>
+          ${delBtn}
+        </div>
+        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escapeHtml(f.text)}</div>
+      </div>`;
+        }).join("");
+      }
+      html += `</div>`;
+      return html;
+    }
+    async function submitFeedback() {
+      const type = document.getElementById("fb_type").value;
+      const text = document.getElementById("fb_text").value.trim();
+      if (!text) { alert("Mesaj boş olamaz."); return; }
+      // Kimlik bilgisi bilerek eklenmiyor — gönderi anonim.
+      const entry = { id: uid(), type, text, date: todayStr() };
+      await mutateFeedback(d => { if (!d.items.some(x => x.id === entry.id)) d.items.push(entry); });
+      customAlert("Teşekkürler! 📮", "Mesajınız kutuya anonim olarak bırakıldı.");
+    }
+    async function delFeedback(id) {
+      if (currentRole !== "admin") return;
+      if (!(await customConfirm("Bu mesaj kutudan silinsin mi?", "Evet, Sil"))) return;
+      await mutateFeedback(d => { d.items = d.items.filter(x => x.id !== id); });
     }
 
     /* ---------- Güncelleme (bakım) modu ----------
@@ -1261,7 +1350,7 @@
       db.stock = db.stock || [];
       db.printOrders = db.printOrders || [];
       db.packageContracts = db.packageContracts || {};
-      await Promise.all([loadStaff(), loadAuthors(), loadExpenses(), loadTasks(), loadStock(), loadPrintOrders(), loadPackageContracts(), loadMaintenance()]);
+      await Promise.all([loadStaff(), loadAuthors(), loadExpenses(), loadTasks(), loadStock(), loadPrintOrders(), loadPackageContracts(), loadMaintenance(), loadFeedback()]);
     }
 
     // Firestore hatasını kullanıcıya anlaşılır bir cümleye çevirir. Önceden
@@ -1856,6 +1945,7 @@
       tasks: "Görevler",
       stock: "Dahiliye Stok",
       matbaa: "Matbaa",
+      feedback: "Şikayet & Dilek",
       settings: "Ayarlar"
     };
 
@@ -1945,7 +2035,7 @@
       // Arama çubuğu ve buton gösterimi
       const searchInput = document.getElementById("search");
       const searchWrap = document.getElementById("searchWrap");
-      if (currentView === "dashboard" || currentView === "settings" || currentView === "muhasebe" || currentView === "tasks" || currentView === "stock" || currentView === "matbaa") {
+      if (currentView === "dashboard" || currentView === "settings" || currentView === "muhasebe" || currentView === "tasks" || currentView === "stock" || currentView === "matbaa" || currentView === "feedback") {
         searchWrap.style.display = "none";
       } else {
         searchWrap.style.display = "block";
@@ -1979,6 +2069,7 @@
       else if (currentView === "matbaa") c.innerHTML = viewMatbaa();
       else if (currentView === "followups") c.innerHTML = viewFollowups();
       else if (currentView === "team") { c.innerHTML = viewTeam(); if (currentRole === "admin") setTimeout(loadPendingUsers, 0); }
+      else if (currentView === "feedback") c.innerHTML = viewFeedback();
       else if (currentView === "settings") { c.innerHTML = viewSettings(); if (currentRole === "admin") setTimeout(loadUserManagement, 0); }
       c.classList.add("view-enter");
     }
