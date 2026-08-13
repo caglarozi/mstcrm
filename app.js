@@ -3089,9 +3089,30 @@
             const remaining = authorsRenderLimit - rendered;
             const dateAuthors = groups[date].slice(0, remaining);
             htmlOutput += `<h2 style="margin: 24px 0 12px; color: var(--blue); font-size: 16px; border-bottom: 1px solid rgba(74, 168, 255, 0.3); padding-bottom: 8px;">${icon('calendar', 15)} ${date} Tarihli İşlemler</h2>`;
-            htmlOutput += `<div class="grid authors">`;
-            htmlOutput += dateAuthors.map(authorCard).join("");
-            htmlOutput += `</div>`;
+            // O gün telefonla aranıp AÇMAYANLAR sağda ayrı sütunda toplanır;
+            // solda görüşülenler (ve o gün eklenen diğer kayıtlar) kalır.
+            const acmayanlar = [], gorusulenler = [];
+            dateAuthors.forEach(a => {
+              const dayCalls = (a.logs || []).filter(l => l.date === date && l.type === "Telefon");
+              const hepAcmadi = dayCalls.length > 0 && dayCalls.every(l => UNREACHED_CALL_RE.test(l.text || ""));
+              (hepAcmadi ? acmayanlar : gorusulenler).push(a);
+            });
+            if (acmayanlar.length) {
+              htmlOutput += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start">`;
+              htmlOutput += `<div>
+                <h3 style="margin:0 0 10px;font-size:14px;color:#37c98a;display:flex;align-items:center;gap:6px">${icon('checkCircle', 14)} Görüşülenler (${gorusulenler.length})</h3>
+                <div style="display:flex;flex-direction:column;gap:12px">${gorusulenler.map(authorCard).join("")}</div>
+              </div>`;
+              htmlOutput += `<div>
+                <h3 style="margin:0 0 10px;font-size:14px;color:#f2617a;display:flex;align-items:center;gap:6px">📵 Açmayanlar (${acmayanlar.length})</h3>
+                <div style="display:flex;flex-direction:column;gap:12px">${acmayanlar.map(authorCard).join("")}</div>
+              </div>`;
+              htmlOutput += `</div>`;
+            } else {
+              htmlOutput += `<div class="grid authors">`;
+              htmlOutput += dateAuthors.map(authorCard).join("");
+              htmlOutput += `</div>`;
+            }
             rendered += dateAuthors.length;
           }
           if (rendered < totalInScope) {
@@ -3209,11 +3230,23 @@
     <div class="tags">${(a.genres || []).map(g => `<span class="tag">${escapeHtml(g)}</span>`).join("")}</div>
     <div class="meta-row">
       <div class="temp" title="İlgi düzeyi">${temp}</div>
-      <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">${fl} ${waBtn(a.phone)}</div>
+      <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">${["aday", "gorusuluyor", "degerlendirme", "eseryaziyor"].includes(a.status) ? `<button class="btn ghost" style="padding:3px 8px;font-size:11px;border-color:rgba(242,97,122,.4);color:#f2617a;white-space:nowrap" onclick="markNoAnswer('${a.id}')" title="Bugün arandı, açmadı; mesaj iletildi olarak kaydet">📵 Açmadı</button>` : ""}${fl} ${waBtn(a.phone)}</div>
     </div>
     </div>
     </div>
   </div>`;
+    }
+
+    // Tek tıkla "arandı ama açmadı, mesaj iletildi" görüşme kaydı düşer.
+    // Metin, ulaşılamayan arama tespitiyle (UNREACHED_CALL_RE) uyumludur —
+    // kart o günün bölümünde "Açmayanlar" sütununa geçer.
+    async function markNoAnswer(id) {
+      const entry = { type: "Telefon", date: todayStr(), time: null, text: "Açmadı, mesaj iletildi", staffId: currentStaffId || null };
+      await mutateAuthor(id, a => {
+        a.logs = a.logs || [];
+        if (!a.logs.some(l => l.date === entry.date && l.text === entry.text)) a.logs.push(entry);
+      });
+      render();
     }
 
     function setFilter(s) { filterStatus = s; authorsRenderLimit = 60; render(); }
