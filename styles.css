@@ -1097,6 +1097,31 @@
       font-weight: 600;
     }
 
+    /* "Havuza bırak" anahtarı — kişi seçicinin hemen üstünde durur. Mor,
+       çünkü havuza ait her şey (rozet, sekme, buton) bu rengi kullanıyor. */
+    label.havuzToggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 10px;
+      padding: 8px 12px;
+      border: 1px dashed #a78bfa;
+      border-radius: 10px;
+      background: rgba(167, 139, 250, .08);
+      color: var(--txt);
+      font-size: 12.5px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    label.havuzToggle input[type="checkbox"] {
+      width: auto;
+      flex: none;
+      margin: 0;
+      padding: 0;
+      accent-color: #a78bfa;
+    }
+
     input,
     select,
     textarea {

@@ -378,12 +378,22 @@
           if (!b.dueDate) return -1;
           return new Date(a.dueDate) - new Date(b.dueDate);
         });
+      // Havuzdaki görevler kimseye atanmadığı için myPending'e girmez;
+      // ayrı bir satırla duyurulur ki listesi boş olan biri de havuzu görsün.
+      const havuzSayisi = (db.tasks || []).filter(isHavuzGorevi).length;
+      const havuzSatiri = havuzSayisi
+        ? `<div class="notifItem" onclick="closeTaskNotifDropdown();goToTasksView();" style="padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:2px;border:1px dashed #a78bfa">
+      <div style="font-size:13px;font-weight:600;color:#a78bfa">${icon('users', 12)} Havuzda ${havuzSayisi} görev bekliyor</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">Üstlenmek için dokun</div>
+    </div>` : "";
+
       if (!myPending.length) {
-        dd.innerHTML = `<div style="padding:20px 12px;text-align:center;color:var(--muted);font-size:12px">Bekleyen görevin yok.</div>`;
+        dd.innerHTML = havuzSatiri ||
+          `<div style="padding:20px 12px;text-align:center;color:var(--muted);font-size:12px">Bekleyen görevin yok.</div>`;
         return;
       }
       const today = new Date(); today.setHours(0, 0, 0, 0);
-      dd.innerHTML = myPending.map(t => {
+      dd.innerHTML = havuzSatiri + myPending.map(t => {
         let dueText = "";
         if (t.dueDate) {
           const days = Math.round((new Date(t.dueDate) - today) / 864e5);
@@ -1108,8 +1118,10 @@
     // tarayıcı ikisini tek bildirimde birleştirir.
     function notifyNewTask(task) {
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+      // Havuz görevi kimseye atanmadı — "sana görev atandı" demek yanlış olur.
+      const baslik = isHavuzGorevi(task) ? "Havuza yeni görev eklendi" : "Yeni görev atandı";
       try {
-        new Notification("Yeni görev atandı", {
+        new Notification(baslik, {
           body: task.title + (task.dueDate ? ` — Son tarih: ${fmtDate(task.dueDate)}` : ""),
           icon: "logo.jpeg",
           tag: "task_" + (task.id || "")
@@ -1150,7 +1162,7 @@
                 if (!wasCompleted && data.status === "tamamlandı" && currentRole === "admin") notifyTaskCompleted(data);
               } else {
                 db.tasks.unshift(data);
-                if (change.type === "added" && isTaskFor(data, currentStaffId)) notifyNewTask(data);
+                if (change.type === "added" && (isTaskFor(data, currentStaffId) || isHavuzGorevi(data))) notifyNewTask(data);
               }
             });
           }
@@ -1847,7 +1859,9 @@
         // adı/rol değişiklikleri yüzünden güvenilmez olduğundan kaldırıldı.)
         const badgeCount = currentRole === "admin"
           ? (db.tasks || []).filter(t => t.status === "tamamlandı" && t.completionSeen !== true).length
-          : (db.tasks || []).filter(t => isTaskFor(t, currentStaffId) && t.status !== "tamamlandı").length;
+          // Havuzdaki görevler de sayılır: kimse fark etmezse havuz öylece
+          // bekler — rozetin işi zaten "bakılacak iş var" demek.
+          : (db.tasks || []).filter(t => (isTaskFor(t, currentStaffId) && t.status !== "tamamlandı") || isHavuzGorevi(t)).length;
         if (badgeCount > 0) {
           badge.textContent = badgeCount > 9 ? "9+" : String(badgeCount);
           badge.style.display = "flex";
@@ -3760,6 +3774,64 @@
       return names.length ? names.join(", ") : "—";
     }
 
+    /* ---------- Görev havuzu ----------
+     * Kimseye atanmamış görevler havuzda bekler; personel oradan kendine
+     * görev ALIR. Havuzdaki görevin assignees'i BOŞTUR — bu yüzden
+     * isTaskFor() ona false döner ve normal görünürlük süzgecine takılmaz;
+     * havuz görevleri listelere ayrıca eklenir (bkz. viewTasks).
+     *
+     * Görev alma İŞLEM (transaction) ile yapılır: iki kişi aynı anda
+     * "Görevi Al" derse ikisi de alamaz, ilki kazanır. Basit bir update
+     * kullanılsaydı iki kişi aynı görevi üstlenmiş sanıp aynı işi iki kez
+     * yapardı.
+     */
+    function isHavuzGorevi(t) {
+      return !!t && t.havuzda === true && t.status !== "tamamlandı";
+    }
+
+    async function gorevAl(taskId) {
+      const benim = currentStaffId;
+      if (!benim) { customAlert("Görev alınamadı", "Hesabınız ekip listesiyle eşleşmediği için görev alamıyorsunuz. Yöneticinize bildirin."); return; }
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!(await customConfirm(`"${t ? t.title : "Bu görev"}" görevini üstleniyor musun?\n\nGörev havuzdan çıkıp senin listene geçecek.`, "Evet, Görevi Al"))) return;
+
+      const ref = firestore.collection("tasks").doc(taskId);
+      const alinma = { havuzda: false, assignees: [benim], assignedTo: benim, alanKisi: benim, alinmaTarihi: todayStr() };
+      try {
+        await firestore.runTransaction(async tx => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) throw new Error("YOK");
+          if (snap.data().havuzda !== true) throw new Error("ALINMIS");
+          tx.update(ref, alinma);
+        });
+        if (t) Object.assign(t, alinma);
+        render();
+      } catch (e) {
+        if (e.message === "ALINMIS") {
+          customAlert("Görev başkasına gitti", "Bu görevi az önce başka biri aldı. Havuz listesi yenilendi.");
+        } else if (e.message === "YOK") {
+          customAlert("Görev bulunamadı", "Bu görev silinmiş olabilir.");
+        } else {
+          console.error("Görev alma hatası:", e);
+          alert(dbErrorText(e, "Görev alınamadı"));
+        }
+      }
+    }
+
+    async function havuzaBirak(taskId) {
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!(await customConfirm(`"${t ? t.title : "Bu görev"}" havuza geri bırakılsın mı?\n\nGörev kimseye atanmamış hale gelir, başka biri alabilir.`, "Evet, Bırak"))) return;
+      const geri = { havuzda: true, assignees: [], assignedTo: null, alanKisi: null, alinmaTarihi: null };
+      if (t) Object.assign(t, geri);
+      render();
+      try {
+        await firestore.collection("tasks").doc(taskId).update(geri);
+      } catch (e) {
+        console.error("Havuza bırakma hatası:", e);
+        alert(dbErrorText(e, "Görev havuza bırakılamadı"));
+      }
+    }
+
     function renderAssigneePicker(selectedIds) {
       const box = document.getElementById("tsk_assignees");
       if (!box) return;
@@ -3782,9 +3854,33 @@
       return Array.from(document.querySelectorAll("#tsk_assignees input[type=checkbox]"))
         .filter(c => c.checked).map(c => c.value);
     }
+    function havuzSecili() {
+      const el = document.getElementById("tsk_havuz");
+      return !!(el && el.checked);
+    }
+    // Havuz açıkken kişi seçimi anlamsız — seçiciyi soluklaştırıp
+    // tıklanamaz yapıyoruz ki çelişkili bir görev kaydedilemesin.
+    function onHavuzToggle() {
+      const box = document.getElementById("tsk_assignees");
+      const acik = havuzSecili();
+      if (box) {
+        box.style.opacity = acik ? ".4" : "";
+        box.style.pointerEvents = acik ? "none" : "";
+        if (acik) box.querySelectorAll("input[type=checkbox]").forEach(c => {
+          c.checked = false;
+          const chip = c.closest("label"); if (chip) chip.classList.remove("selected");
+        });
+      }
+      updateAssigneeHint();
+    }
     function updateAssigneeHint() {
       const el = document.getElementById("tsk_assigneeHint");
       if (!el) return;
+      if (havuzSecili()) {
+        el.className = "assigneeHint ortak";
+        el.textContent = "Havuz görevi — kimseye atanmayacak. Herkes görür, ilk üstlenen kendi listesine alır.";
+        return;
+      }
       const n = selectedAssignees().length;
       if (n > 1) {
         el.className = "assigneeHint ortak";
@@ -3802,7 +3898,9 @@
       document.getElementById("tsk_title").value = t ? t.title : "";
       document.getElementById("tsk_description").value = t ? (t.description || "") : "";
       document.getElementById("tsk_dueDate").value = t ? (t.dueDate || "") : "";
+      document.getElementById("tsk_havuz").checked = !!(t && t.havuzda === true);
       renderAssigneePicker(t ? taskAssignees(t) : []);
+      onHavuzToggle();   // seçiciyi havuz durumuna göre aç/kapat
       document.getElementById("taskModal").classList.add("open");
     }
     function closeTaskModal() { document.getElementById("taskModal").classList.remove("open"); }
@@ -3810,15 +3908,20 @@
       const taskId = document.getElementById("tsk_id").value;
       const title = document.getElementById("tsk_title").value.trim();
       if (!title) { alert("Başlık zorunlu."); return; }
-      const assignees = selectedAssignees();
-      if (!assignees.length) { alert("Görevin kime atanacağını seç (en az bir kişi)."); return; }
+      const havuz = havuzSecili();
+      const assignees = havuz ? [] : selectedAssignees();
+      if (!havuz && !assignees.length) { alert("Görevin kime atanacağını seç — ya da 'Havuza bırak' işaretle."); return; }
       const description = document.getElementById("tsk_description").value.trim();
       const dueDate = document.getElementById("tsk_dueDate").value || null;
 
       if (taskId) {
         const t = db.tasks.find(x => x.id === taskId);
         const oncekiAtananlar = taskAssignees(t);
-        const updates = { title, description, assignees, assignedTo: assignees[0], dueDate };
+        const updates = havuz
+          // Havuza geri alınan görevin sahibi de temizlenmeli, yoksa kayıt
+          // hem havuzda hem birinin listesinde görünür.
+          ? { title, description, dueDate, havuzda: true, assignees: [], assignedTo: null, alanKisi: null, alinmaTarihi: null }
+          : { title, description, dueDate, havuzda: false, assignees, assignedTo: assignees[0] };
         if (t) Object.assign(t, updates);
         closeTaskModal();
         render();
@@ -3837,7 +3940,8 @@
 
       const task = {
         id: uid(), title, description,
-        assignees, assignedTo: assignees[0],
+        assignees, assignedTo: havuz ? null : assignees[0],
+        havuzda: havuz, alanKisi: null, alinmaTarihi: null,
         assignedBy: currentStaffId || "admin",
         dueDate, status: "bekliyor", report: null, completedDate: null,
         completedBy: null, created: todayStr()
@@ -3847,7 +3951,10 @@
       render();
       try {
         await firestore.collection("tasks").doc(task.id).set(task);
-        sendTaskPush(task); // beklenmez (fire-and-forget) — kayıt akışını yavaşlatmasın
+        // Havuz görevinin atananı yok — kimse haberdar olmazsa havuzda
+        // öylece bekler. O yüzden bildirim TÜM personele gider.
+        // beklenmez (fire-and-forget) — kayıt akışını yavaşlatmasın
+        sendTaskPush(task, havuz ? (db.staff || []).map(s => s.id) : undefined);
       } catch (e) {
         console.error("Kaydetme hatası:", e);
         alert(dbErrorText(e, "Görev kaydedilemedi"));
@@ -3923,7 +4030,11 @@
     }
     function viewTasks() {
       const isTaskAdmin = currentRole === "admin";
-      const relevantTasks = isTaskAdmin ? db.tasks : db.tasks.filter(t => isTaskFor(t, currentStaffId));
+      // Havuz görevleri kimseye atanmadığı için isTaskFor süzgecine takılmaz;
+      // herkesin görmesi gerektiğinden ayrıca ekleniyor.
+      const relevantTasks = isTaskAdmin
+        ? db.tasks
+        : db.tasks.filter(t => isTaskFor(t, currentStaffId) || isHavuzGorevi(t));
 
       let html = "";
       if (isTaskAdmin) {
@@ -3960,13 +4071,24 @@
         ? relevantTasks.filter(t => isTaskFor(t, selectedTaskStaffId))
         : relevantTasks;
 
-      const pending = filteredTasks.filter(t => t.status !== "tamamlandı").sort((a, b) => {
+      // Havuz görevleri kendi sekmesinde durur; "Aktif" listesi yalnızca
+      // sahibi belli olan görevleri gösterir, yoksa kişinin listesi
+      // üstlenmediği işlerle karışır.
+      const havuzGorevleri = filteredTasks.filter(isHavuzGorevi).sort((a, b) => {
         if (!a.dueDate && !b.dueDate) return new Date(b.created) - new Date(a.created);
         if (!a.dueDate) return 1;
         if (!b.dueDate) return -1;
         return new Date(a.dueDate) - new Date(b.dueDate);
       });
-      const completed = filteredTasks.filter(t => t.status === "tamamlandı")
+      const sahipliGorevler = filteredTasks.filter(t => !isHavuzGorevi(t));
+
+      const pending = sahipliGorevler.filter(t => t.status !== "tamamlandı").sort((a, b) => {
+        if (!a.dueDate && !b.dueDate) return new Date(b.created) - new Date(a.created);
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate) - new Date(b.dueDate);
+      });
+      const completed = sahipliGorevler.filter(t => t.status === "tamamlandı")
         .sort((a, b) => new Date(b.completedDate || b.created) - new Date(a.completedDate || a.created));
 
       const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -3991,12 +4113,20 @@
           ? `<span class="badge" style="background:rgba(55,201,138,.15);color:#37c98a">${icon('checkCircle', 12)} Tamamlandı${ortak && doneByName ? ' — ' + escapeHtml(doneByName) : ''}</span>`
           : `<span class="badge" style="background:rgba(244,183,64,.15);color:#f4b740">${icon('clock', 12)} Bekliyor</span>`;
 
-        const sharedBadge = ortak
-          ? `<span class="badge" style="background:rgba(59,130,246,.15);color:var(--brand-2)">${icon('users', 12)} Ortak görev • ${taskAssignees(t).length} kişi</span>`
-          : "";
+        const havuzda = isHavuzGorevi(t);
+        const sharedBadge = havuzda
+          ? `<span class="badge" style="background:rgba(167,139,250,.18);color:#a78bfa">${icon('users', 12)} Havuzda — sahibi yok</span>`
+          : ortak
+            ? `<span class="badge" style="background:rgba(59,130,246,.15);color:var(--brand-2)">${icon('users', 12)} Ortak görev • ${taskAssignees(t).length} kişi</span>`
+            : "";
 
         let actionArea = "";
-        if (t.status !== "tamamlandı" && isTaskFor(t, currentStaffId)) {
+        if (havuzda) {
+          // Havuzdaki göreve rapor kutusu koymuyoruz: önce üstlenilmeli.
+          actionArea = currentStaffId
+            ? `<div style="margin-top:10px"><button class="btn" style="width:100%;background:rgba(167,139,250,.18);border-color:#a78bfa;color:#a78bfa" onclick="gorevAl('${t.id}')">${icon('checkCircle', 14)} Bu Görevi Al</button></div>`
+            : `<div style="margin-top:10px;font-size:12px;color:var(--muted)">Havuzdan görev almak için ekip listesinde tanımlı bir personel hesabı gerekir.</div>`;
+        } else if (t.status !== "tamamlandı" && isTaskFor(t, currentStaffId)) {
           actionArea = `<div style="margin-top:10px">
         <textarea id="tsk_report_${t.id}" placeholder="Tamamlandığında kısa bir rapor yaz (opsiyonel)..." style="min-height:60px"></textarea>
         <button class="btn" style="margin-top:6px" onclick="completeTask('${t.id}')">${icon('checkCircle', 14)} Tamamlandı Olarak İşaretle</button>
@@ -4010,6 +4140,10 @@
 
         const editBtn = (isTaskAdmin && t.status !== "tamamlandı") ? `<button class="btn ghost" style="padding:6px 8px" onclick="openTaskModal('${t.id}')" title="Düzenle">${icon('edit', 13)}</button>` : "";
         const deleteBtn = isTaskAdmin ? `<button class="btn ghost" style="padding:6px 8px;color:var(--red)" onclick="deleteTask('${t.id}')" title="Sil">${icon('trash', 13)}</button>` : "";
+        // Havuzdan alınan bir görev yanlışlıkla üstlenilmiş olabilir ya da
+        // kişinin işi çıkabilir — sahibi (ve admin) havuza geri bırakabilsin.
+        const birakBtn = (!havuzda && t.alanKisi && t.status !== "tamamlandı" && (isTaskAdmin || t.alanKisi === currentStaffId))
+          ? `<button class="btn ghost" style="padding:6px 8px;color:#a78bfa" onclick="havuzaBirak('${t.id}')" title="Havuza geri bırak">${icon('users', 13)}</button>` : "";
 
         return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
@@ -4019,11 +4153,12 @@
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
             ${statusBadge}
             ${sharedBadge}
-            ${(isTaskAdmin || ortak) ? `<span style="font-size:12px;color:var(--muted)">${icon('user', 12)} ${escapeHtml(assigneeName)}</span>` : ""}
+            ${(!havuzda && (isTaskAdmin || ortak)) ? `<span style="font-size:12px;color:var(--muted)">${icon('user', 12)} ${escapeHtml(assigneeName)}</span>` : ""}
+            ${t.alanKisi && !havuzda ? `<span style="font-size:11px;color:#a78bfa">havuzdan aldı${t.alinmaTarihi ? ' • ' + fmtDate(t.alinmaTarihi) : ''}</span>` : ""}
             ${dueBadge}
           </div>
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">${editBtn}${deleteBtn}</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">${birakBtn}${editBtn}${deleteBtn}</div>
       </div>
       ${actionArea}
     </div>`;
@@ -4065,14 +4200,15 @@
 
       html += `<div class="toolbar" style="gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
     <span class="pill ${taskTab === 'aktif' ? 'active' : ''}" style="${taskTab === 'aktif' ? 'background:rgba(244,183,64,.15);border-color:#f4b740;color:#f4b740' : ''}" onclick="setTaskTab('aktif')">${icon('clock', 13)} Aktif (${pending.length})</span>
+    <span class="pill ${taskTab === 'havuz' ? 'active' : ''}" style="${taskTab === 'havuz' ? 'background:rgba(167,139,250,.18);border-color:#a78bfa;color:#a78bfa' : (havuzGorevleri.length ? 'border-color:#a78bfa;color:#a78bfa' : '')}" onclick="setTaskTab('havuz')">${icon('users', 13)} Havuz (${havuzGorevleri.length})</span>
     <span class="pill ${taskTab === 'tamamlanan' ? 'active' : ''}" style="${taskTab === 'tamamlanan' ? 'background:rgba(55,201,138,.15);border-color:#37c98a;color:#37c98a' : ''}" onclick="setTaskTab('tamamlanan')">${icon('checkCircle', 13)} Tamamlanan (${completed.length})</span>
     ${isTaskAdmin && selectedTaskStaffId ? `<span class="pill" style="border-color:var(--brand-2);color:var(--brand-2)" onclick="selectTaskStaff('${selectedTaskStaffId}')">${escapeHtml(staffName(selectedTaskStaffId) || "")} ✕</span>` : ""}
   </div>`;
 
-      const list = taskTab === "aktif" ? pending : completed;
+      const list = taskTab === "aktif" ? pending : taskTab === "havuz" ? havuzGorevleri : completed;
       const emptyMsg = isTaskAdmin && selectedTaskStaffId
-        ? (taskTab === "aktif" ? "Bu personelin aktif görevi yok." : "Bu personelin tamamlanan görevi yok.")
-        : (taskTab === "aktif" ? "Aktif görev yok." : "Henüz tamamlanan görev yok.");
+        ? (taskTab === "aktif" ? "Bu personelin aktif görevi yok." : taskTab === "havuz" ? "Havuzda görev yok." : "Bu personelin tamamlanan görevi yok.")
+        : (taskTab === "aktif" ? "Aktif görev yok." : taskTab === "havuz" ? "Havuzda bekleyen görev yok." : "Henüz tamamlanan görev yok.");
       html += list.length ? list.map(taskCard).join("") : `<div class="empty">${emptyMsg}</div>`;
 
       return html;
