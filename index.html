@@ -788,6 +788,24 @@
     </div>
   </div>
 
+  <!-- GÖREV ERTELEME MODAL -->
+  <div class="modal" id="erteleModal" onclick="closeErteleModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2>Görevi Ertele</h2>
+      <div id="ertele_baslik" style="color:var(--muted);font-size:13px;margin:-10px 0 14px"></div>
+      <input type="hidden" id="ertele_id">
+      <label>Sebep <span style="color:var(--red)">*</span></label>
+      <textarea id="ertele_sebep" placeholder="Neden şimdi yapılamıyor? (zorunlu)" style="min-height:70px"></textarea>
+      <label>Bu tarihe kadar beklesin (opsiyonel)</label>
+      <input type="date" id="ertele_tarih" onchange="erteleIpucuGuncelle()">
+      <div id="ertele_ipucu" class="assigneeHint"></div>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeErteleModal()">Vazgeç</button>
+        <button class="btn" onclick="erteleKaydet()">Ertele ve Havuza Bırak</button>
+      </div>
+    </div>
+  </div>
+
   <!-- BOOK MODAL -->
   <div class="modal" id="bookModal" onclick="closeBookModal()">
     <div class="box" onclick="event.stopPropagation()">

@@ -380,7 +380,7 @@
         });
       // Havuzdaki görevler kimseye atanmadığı için myPending'e girmez;
       // ayrı bir satırla duyurulur ki listesi boş olan biri de havuzu görsün.
-      const havuzSayisi = (db.tasks || []).filter(isHavuzGorevi).length;
+      const havuzSayisi = (db.tasks || []).filter(havuzdaAktif).length;
       const havuzSatiri = havuzSayisi
         ? `<div class="notifItem" onclick="closeTaskNotifDropdown();goToTasksView();" style="padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:2px;border:1px dashed #a78bfa">
       <div style="font-size:13px;font-weight:600;color:#a78bfa">${icon('users', 12)} Havuzda ${havuzSayisi} görev bekliyor</div>
@@ -1162,7 +1162,7 @@
                 if (!wasCompleted && data.status === "tamamlandı" && currentRole === "admin") notifyTaskCompleted(data);
               } else {
                 db.tasks.unshift(data);
-                if (change.type === "added" && (isTaskFor(data, currentStaffId) || isHavuzGorevi(data))) notifyNewTask(data);
+                if (change.type === "added" && (isTaskFor(data, currentStaffId) || havuzdaAktif(data))) notifyNewTask(data);
               }
             });
           }
@@ -1861,7 +1861,9 @@
           ? (db.tasks || []).filter(t => t.status === "tamamlandı" && t.completionSeen !== true).length
           // Havuzdaki görevler de sayılır: kimse fark etmezse havuz öylece
           // bekler — rozetin işi zaten "bakılacak iş var" demek.
-          : (db.tasks || []).filter(t => (isTaskFor(t, currentStaffId) && t.status !== "tamamlandı") || isHavuzGorevi(t)).length;
+          // Ertelenmiş havuz görevi rozete sayılmaz — tarihi gelmeden
+          // yapılacak iş değil, sayılırsa rozet hep dolu kalır.
+          : (db.tasks || []).filter(t => (isTaskFor(t, currentStaffId) && t.status !== "tamamlandı") || havuzdaAktif(t)).length;
         if (badgeCount > 0) {
           badge.textContent = badgeCount > 9 ? "9+" : String(badgeCount);
           badge.style.display = "flex";
@@ -3789,6 +3791,36 @@
       return !!t && t.havuzda === true && t.status !== "tamamlandı";
     }
 
+    /* ---------- Erteleme ----------
+     * Havuzdan alınan (ya da havuzda duran) bir görev SEBEBİ yazılarak
+     * ertelenebilir; görev havuza geri düşer. Tarih verilirse o güne kadar
+     * "beklemede" kalır: aktif havuz listesini, yan menü rozetini ve
+     * bildirim listesini meşgul etmez, tarihi gelince kendiliğinden aktif
+     * havuza döner (ayrı bir zamanlanmış işe gerek yok — sadece tarih
+     * karşılaştırması).
+     *
+     * Sebep ZORUNLU: bir görev havuzda dolaşıp duruyorsa sebebini görmek
+     * (dosya yok / yetki yok / yoğunluk) asıl bilgidir. Geçmiş
+     * ertelemeGecmisi'nde birikir, kartta gösterilir.
+     */
+    function ertelenmisMi(t) {
+      return isHavuzGorevi(t) && !!t.ertelemeTarihi && t.ertelemeTarihi > todayStr();
+    }
+    // Şu an üstlenilebilir havuz görevi (ertelenmişler hariç).
+    function havuzdaAktif(t) {
+      return isHavuzGorevi(t) && !ertelenmisMi(t);
+    }
+    // Ertelenebilir mi? Elimdeki görevi ben (ya da yönetici) erteleyebilirim.
+    // Havuzda ÖYLECE duran görevi yalnızca yönetici erteleyebilir — yoksa bir
+    // kişi kimsenin göremeyeceği şekilde işi ileri atabilirdi.
+    function ertelenebilirMi(t) {
+      if (!t || t.status === "tamamlandı") return false;
+      if (currentRole === "admin") return true;
+      if (!currentStaffId) return false;
+      if (isHavuzGorevi(t)) return false;
+      return isTaskFor(t, currentStaffId);
+    }
+
     // Personel kendi eklediği görevi düzeltebilsin/silebilsin (yazım hatası,
     // yanlışlıkla eklenmiş görev). AMA havuza bıraktığı görevi başkası
     // üstlendiyse artık dokunamaz — çalışılan işi altından çekmesin.
@@ -3808,7 +3840,8 @@
       if (!(await customConfirm(`"${t ? t.title : "Bu görev"}" görevini üstleniyor musun?\n\nGörev havuzdan çıkıp senin listene geçecek.`, "Evet, Görevi Al"))) return;
 
       const ref = firestore.collection("tasks").doc(taskId);
-      const alinma = { havuzda: false, assignees: [benim], assignedTo: benim, alanKisi: benim, alinmaTarihi: todayStr() };
+      // Görev üstlenilince erteleme beklemesi biter (geçmişi kalır).
+      const alinma = { havuzda: false, assignees: [benim], assignedTo: benim, alanKisi: benim, alinmaTarihi: todayStr(), ertelemeTarihi: null };
       try {
         await firestore.runTransaction(async tx => {
           const snap = await tx.get(ref);
@@ -3830,17 +3863,64 @@
       }
     }
 
-    async function havuzaBirak(taskId) {
+    function openErteleModal(taskId) {
       const t = db.tasks.find(x => x.id === taskId);
-      if (!(await customConfirm(`"${t ? t.title : "Bu görev"}" havuza geri bırakılsın mı?\n\nGörev kimseye atanmamış hale gelir, başka biri alabilir.`, "Evet, Bırak"))) return;
-      const geri = { havuzda: true, assignees: [], assignedTo: null, alanKisi: null, alinmaTarihi: null };
-      if (t) Object.assign(t, geri);
+      if (!t) return;
+      document.getElementById("ertele_id").value = taskId;
+      document.getElementById("ertele_baslik").textContent = t.title || "";
+      document.getElementById("ertele_sebep").value = "";
+      document.getElementById("ertele_tarih").value = "";
+      // Bugün ve öncesi seçilemesin: geçmişe erteleme anlamsız, seçilirse
+      // görev zaten "beklemiyor" sayılır ve kullanıcı erteleyememiş olur.
+      document.getElementById("ertele_tarih").min = gunEkleStr(todayStr(), 1);
+      erteleIpucuGuncelle();
+      document.getElementById("erteleModal").classList.add("open");
+    }
+    function closeErteleModal() { document.getElementById("erteleModal").classList.remove("open"); }
+    function gunEkleStr(tarih, gun) {
+      const d = new Date(tarih + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + gun);
+      return d.toISOString().slice(0, 10);
+    }
+    function erteleIpucuGuncelle() {
+      const el = document.getElementById("ertele_ipucu");
+      if (!el) return;
+      const tarih = document.getElementById("ertele_tarih").value;
+      if (tarih) {
+        el.className = "assigneeHint ortak";
+        el.textContent = `Görev havuza düşecek ama ${fmtDate(tarih)} tarihine kadar "beklemede" kalacak; o gün aktif havuza gelir.`;
+      } else {
+        el.className = "assigneeHint";
+        el.textContent = "Tarih vermezsen görev hemen havuza düşer, isteyen alabilir.";
+      }
+    }
+
+    async function erteleKaydet() {
+      const taskId = document.getElementById("ertele_id").value;
+      const sebep = document.getElementById("ertele_sebep").value.trim();
+      const tarih = document.getElementById("ertele_tarih").value || null;
+      if (!sebep) { alert("Erteleme sebebi zorunlu — neden şimdi yapılamadığını kısaca yaz."); return; }
+
+      const t = db.tasks.find(x => x.id === taskId);
+      const kayit = {
+        kisi: currentStaffId || "admin",
+        tarih: todayStr(),
+        sebep,
+        kadar: tarih
+      };
+      const guncelleme = {
+        havuzda: true, assignees: [], assignedTo: null, alanKisi: null, alinmaTarihi: null,
+        ertelemeTarihi: tarih,
+        ertelemeGecmisi: ((t && t.ertelemeGecmisi) || []).concat([kayit])
+      };
+      if (t) Object.assign(t, guncelleme);
+      closeErteleModal();
       render();
       try {
-        await firestore.collection("tasks").doc(taskId).update(geri);
+        await firestore.collection("tasks").doc(taskId).update(guncelleme);
       } catch (e) {
-        console.error("Havuza bırakma hatası:", e);
-        alert(dbErrorText(e, "Görev havuza bırakılamadı"));
+        console.error("Erteleme hatası:", e);
+        alert(dbErrorText(e, "Görev ertelenemedi"));
       }
     }
 
@@ -4132,12 +4212,19 @@
       // Havuz görevleri kendi sekmesinde durur; "Aktif" listesi yalnızca
       // sahibi belli olan görevleri gösterir, yoksa kişinin listesi
       // üstlenmediği işlerle karışır.
-      const havuzGorevleri = filteredTasks.filter(isHavuzGorevi).sort((a, b) => {
+      const havuzSirala = (a, b) => {
         if (!a.dueDate && !b.dueDate) return new Date(b.created) - new Date(a.created);
         if (!a.dueDate) return 1;
         if (!b.dueDate) return -1;
         return new Date(a.dueDate) - new Date(b.dueDate);
-      });
+      };
+      // Ertelenmiş görevler aktif havuzdan ayrılır: sekme sayacı ve rozet
+      // "şu an alınabilir" işleri saysın, tarihi gelmemiş olanlar altta
+      // ayrı bir bölümde beklesin.
+      const havuzAktifler = filteredTasks.filter(havuzdaAktif).sort(havuzSirala);
+      const havuzBekleyenler = filteredTasks.filter(ertelenmisMi)
+        .sort((a, b) => String(a.ertelemeTarihi).localeCompare(String(b.ertelemeTarihi)));
+      const havuzGorevleri = havuzAktifler;
       const sahipliGorevler = filteredTasks.filter(t => !isHavuzGorevi(t));
 
       const pending = sahipliGorevler.filter(t => t.status !== "tamamlandı").sort((a, b) => {
@@ -4172,8 +4259,11 @@
           : `<span class="badge" style="background:rgba(244,183,64,.15);color:#f4b740">${icon('clock', 12)} Bekliyor</span>`;
 
         const havuzda = isHavuzGorevi(t);
+        const bekliyor = ertelenmisMi(t);
         const sharedBadge = havuzda
-          ? `<span class="badge" style="background:rgba(167,139,250,.18);color:#a78bfa">${icon('users', 12)} Havuzda — sahibi yok</span>`
+          ? (bekliyor
+            ? `<span class="badge" style="background:rgba(167,139,250,.12);color:#a78bfa">${icon('clock', 12)} ${fmtDate(t.ertelemeTarihi)} tarihine ertelendi</span>`
+            : `<span class="badge" style="background:rgba(167,139,250,.18);color:#a78bfa">${icon('users', 12)} Havuzda — sahibi yok</span>`)
           : ortak
             ? `<span class="badge" style="background:rgba(59,130,246,.15);color:var(--brand-2)">${icon('users', 12)} Ortak görev • ${taskAssignees(t).length} kişi</span>`
             : "";
@@ -4196,13 +4286,27 @@
       </div>`;
         }
 
+        // Erteleme geçmişi: bir görev havuzda dönüp duruyorsa sebepleri
+        // görmek asıl bilgi. Son sebep açık, öncekiler sayı olarak.
+        const gecmis = Array.isArray(t.ertelemeGecmisi) ? t.ertelemeGecmisi : [];
+        const sonErteleme = gecmis[gecmis.length - 1];
+        const ertelemeKutusu = sonErteleme
+          ? `<div style="margin-top:8px;border-left:3px solid #a78bfa;padding:6px 0 6px 10px">
+        <div style="font-size:11px;color:#a78bfa;font-weight:600">
+          ${gecmis.length > 1 ? `${gecmis.length} kez ertelendi` : "Ertelendi"} • ${escapeHtml(staffName(sonErteleme.kisi) || (sonErteleme.kisi === "admin" ? "Sistem Yöneticisi" : "Personel"))}${sonErteleme.tarih ? " • " + fmtDate(sonErteleme.tarih) : ""}
+        </div>
+        <div style="font-size:12px;color:var(--txt);margin-top:2px">${escapeHtml(sonErteleme.sebep || "")}</div>
+      </div>`
+          : "";
+
         const yonetebilir = gorevuYonetebilir(t);
         const editBtn = (yonetebilir && t.status !== "tamamlandı") ? `<button class="btn ghost" style="padding:6px 8px" onclick="openTaskModal('${t.id}')" title="Düzenle">${icon('edit', 13)}</button>` : "";
         const deleteBtn = yonetebilir ? `<button class="btn ghost" style="padding:6px 8px;color:var(--red)" onclick="deleteTask('${t.id}')" title="Sil">${icon('trash', 13)}</button>` : "";
-        // Havuzdan alınan bir görev yanlışlıkla üstlenilmiş olabilir ya da
-        // kişinin işi çıkabilir — sahibi (ve admin) havuza geri bırakabilsin.
-        const birakBtn = (!havuzda && t.alanKisi && t.status !== "tamamlandı" && (isTaskAdmin || t.alanKisi === currentStaffId))
-          ? `<button class="btn ghost" style="padding:6px 8px;color:#a78bfa" onclick="havuzaBirak('${t.id}')" title="Havuza geri bırak">${icon('users', 13)}</button>` : "";
+        // Ertele: sebebiyle birlikte havuza geri düşürür. Elindeki görevi
+        // kişi kendisi erteleyebilir; havuzda öylece duran görevi yalnızca
+        // yönetici (bkz. ertelenebilirMi).
+        const erteleBtn = ertelenebilirMi(t)
+          ? `<button class="btn ghost" style="padding:6px 8px;color:#a78bfa" onclick="openErteleModal('${t.id}')" title="Ertele (sebebiyle havuza bırak)">${icon('clock', 13)}</button>` : "";
 
         return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
@@ -4218,8 +4322,9 @@
             ${dueBadge}
           </div>
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">${birakBtn}${editBtn}${deleteBtn}</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">${erteleBtn}${editBtn}${deleteBtn}</div>
       </div>
+      ${ertelemeKutusu}
       ${actionArea}
     </div>`;
       };
@@ -4268,8 +4373,18 @@
       const list = taskTab === "aktif" ? pending : taskTab === "havuz" ? havuzGorevleri : completed;
       const emptyMsg = isTaskAdmin && selectedTaskStaffId
         ? (taskTab === "aktif" ? "Bu personelin aktif görevi yok." : taskTab === "havuz" ? "Havuzda görev yok." : "Bu personelin tamamlanan görevi yok.")
-        : (taskTab === "aktif" ? "Aktif görev yok." : taskTab === "havuz" ? "Havuzda bekleyen görev yok." : "Henüz tamamlanan görev yok.");
+        : (taskTab === "aktif" ? "Aktif görev yok." : taskTab === "havuz" ? "Havuzda alınmayı bekleyen görev yok." : "Henüz tamamlanan görev yok.");
       html += list.length ? list.map(taskCard).join("") : `<div class="empty">${emptyMsg}</div>`;
+
+      // Ertelenmiş görevler havuz sekmesinin altında ayrı bölümde: listeyi
+      // meşgul etmesinler ama görünmez de olmasınlar (unutulan iş olmasın).
+      if (taskTab === "havuz" && havuzBekleyenler.length) {
+        html += `<div style="display:flex;align-items:center;gap:10px;margin:22px 0 12px">
+      <div style="flex:1;height:1px;background:var(--line)"></div>
+      <span style="font-size:11px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">${icon('clock', 12)} Ertelendi — tarihi gelince havuza düşecek (${havuzBekleyenler.length})</span>
+      <div style="flex:1;height:1px;background:var(--line)"></div>
+    </div>` + havuzBekleyenler.map(taskCard).join("");
+      }
 
       return html;
     }
