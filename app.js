@@ -4260,6 +4260,8 @@
     async function completeTask(taskId) {
       const reportEl = document.getElementById("tsk_report_" + taskId);
       const report = reportEl ? reportEl.value.trim() : "";
+      const ozelestiriEl = document.getElementById("tsk_ozelestiri_" + taskId);
+      const ozelestiri = ozelestiriEl ? ozelestiriEl.value.trim() : "";
       // Ortak görevde tamamlama görevi HERKES için kapatır — kullanıcı bunu
       // bilerek onaylasın diye soru metni ona göre değişiyor.
       const soru = isSharedTask(db.tasks.find(x => x.id === taskId))
@@ -4269,7 +4271,7 @@
       // completionSeen: false — atayan admin bunu Görevler'i (ya da zili)
       // görene kadar "yeni tamamlandı" olarak işaretli kalır. Tarayıcı
       // bildirim izni gerektirmeyen, güvenilir çalışan gösterge bu.
-      const updates = { status: "tamamlandı", report: report || null, completedDate: todayStr(), completedBy: currentStaffId || "admin", completionSeen: false };
+      const updates = { status: "tamamlandı", report: report || null, ozelestiri: ozelestiri || null, completedDate: todayStr(), completedBy: currentStaffId || "admin", completionSeen: false };
       const t = db.tasks.find(x => x.id === taskId);
       if (t) Object.assign(t, updates);
       render();
@@ -4432,14 +4434,22 @@
             ? `<div style="margin-top:10px"><button class="btn" style="width:100%;background:rgba(167,139,250,.18);border-color:#a78bfa;color:#a78bfa" onclick="gorevAl('${t.id}')">${icon('checkCircle', 14)} Bu Görevi Al</button></div>`
             : `<div style="margin-top:10px;font-size:12px;color:var(--muted)">Havuzdan görev almak için ekip listesinde tanımlı bir personel hesabı gerekir.</div>`;
         } else if (t.status !== "tamamlandı" && isTaskFor(t, currentStaffId)) {
+          // Rapor "ne yapıldı", özeleştiri "daha iyi nasıl yapılabilirdi".
+          // İkisi ayrı alan: tek kutuya sığdırılsa özeleştiri raporun içinde
+          // kaybolur, sonradan ayrıştırılamaz.
           actionArea = `<div style="margin-top:10px">
         <textarea id="tsk_report_${t.id}" placeholder="Tamamlandığında kısa bir rapor yaz (opsiyonel)..." style="min-height:60px"></textarea>
+        <textarea id="tsk_ozelestiri_${t.id}" placeholder="Özeleştiri (opsiyonel) — bu işi daha iyi nasıl yapabilirdim?" style="min-height:60px;margin-top:8px"></textarea>
         <button class="btn" style="margin-top:6px" onclick="completeTask('${t.id}')">${icon('checkCircle', 14)} Tamamlandı Olarak İşaretle</button>
       </div>`;
-        } else if (t.status === "tamamlandı" && t.report) {
-          actionArea = `<div style="margin-top:10px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px">
-        <div style="color:var(--muted);font-size:11px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Rapor</div>
-        ${escapeHtml(t.report)}
+        } else if (t.status === "tamamlandı" && (t.report || t.ozelestiri)) {
+          const metinKutusu = (baslik, metin, renk) => `<div style="background:var(--panel-2);border:1px solid var(--line);border-left:3px solid ${renk};border-radius:8px;padding:10px 12px;font-size:13px;margin-top:8px">
+        <div style="color:${renk};font-size:11px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:600">${baslik}</div>
+        ${escapeHtml(metin)}
+      </div>`;
+          actionArea = `<div style="margin-top:2px">
+        ${t.report ? metinKutusu("Rapor", t.report, "var(--muted)") : ""}
+        ${t.ozelestiri ? metinKutusu("Özeleştiri", t.ozelestiri, "#f4b740") : ""}
       </div>`;
         }
 
