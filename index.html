@@ -776,7 +776,7 @@
       <input type="hidden" id="tsk_id">
       <label>Başlık</label><input id="tsk_title" placeholder="Örn: Sözleşme taslağını hazırla">
       <label>Açıklama (opsiyonel)</label><input id="tsk_description" placeholder="Detaylar...">
-      <label>Kime Atanacak <span style="font-weight:400;color:var(--muted);font-size:11px">— birden fazla kişi seçebilirsin (ortak görev)</span></label>
+      <label>Kime Atanacak <span id="tsk_assigneeLabelHint" style="font-weight:400;color:var(--muted);font-size:11px"></span></label>
       <label class="havuzToggle"><input type="checkbox" id="tsk_havuz" onchange="onHavuzToggle()"> Havuza bırak — kimseye atama, isteyen üstlensin</label>
       <div id="tsk_assignees" class="assigneePicker"></div>
       <div id="tsk_assigneeHint" class="assigneeHint"></div>

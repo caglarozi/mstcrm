@@ -3789,6 +3789,18 @@
       return !!t && t.havuzda === true && t.status !== "tamamlandı";
     }
 
+    // Personel kendi eklediği görevi düzeltebilsin/silebilsin (yazım hatası,
+    // yanlışlıkla eklenmiş görev). AMA havuza bıraktığı görevi başkası
+    // üstlendiyse artık dokunamaz — çalışılan işi altından çekmesin.
+    function gorevuYonetebilir(t) {
+      if (currentRole === "admin") return true;
+      if (!t || !currentStaffId) return false;
+      if (t.assignedBy !== currentStaffId) return false;
+      if (t.status === "tamamlandı") return false;
+      const atananlar = taskAssignees(t);
+      return atananlar.length === 0 || (atananlar.length === 1 && atananlar[0] === currentStaffId);
+    }
+
     async function gorevAl(taskId) {
       const benim = currentStaffId;
       if (!benim) { customAlert("Görev alınamadı", "Hesabınız ekip listesiyle eşleşmediği için görev alamıyorsunuz. Yöneticinize bildirin."); return; }
@@ -3832,10 +3844,24 @@
       }
     }
 
+    // Personel de görev ekleyebilir ama YALNIZCA kendine ya da havuza —
+    // başkasına iş yazamaz. Bu yüzden seçicide sadece kendisi listelenir ve
+    // kutu kilitlidir; yönetici tüm ekibi görür.
     function renderAssigneePicker(selectedIds) {
       const box = document.getElementById("tsk_assignees");
       if (!box) return;
       const sel = selectedIds || [];
+      if (currentRole !== "admin") {
+        const ben = (db.staff || []).find(s => s.id === currentStaffId);
+        box.innerHTML = ben
+          ? `<label class="assigneeChip selected" style="cursor:default">
+        <input type="checkbox" value="${ben.id}" checked disabled>
+        ${escapeHtml(ben.name)} (sen)
+      </label>`
+          : `<div style="font-size:12px;color:var(--muted)">Hesabın ekip listesiyle eşleşmediği için kendine görev ekleyemezsin — havuza bırakabilirsin.</div>`;
+        updateAssigneeHint();
+        return;
+      }
       box.innerHTML = (db.staff || []).map(s => {
         const on = sel.indexOf(s.id) !== -1;
         return `<label class="assigneeChip${on ? ' selected' : ''}">
@@ -3866,10 +3892,17 @@
       if (box) {
         box.style.opacity = acik ? ".4" : "";
         box.style.pointerEvents = acik ? "none" : "";
-        if (acik) box.querySelectorAll("input[type=checkbox]").forEach(c => {
-          c.checked = false;
-          const chip = c.closest("label"); if (chip) chip.classList.remove("selected");
-        });
+        if (acik) {
+          box.querySelectorAll("input[type=checkbox]").forEach(c => {
+            c.checked = false;
+            const chip = c.closest("label"); if (chip) chip.classList.remove("selected");
+          });
+        } else if (currentRole !== "admin") {
+          // Personelde havuz kapatılınca seçim yeniden "kendisi" olmalı;
+          // aksi halde kutu boş kalır ve kaydedemez.
+          renderAssigneePicker([currentStaffId]);
+          return;
+        }
       }
       updateAssigneeHint();
     }
@@ -3882,6 +3915,13 @@
         return;
       }
       const n = selectedAssignees().length;
+      if (currentRole !== "admin") {
+        el.className = "assigneeHint";
+        el.textContent = n === 1
+          ? "Bu görev sana atanacak."
+          : "Kendine ekleyemiyorsan 'Havuza bırak' seçeneğini kullan.";
+        return;
+      }
       if (n > 1) {
         el.className = "assigneeHint ortak";
         el.textContent = `Ortak görev — ${n} kişiye atanacak. İlk tamamlayan görevi herkes için kapatır.`;
@@ -3899,6 +3939,12 @@
       document.getElementById("tsk_description").value = t ? (t.description || "") : "";
       document.getElementById("tsk_dueDate").value = t ? (t.dueDate || "") : "";
       document.getElementById("tsk_havuz").checked = !!(t && t.havuzda === true);
+      // Başlıktaki açıklama role göre değişir: personel çoklu seçim yapamaz,
+      // ona "birden fazla kişi seçebilirsin" demek yanıltıcı olur.
+      const lblHint = document.getElementById("tsk_assigneeLabelHint");
+      if (lblHint) lblHint.textContent = currentRole === "admin"
+        ? "— birden fazla kişi seçebilirsin (ortak görev)"
+        : "— kendine ekleyebilir ya da havuza bırakabilirsin";
       renderAssigneePicker(t ? taskAssignees(t) : []);
       onHavuzToggle();   // seçiciyi havuz durumuna göre aç/kapat
       document.getElementById("taskModal").classList.add("open");
@@ -3909,8 +3955,17 @@
       const title = document.getElementById("tsk_title").value.trim();
       if (!title) { alert("Başlık zorunlu."); return; }
       const havuz = havuzSecili();
-      const assignees = havuz ? [] : selectedAssignees();
-      if (!havuz && !assignees.length) { alert("Görevin kime atanacağını seç — ya da 'Havuza bırak' işaretle."); return; }
+      // Personel yalnızca KENDİNE ya da havuza görev yazabilir. Seçim
+      // ekranda zaten kilitli ama kaynağı burada da sabitliyoruz — ekrana
+      // güvenip başkasına iş yazılmasına açık kapı bırakmıyoruz.
+      const assignees = havuz ? []
+        : (currentRole === "admin" ? selectedAssignees() : (currentStaffId ? [currentStaffId] : []));
+      if (!havuz && !assignees.length) {
+        alert(currentRole === "admin"
+          ? "Görevin kime atanacağını seç — ya da 'Havuza bırak' işaretle."
+          : "Hesabın ekip listesiyle eşleşmediği için kendine görev ekleyemiyorsun. 'Havuza bırak' seçeneğini kullanabilirsin.");
+        return;
+      }
       const description = document.getElementById("tsk_description").value.trim();
       const dueDate = document.getElementById("tsk_dueDate").value || null;
 
@@ -3952,9 +4007,13 @@
       try {
         await firestore.collection("tasks").doc(task.id).set(task);
         // Havuz görevinin atananı yok — kimse haberdar olmazsa havuzda
-        // öylece bekler. O yüzden bildirim TÜM personele gider.
+        // öylece bekler, o yüzden bildirim tüm personele gider. Kendine
+        // eklediğin göreve kendi telefonundan bildirim gelmesi ise gürültü:
+        // her iki durumda da kendimizi hedeflerden çıkarıyoruz.
         // beklenmez (fire-and-forget) — kayıt akışını yavaşlatmasın
-        sendTaskPush(task, havuz ? (db.staff || []).map(s => s.id) : undefined);
+        const pushHedefleri = (havuz ? (db.staff || []).map(s => s.id) : assignees)
+          .filter(id => id !== currentStaffId);
+        if (pushHedefleri.length) sendTaskPush(task, pushHedefleri);
       } catch (e) {
         console.error("Kaydetme hatası:", e);
         alert(dbErrorText(e, "Görev kaydedilemedi"));
@@ -4036,12 +4095,11 @@
         ? db.tasks
         : db.tasks.filter(t => isTaskFor(t, currentStaffId) || isHavuzGorevi(t));
 
-      let html = "";
-      if (isTaskAdmin) {
-        html += `<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+      // Görev ekleme herkeste açık: yönetici istediğine atar, personel
+      // yalnızca kendine ya da havuza ekleyebilir (bkz. renderAssigneePicker).
+      let html = `<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
     <button class="btn" onclick="openTaskModal()">${icon('clipboardList', 14)} + Görev Ekle</button>
   </div>`;
-      }
 
       // ---- Toplu analiz — sadece admin görür, hangi sekme açık olursa
       // olsun üstte sabit durur ----
@@ -4138,8 +4196,9 @@
       </div>`;
         }
 
-        const editBtn = (isTaskAdmin && t.status !== "tamamlandı") ? `<button class="btn ghost" style="padding:6px 8px" onclick="openTaskModal('${t.id}')" title="Düzenle">${icon('edit', 13)}</button>` : "";
-        const deleteBtn = isTaskAdmin ? `<button class="btn ghost" style="padding:6px 8px;color:var(--red)" onclick="deleteTask('${t.id}')" title="Sil">${icon('trash', 13)}</button>` : "";
+        const yonetebilir = gorevuYonetebilir(t);
+        const editBtn = (yonetebilir && t.status !== "tamamlandı") ? `<button class="btn ghost" style="padding:6px 8px" onclick="openTaskModal('${t.id}')" title="Düzenle">${icon('edit', 13)}</button>` : "";
+        const deleteBtn = yonetebilir ? `<button class="btn ghost" style="padding:6px 8px;color:var(--red)" onclick="deleteTask('${t.id}')" title="Sil">${icon('trash', 13)}</button>` : "";
         // Havuzdan alınan bir görev yanlışlıkla üstlenilmiş olabilir ya da
         // kişinin işi çıkabilir — sahibi (ve admin) havuza geri bırakabilsin.
         const birakBtn = (!havuzda && t.alanKisi && t.status !== "tamamlandı" && (isTaskAdmin || t.alanKisi === currentStaffId))
@@ -4155,6 +4214,7 @@
             ${sharedBadge}
             ${(!havuzda && (isTaskAdmin || ortak)) ? `<span style="font-size:12px;color:var(--muted)">${icon('user', 12)} ${escapeHtml(assigneeName)}</span>` : ""}
             ${t.alanKisi && !havuzda ? `<span style="font-size:11px;color:#a78bfa">havuzdan aldı${t.alinmaTarihi ? ' • ' + fmtDate(t.alinmaTarihi) : ''}</span>` : ""}
+            ${(isTaskAdmin && t.assignedBy && t.assignedBy !== "admin") ? `<span style="font-size:11px;color:var(--muted)">${escapeHtml(staffName(t.assignedBy) || "Personel")} ekledi</span>` : ""}
             ${dueBadge}
           </div>
         </div>
