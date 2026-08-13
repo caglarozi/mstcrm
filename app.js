@@ -3093,9 +3093,12 @@
             // solda görüşülenler (ve o gün eklenen diğer kayıtlar) kalır.
             const acmayanlar = [], gorusulenler = [];
             dateAuthors.forEach(a => {
-              const dayCalls = (a.logs || []).filter(l => l.date === date && l.type === "Telefon");
-              const hepAcmadi = dayCalls.length > 0 && dayCalls.every(l => UNREACHED_CALL_RE.test(l.text || ""));
-              (hepAcmadi ? acmayanlar : gorusulenler).push(a);
+              const dayLogs = (a.logs || []).filter(l => l.date === date);
+              const acmadiVar = dayLogs.some(l => l.type === "Telefon" && UNREACHED_CALL_RE.test(l.text || ""));
+              // Sonradan açıp görüşme yapılan (türü ne olursa olsun gerçek bir
+              // kayıt eklenen) yazar Açmayanlar'dan çıkar, Görüşülenler'e döner.
+              const gorusmeVar = dayLogs.some(l => !(l.type === "Telefon" && UNREACHED_CALL_RE.test(l.text || "")));
+              (acmadiVar && !gorusmeVar ? acmayanlar : gorusulenler).push(a);
             });
             if (acmayanlar.length) {
               htmlOutput += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start">`;
@@ -3230,7 +3233,15 @@
     <div class="tags">${(a.genres || []).map(g => `<span class="tag">${escapeHtml(g)}</span>`).join("")}</div>
     <div class="meta-row">
       <div class="temp" title="İlgi düzeyi">${temp}</div>
-      <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">${["aday", "gorusuluyor", "degerlendirme", "eseryaziyor"].includes(a.status) ? `<button class="btn ghost" style="padding:3px 8px;font-size:11px;border-color:rgba(242,97,122,.4);color:#f2617a;white-space:nowrap" onclick="markNoAnswer('${a.id}')" title="Bugün arandı, açmadı; mesaj iletildi olarak kaydet">📵 Açmadı</button>` : ""}${fl} ${waBtn(a.phone)}</div>
+      <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">${(() => {
+        if (!["aday", "gorusuluyor", "degerlendirme", "eseryaziyor"].includes(a.status)) return "";
+        // Bugün gerçek bir görüşme eklendiyse (açmadı kaydı dışında herhangi
+        // bir kayıt) Açmadı simgesi karttan kalkar — artık gereksizdir.
+        const bugun = todayStr();
+        const bugunGorusuldu = (a.logs || []).some(l => l.date === bugun && !(l.type === "Telefon" && UNREACHED_CALL_RE.test(l.text || "")));
+        if (bugunGorusuldu) return "";
+        return `<button class="btn ghost" style="padding:3px 8px;font-size:11px;border-color:rgba(242,97,122,.4);color:#f2617a;white-space:nowrap" onclick="markNoAnswer('${a.id}')" title="Bugün arandı, açmadı; mesaj iletildi olarak kaydet">📵 Açmadı</button>`;
+      })()}${fl} ${waBtn(a.phone)}</div>
     </div>
     </div>
     </div>
