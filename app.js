@@ -599,21 +599,40 @@
     </div>
   </div>`;
 
+      // Çözülenler listenin sonuna iner; bekleyenler tarihe göre en yeni üstte
+      items.sort((a, b) => {
+        const aCozuldu = a.status === "cozuldu" ? 1 : 0;
+        const bCozuldu = b.status === "cozuldu" ? 1 : 0;
+        if (aCozuldu !== bCozuldu) return aCozuldu - bCozuldu;
+        return (b.date || "").localeCompare(a.date || "");
+      });
+      const bekleyen = items.filter(f => f.status !== "cozuldu").length;
       html += `<div class="card" style="max-width:640px">
-    <h3 style="margin:0 0 12px;font-size:14px">${icon('clock', 15)} Kutudakiler (${items.length})</h3>`;
+    <h3 style="margin:0 0 12px;font-size:14px">${icon('clock', 15)} Kutudakiler (${items.length})${bekleyen ? ` <span style="color:var(--amber);font-size:12px;font-weight:400">• ${bekleyen} bekliyor</span>` : ""}</h3>`;
       if (!items.length) {
         html += `<div class="empty">Kutu şimdilik boş.</div>`;
       } else {
         html += items.map(f => {
           const sikayet = f.type === "sikayet";
+          const cozuldu = f.status === "cozuldu";
+          const gorusuluyor = f.status === "gorusuluyor";
           const badge = sikayet
             ? `<span class="badge" style="background:rgba(242,97,122,.15);color:#f2617a;border:1px solid rgba(242,97,122,.4)">⚠️ Şikayet</span>`
             : `<span class="badge" style="background:rgba(74,168,255,.15);color:#4aa8ff;border:1px solid rgba(74,168,255,.4)">💡 Dilek</span>`;
-          const delBtn = currentRole === "admin" ? `<button class="btn ghost" style="padding:4px 8px" onclick="delFeedback('${f.id}')" title="Sil">${icon('trash', 13)}</button>` : "";
-          return `<div style="padding:12px 0;border-bottom:1px dashed var(--line)">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
-          <div style="display:flex;align-items:center;gap:8px">${badge}<span style="color:var(--muted);font-size:11px">${fmtDate(f.date)}</span></div>
-          ${delBtn}
+          const durumBadge = cozuldu
+            ? `<span class="badge" style="background:rgba(55,201,138,.15);color:#37c98a;border:1px solid rgba(55,201,138,.4)">✔ Çözüldü</span>`
+            : gorusuluyor
+              ? `<span class="badge" style="background:rgba(244,183,64,.15);color:#f4b740;border:1px solid rgba(244,183,64,.4)">💬 Görüşülüyor</span>`
+              : `<span class="badge" style="background:rgba(154,161,178,.15);color:#9aa1b2;border:1px solid rgba(154,161,178,.4)">Yeni</span>`;
+          // Silme yok — admin durumu işaretler, kayıt kutuda kalır.
+          const adminBtns = currentRole === "admin" ? `<div style="display:flex;gap:6px;flex-shrink:0">
+            ${!gorusuluyor && !cozuldu ? `<button class="btn ghost" style="padding:4px 10px;font-size:11px;border-color:rgba(244,183,64,.4);color:#f4b740" onclick="setFeedbackStatus('${f.id}','gorusuluyor')">💬 Görüşülüyor</button>` : ""}
+            ${!cozuldu ? `<button class="btn ghost" style="padding:4px 10px;font-size:11px;border-color:rgba(55,201,138,.4);color:#37c98a" onclick="setFeedbackStatus('${f.id}','cozuldu')">✔ Çözüldü</button>` : `<button class="btn ghost" style="padding:4px 10px;font-size:11px" onclick="setFeedbackStatus('${f.id}','gorusuluyor')">↩ Yeniden Aç</button>`}
+          </div>` : "";
+          return `<div style="padding:12px 0;border-bottom:1px dashed var(--line);${cozuldu ? 'opacity:.6' : ''}">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${badge}${durumBadge}<span style="color:var(--muted);font-size:11px">${fmtDate(f.date)}</span>${cozuldu && f.resolvedDate ? `<span style="color:#37c98a;font-size:11px">→ ${fmtDate(f.resolvedDate)} tarihinde çözüldü</span>` : ""}</div>
+          ${adminBtns}
         </div>
         <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escapeHtml(f.text)}</div>
       </div>`;
@@ -621,6 +640,14 @@
       }
       html += `</div>`;
       return html;
+    }
+    async function setFeedbackStatus(id, status) {
+      if (currentRole !== "admin") return;
+      const resolvedDate = status === "cozuldu" ? todayStr() : null;
+      await mutateFeedback(d => {
+        const f = d.items.find(x => x.id === id);
+        if (f) { f.status = status; f.resolvedDate = resolvedDate; }
+      });
     }
     async function submitFeedback() {
       const type = document.getElementById("fb_type").value;
