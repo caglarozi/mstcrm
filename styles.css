@@ -1134,15 +1134,25 @@
     /* Kurala .yildizSecici ile bagli DEGIL: ayni buton gorev kartindaki
        degerlendirme kutusunda da kullaniliyor, orada da cerceve/zemin
        gorunmemeli. */
+    /* Dokunma hedefi en az 40x40 olmalı (Google/Apple önerisi). Yıldız
+       simgesi 20-24px; kutu büyütülmezse telefonda 26x28px kalıyor ve
+       parmakla yanlış yıldıza basmak çok kolay oluyor. Simge boyutu
+       değişmiyor, yalnızca basılabilir alan genişliyor. */
     .yildizBtn {
       background: none;
       border: none;
       box-shadow: none;
-      padding: 4px 3px;
+      min-width: 40px;
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
       margin: 0;
       cursor: pointer;
       line-height: 0;
-      border-radius: 6px;
+      border-radius: 8px;
+      touch-action: manipulation;   /* çift dokunuşta yakınlaştırmayı engelle */
       transition: transform .12s, background .18s;
     }
 
@@ -1838,6 +1848,22 @@
       .toolbar>* {
         flex: 0 0 auto;
         margin-left: 0 !important;
+      }
+
+      /* Telefonda dokunma hedefi en az 40px olmalı. Sekmeler masaüstünde
+         33px yüksekliğinde kalıyordu; parmakla isabet ettirmek zor ve
+         Görevler ekranında sekmeler ana gezinme öğesi. Yalnızca mobilde
+         büyütüyoruz, masaüstü görünümü aynı kalsın. */
+      .pill {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+      }
+
+      /* Aynı gerekçe tüm butonlar için: karttaki küçük simge butonları
+         (düzenle/sil/ertele) telefonda ~30px kalıyordu. */
+      .btn {
+        min-height: 40px;
       }
 
       .pipe {

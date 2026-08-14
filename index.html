@@ -1000,6 +1000,19 @@
     </div>
   </div>
 
+  <script>
+    /* Servis worker kaydı BİLEREK burada, Firebase SDK'sından önce ve ondan
+       bağımsız duruyor. Kayıt app.js içindeyken, SDK gstatic'ten gelemediğinde
+       app.js en üst satırlarda hata verip duruyor ve kayda hiç sıra gelmiyordu
+       — yani tam da ağın sorunlu olduğu anda çevrimdışı desteği kurulamıyordu.
+       Buradan kaydedince o bağımlılık ortadan kalkıyor. */
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("firebase-messaging-sw.js")
+          .catch(function (e) { console.error("Servis worker kaydedilemedi:", e); });
+      });
+    }
+  </script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>

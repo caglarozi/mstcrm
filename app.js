@@ -1197,11 +1197,27 @@
     // fcm_tokens koleksiyonuna personel kimliğiyle kaydedilir. Görev
     // atandığında worker (/notify-task) bu tokenlara push gönderir —
     // CRM sekmesi hatta tarayıcı kapalıyken bile bildirim ulaşır.
+    // Asıl kayıt index.html'deki küçük betikte yapılıyor (Firebase SDK'sına
+    // bağımlı olmasın diye — bkz. oradaki açıklama). Buradaki çağrı aynı
+    // adresi tekrar kaydeder; register() aynı adres/kapsam için mevcut kaydı
+    // döndürdüğünden ikinci bir worker oluşmaz. Eskiden kayıt YALNIZCA burada
+    // ve üstelik messaging desteği varsa yapılıyordu; push desteklemeyen
+    // tarayıcılarda (ör. bazı iOS sürümleri) worker hiç kaydolmuyor,
+    // çevrimdışı çalışma ve "uygulama olarak yükle" hiç devreye girmiyordu.
+    let swKaydiSozu = null;
+    function registerServiceWorker() {
+      if (swKaydiSozu) return swKaydiSozu;
+      if (!("serviceWorker" in navigator)) return Promise.resolve(null);
+      swKaydiSozu = navigator.serviceWorker.register("firebase-messaging-sw.js")
+        .catch(e => { console.error("Servis worker kaydedilemedi:", e); return null; });
+      return swKaydiSozu;
+    }
+
     async function initPushNotifications() {
       try {
-        if (!("serviceWorker" in navigator)) return;
+        const reg = await registerServiceWorker();
+        if (!reg) return;
         if (typeof firebase.messaging !== "function" || !firebase.messaging.isSupported()) return;
-        const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js");
         const fcmToken = await firebase.messaging().getToken({ serviceWorkerRegistration: reg });
         if (!fcmToken) return;
         await firestore.collection("fcm_tokens").doc(fcmToken).set({
