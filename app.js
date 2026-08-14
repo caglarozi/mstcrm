@@ -1803,8 +1803,10 @@
      * döner (raporu ve geçmişi silinmez, yeniden yapılmak üzere alınabilir).
      * Oylar puanlamadaki gibi noktalı alan yoluyla yazılır — eşzamanlı oylar
      * birbirini ezmez. */
-    const KONTROL_ONAY_ESIGI = 2;
-    const KONTROL_RET_ESIGI = 2;
+    // 5 kişi oy kullanıyor — çoğunluk 3'tür: 3 onay kesinleştirir, 3 ret
+    // havuza döndürür (beraberlik matematiksel olarak mümkün değil).
+    const KONTROL_ONAY_ESIGI = 3;
+    const KONTROL_RET_ESIGI = 3;
     function kontrolOylari(t) {
       const o = t && t.kontrolOylari;
       return (o && typeof o === "object") ? o : {};
