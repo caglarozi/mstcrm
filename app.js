@@ -371,7 +371,7 @@
         return;
       }
 
-      const myPending = (db.tasks || []).filter(t => isTaskFor(t, currentStaffId) && t.status !== "tamamlandı")
+      const myPending = (db.tasks || []).filter(t => isTaskFor(t, myTaskId()) && t.status !== "tamamlandı")
         .sort((a, b) => {
           if (!a.dueDate && !b.dueDate) return 0;
           if (!a.dueDate) return 1;
@@ -3984,8 +3984,14 @@
     }
     function isSharedTask(t) { return taskAssignees(t).length > 1; }
     function taskAssigneeNames(t) {
-      const names = taskAssignees(t).map(id => staffName(id) || "—");
+      const names = taskAssignees(t).map(id => id === "admin" ? "Sistem Yöneticisi" : (staffName(id) || "—"));
       return names.length ? names.join(", ") : "—";
+    }
+    // Görev sistemindeki kimliğim: personel için ekip id'si, admin için
+    // "admin". Admin ekip listesinde kayıtlı olmayabilir ama havuzdan görev
+    // alıp tamamlayabilmeli — bu yüzden currentStaffId'ye düşülmez.
+    function myTaskId() {
+      return currentStaffId || (currentRole === "admin" ? "admin" : null);
     }
 
     /* ---------- Görev havuzu ----------
@@ -4046,7 +4052,7 @@
     }
 
     async function gorevAl(taskId) {
-      const benim = currentStaffId;
+      const benim = myTaskId();
       if (!benim) { customAlert("Görev alınamadı", "Hesabınız ekip listesiyle eşleşmediği için görev alamıyorsunuz. Yöneticinize bildirin."); return; }
       const t = db.tasks.find(x => x.id === taskId);
       if (!(await customConfirm(`"${t ? t.title : "Bu görev"}" görevini üstleniyor musun?\n\nGörev havuzdan çıkıp senin listene geçecek.`, "Evet, Görevi Al"))) return;
@@ -4486,10 +4492,10 @@
         let actionArea = "";
         if (havuzda) {
           // Havuzdaki göreve rapor kutusu koymuyoruz: önce üstlenilmeli.
-          actionArea = currentStaffId
+          actionArea = myTaskId()
             ? `<div style="margin-top:10px"><button class="btn" style="width:100%;background:rgba(167,139,250,.18);border-color:#a78bfa;color:#a78bfa" onclick="gorevAl('${t.id}')">${icon('checkCircle', 14)} Bu Görevi Al</button></div>`
             : `<div style="margin-top:10px;font-size:12px;color:var(--muted)">Havuzdan görev almak için ekip listesinde tanımlı bir personel hesabı gerekir.</div>`;
-        } else if (t.status !== "tamamlandı" && isTaskFor(t, currentStaffId)) {
+        } else if (t.status !== "tamamlandı" && isTaskFor(t, myTaskId())) {
           // Rapor "ne yapıldı", özeleştiri "daha iyi nasıl yapılabilirdi".
           // İkisi ayrı alan: tek kutuya sığdırılsa özeleştiri raporun içinde
           // kaybolur, sonradan ayrıştırılamaz.
