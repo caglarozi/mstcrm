@@ -4791,7 +4791,11 @@
           : `<div style="font-size:11px;color:${puanRengi(st.puanOrt)};font-weight:700;margin-top:2px" title="Ekibin bu kişinin tamamladığı işlere verdiği puanların ortalaması (${st.puanlananSayi} görev)">${yildizIkon(true, 10, puanRengi(st.puanOrt))} ${st.puanOrt.toFixed(1).replace(".", ",")} / 5</div>`}
     </div>`;
         };
-        html += `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px">${db.staff.map(ringCard).join("")}</div>`;
+        // Admin de görev alabildiği için rapor sistemine o da dahil: ekip
+        // kartlarının başında Sistem Yöneticisi kartı durur, tıklayınca
+        // yalnızca adminin görevleri filtrelenir (personel kartlarıyla aynı).
+        const kisiler = [{ id: "admin", name: "Sistem Yöneticisi" }].concat(db.staff);
+        html += `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px">${kisiler.map(ringCard).join("")}</div>`;
       }
 
       html += `<div class="toolbar" style="gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
@@ -4799,7 +4803,7 @@
     <span class="pill ${taskTab === 'havuz' ? 'active' : ''}" style="${taskTab === 'havuz' ? 'background:rgba(167,139,250,.18);border-color:#a78bfa;color:#a78bfa' : (havuzGorevleri.length ? 'border-color:#a78bfa;color:#a78bfa' : '')}" onclick="setTaskTab('havuz')">${icon('users', 13)} Havuz (${havuzGorevleri.length})</span>
     <span class="pill ${taskTab === 'kontrol' ? 'active' : ''}" style="${taskTab === 'kontrol' ? 'background:rgba(45,212,191,.15);border-color:#2dd4bf;color:#2dd4bf' : (kontroldekiler.length ? 'border-color:#2dd4bf;color:#2dd4bf' : '')}" onclick="setTaskTab('kontrol')">🗳️ Oylamada (${kontroldekiler.length})</span>
     <span class="pill ${taskTab === 'tamamlanan' ? 'active' : ''}" style="${taskTab === 'tamamlanan' ? 'background:rgba(55,201,138,.15);border-color:#37c98a;color:#37c98a' : ''}" onclick="setTaskTab('tamamlanan')">${icon('checkCircle', 13)} Tamamlanan (${completed.length})</span>
-    ${isTaskAdmin && selectedTaskStaffId ? `<span class="pill" style="border-color:var(--brand-2);color:var(--brand-2)" onclick="selectTaskStaff('${selectedTaskStaffId}')">${escapeHtml(staffName(selectedTaskStaffId) || "")} ✕</span>` : ""}
+    ${isTaskAdmin && selectedTaskStaffId ? `<span class="pill" style="border-color:var(--brand-2);color:var(--brand-2)" onclick="selectTaskStaff('${selectedTaskStaffId}')">${escapeHtml(selectedTaskStaffId === "admin" ? "Sistem Yöneticisi" : (staffName(selectedTaskStaffId) || ""))} ✕</span>` : ""}
   </div>`;
 
       const list = taskTab === "aktif" ? pending : taskTab === "havuz" ? havuzGorevleri : taskTab === "kontrol" ? kontroldekiler : completed;
