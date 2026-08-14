@@ -4579,9 +4579,10 @@
       const isTaskAdmin = currentRole === "admin";
       // Havuz görevleri kimseye atanmadığı için isTaskFor süzgecine takılmaz;
       // herkesin görmesi gerektiğinden ayrıca ekleniyor.
+      // Oylamadaki (kontrol) görevleri HERKES görür — göremeyen oy kullanamaz.
       const relevantTasks = isTaskAdmin
         ? db.tasks
-        : db.tasks.filter(t => isTaskFor(t, currentStaffId) || isHavuzGorevi(t));
+        : db.tasks.filter(t => isTaskFor(t, currentStaffId) || isHavuzGorevi(t) || t.status === "kontrol");
 
       // Görev ekleme herkeste açık: yönetici istediğine atar, personel
       // yalnızca kendine ya da havuza ekleyebilir (bkz. renderAssigneePicker).
