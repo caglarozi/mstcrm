@@ -1796,6 +1796,87 @@
       </div>`;
     }
 
+    /* ---------- Görev kontrol oylaması ----------
+     * Tamamlanan görev doğrudan kapanmaz: "kontrol" (oylamada) durumuna düşer
+     * ve ekip işin gerçekten bittiğini oylar. Tamamlayan kişi kendi işine oy
+     * veremez. 2 ONAY → görev kesin tamamlanır; 2 RET → görev havuza geri
+     * döner (raporu ve geçmişi silinmez, yeniden yapılmak üzere alınabilir).
+     * Oylar puanlamadaki gibi noktalı alan yoluyla yazılır — eşzamanlı oylar
+     * birbirini ezmez. */
+    const KONTROL_ONAY_ESIGI = 2;
+    const KONTROL_RET_ESIGI = 2;
+    function kontrolOylari(t) {
+      const o = t && t.kontrolOylari;
+      return (o && typeof o === "object") ? o : {};
+    }
+    function kontrolOySayilari(t) {
+      const oylar = Object.values(kontrolOylari(t));
+      return { onay: oylar.filter(o => o === "onay").length, ret: oylar.filter(o => o === "ret").length };
+    }
+    async function kontrolOyVer(taskId, oy) {
+      const kim = degerlendirenKimligi();
+      if (!kim) { customAlert("Oy verilemedi", "Hesabınız ekip listesiyle eşleşmediği için oylamaya katılamıyorsunuz."); return; }
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!t || t.status !== "kontrol") return;
+      if ((t.completedBy || null) === kim) { customAlert("Kendi işine oy veremezsin", "Tamamladığın görevin kontrolünü ekipteki diğer kişiler oylar."); return; }
+      if (oy !== "onay" && oy !== "ret") return;
+
+      t.kontrolOylari = Object.assign({}, kontrolOylari(t), { [kim]: oy });
+      render();
+      const ref = firestore.collection("tasks").doc(taskId);
+      try {
+        await ref.update({ ["kontrolOylari." + kim]: oy });
+        // Eşik kontrolü sunucudaki güncel oylarla, transaction içinde yapılır —
+        // iki kişi aynı anda oy verse de sonuç bir kez ve doğru işlenir.
+        await firestore.runTransaction(async tx => {
+          const snap = await tx.get(ref);
+          if (!snap.exists || snap.data().status !== "kontrol") return;
+          const server = snap.data();
+          const oylar = Object.values((server.kontrolOylari && typeof server.kontrolOylari === "object") ? server.kontrolOylari : {});
+          const onay = oylar.filter(o => o === "onay").length;
+          const ret = oylar.filter(o => o === "ret").length;
+          if (onay >= KONTROL_ONAY_ESIGI) {
+            tx.update(ref, { status: "tamamlandı", kontrolSonuc: "onaylandi", kontrolBitis: todayStr() });
+          } else if (ret >= KONTROL_RET_ESIGI) {
+            // Yetersiz bulundu: görev havuza geri düşer, yeniden alınabilir.
+            tx.update(ref, {
+              status: "bekliyor", havuzda: true, assignees: [], assignedTo: null,
+              alanKisi: null, alinmaTarihi: null, ertelemeTarihi: null,
+              kontrolSonuc: "reddedildi", kontrolOylari: {}, completionSeen: true
+            });
+          }
+        });
+        const guncel = await ref.get();
+        if (guncel.exists) {
+          const yerel = db.tasks.find(x => x.id === taskId);
+          if (yerel) Object.assign(yerel, guncel.data());
+        }
+        render();
+      } catch (e) {
+        console.error("Kontrol oyu verilemedi:", e);
+        alert(dbErrorText(e, "Oy kaydedilemedi"));
+      }
+    }
+    function oylamaKutusu(t) {
+      if (t.status !== "kontrol") return "";
+      const kim = degerlendirenKimligi();
+      const { onay, ret } = kontrolOySayilari(t);
+      const benimOyum = kim ? kontrolOylari(t)[kim] : null;
+      const tamamlayan = t.completedBy === "admin" ? "Sistem Yöneticisi" : (staffName(t.completedBy) || "Personel");
+      const oylayabilir = kim && (t.completedBy || null) !== kim;
+      return `<div style="margin-top:8px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.35);border-radius:8px;padding:10px 12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="font-size:11px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;font-weight:600">🗳️ Kontrol Oylaması — ${escapeHtml(tamamlayan)} tamamladı</div>
+          <div style="font-size:12px"><b style="color:#37c98a">${onay}</b> <span style="color:var(--muted)">onay</span> • <b style="color:#f2617a">${ret}</b> <span style="color:var(--muted)">ret</span></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${KONTROL_ONAY_ESIGI} onay alırsa görev kesinleşir, ${KONTROL_RET_ESIGI} ret alırsa havuza geri döner.</div>
+        ${oylayabilir ? `<div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn ghost" style="flex:1;border-color:rgba(55,201,138,.5);color:#37c98a;${benimOyum === 'onay' ? 'background:rgba(55,201,138,.18)' : ''}" onclick="kontrolOyVer('${t.id}','onay')">👍 Onayla${benimOyum === 'onay' ? ' ✓' : ''}</button>
+          <button class="btn ghost" style="flex:1;border-color:rgba(242,97,122,.5);color:#f2617a;${benimOyum === 'ret' ? 'background:rgba(242,97,122,.18)' : ''}" onclick="kontrolOyVer('${t.id}','ret')">👎 Yetersiz${benimOyum === 'ret' ? ' ✓' : ''}</button>
+        </div>` : `<div style="font-size:12px;color:var(--muted);margin-top:6px">${kim ? "Kendi tamamladığın işe oy veremezsin — ekibin oylamasını bekle." : ""}</div>`}
+      </div>`;
+    }
+
     let seciliOncelik = ONCELIK_VARSAYILAN;
     function secOncelik(n) {
       seciliOncelik = Math.min(5, Math.max(1, Number(n) || ONCELIK_VARSAYILAN));
@@ -4422,13 +4503,15 @@
       // Ortak görevde tamamlama görevi HERKES için kapatır — kullanıcı bunu
       // bilerek onaylasın diye soru metni ona göre değişiyor.
       const soru = isSharedTask(db.tasks.find(x => x.id === taskId))
-        ? "Bu ORTAK görev tamamlandı olarak işaretlensin mi?\n\nGörev, atanan diğer kişiler için de kapanacak."
-        : "Bu görev tamamlandı olarak işaretlensin mi?";
+        ? "Bu ORTAK görev tamamlandı olarak işaretlensin mi?\n\nGörev önce ekip oylamasına düşecek; onaylanırsa herkes için kapanacak."
+        : "Bu görev tamamlandı olarak işaretlensin mi?\n\nGörev önce ekip oylamasına düşecek; yeterli onay alınca kesinleşecek.";
       if (!(await customConfirm(soru, "Evet, Tamamlandı"))) return;
       // completionSeen: false — atayan admin bunu Görevler'i (ya da zili)
       // görene kadar "yeni tamamlandı" olarak işaretli kalır. Tarayıcı
       // bildirim izni gerektirmeyen, güvenilir çalışan gösterge bu.
-      const updates = { status: "tamamlandı", report: report || null, ozelestiri: ozelestiri || null, completedDate: todayStr(), completedBy: currentStaffId || "admin", completionSeen: false };
+      // status "kontrol": görev doğrudan kapanmaz, ekip oylamasına düşer
+      // (bkz. kontrolOyVer) — 2 onay kesinleştirir, 2 ret havuza döndürür.
+      const updates = { status: "kontrol", report: report || null, ozelestiri: ozelestiri || null, completedDate: todayStr(), completedBy: currentStaffId || "admin", completionSeen: false, kontrolOylari: {} };
       const t = db.tasks.find(x => x.id === taskId);
       if (t) Object.assign(t, updates);
       render();
@@ -4555,7 +4638,10 @@
       const havuzGorevleri = havuzAktifler;
       const sahipliGorevler = filteredTasks.filter(t => !isHavuzGorevi(t));
 
-      const pending = sahipliGorevler.filter(t => t.status !== "tamamlandı").sort(havuzSirala);
+      const pending = sahipliGorevler.filter(t => t.status !== "tamamlandı" && t.status !== "kontrol").sort(havuzSirala);
+      // Oylamadakiler: tamamlandı denmiş ama ekip kontrolünden geçmemiş görevler
+      const kontroldekiler = sahipliGorevler.filter(t => t.status === "kontrol")
+        .sort((a, b) => new Date(b.completedDate || b.created) - new Date(a.completedDate || a.created));
       const completed = sahipliGorevler.filter(t => t.status === "tamamlandı")
         .sort((a, b) => new Date(b.completedDate || b.created) - new Date(a.completedDate || a.created));
 
@@ -4579,7 +4665,9 @@
         const doneByName = staffName(t.completedBy);
         const statusBadge = t.status === "tamamlandı"
           ? `<span class="badge" style="background:rgba(55,201,138,.15);color:#37c98a">${icon('checkCircle', 12)} Tamamlandı${ortak && doneByName ? ' — ' + escapeHtml(doneByName) : ''}</span>`
-          : `<span class="badge" style="background:rgba(244,183,64,.15);color:#f4b740">${icon('clock', 12)} Bekliyor</span>`;
+          : t.status === "kontrol"
+            ? `<span class="badge" style="background:rgba(45,212,191,.15);color:#2dd4bf">🗳️ Oylamada</span>`
+            : `<span class="badge" style="background:rgba(244,183,64,.15);color:#f4b740">${icon('clock', 12)} Bekliyor</span>`;
 
         const havuzda = isHavuzGorevi(t);
         const bekliyor = ertelenmisMi(t);
@@ -4606,7 +4694,7 @@
         <textarea id="tsk_ozelestiri_${t.id}" placeholder="Özeleştiri (opsiyonel) — bu işi daha iyi nasıl yapabilirdim?" style="min-height:60px;margin-top:8px"></textarea>
         <button class="btn" style="margin-top:6px" onclick="completeTask('${t.id}')">${icon('checkCircle', 14)} Tamamlandı Olarak İşaretle</button>
       </div>`;
-        } else if (t.status === "tamamlandı" && (t.report || t.ozelestiri)) {
+        } else if ((t.status === "tamamlandı" || t.status === "kontrol") && (t.report || t.ozelestiri)) {
           const metinKutusu = (baslik, metin, renk) => `<div style="background:var(--panel-2);border:1px solid var(--line);border-left:3px solid ${renk};border-radius:8px;padding:10px 12px;font-size:13px;margin-top:8px">
         <div style="color:${renk};font-size:11px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:600">${baslik}</div>
         ${escapeHtml(metin)}
@@ -4616,6 +4704,8 @@
         ${t.ozelestiri ? metinKutusu("Özeleştiri", t.ozelestiri, "#f4b740") : ""}
       </div>`;
         }
+        // Oylama kutusu: kontrol aşamasındaki görevde rapordan bağımsız görünür.
+        if (t.status === "kontrol") actionArea += oylamaKutusu(t);
         // Değerlendirme kutusu rapor/özeleştiriden BAĞIMSIZ: ikisi de boş
         // bırakılmış bir görev de puanlanabilmeli.
         if (t.status === "tamamlandı") actionArea += degerlendirmeKutusu(t);
@@ -4704,14 +4794,15 @@
       html += `<div class="toolbar" style="gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
     <span class="pill ${taskTab === 'aktif' ? 'active' : ''}" style="${taskTab === 'aktif' ? 'background:rgba(244,183,64,.15);border-color:#f4b740;color:#f4b740' : ''}" onclick="setTaskTab('aktif')">${icon('clock', 13)} Aktif (${pending.length})</span>
     <span class="pill ${taskTab === 'havuz' ? 'active' : ''}" style="${taskTab === 'havuz' ? 'background:rgba(167,139,250,.18);border-color:#a78bfa;color:#a78bfa' : (havuzGorevleri.length ? 'border-color:#a78bfa;color:#a78bfa' : '')}" onclick="setTaskTab('havuz')">${icon('users', 13)} Havuz (${havuzGorevleri.length})</span>
+    <span class="pill ${taskTab === 'kontrol' ? 'active' : ''}" style="${taskTab === 'kontrol' ? 'background:rgba(45,212,191,.15);border-color:#2dd4bf;color:#2dd4bf' : (kontroldekiler.length ? 'border-color:#2dd4bf;color:#2dd4bf' : '')}" onclick="setTaskTab('kontrol')">🗳️ Oylamada (${kontroldekiler.length})</span>
     <span class="pill ${taskTab === 'tamamlanan' ? 'active' : ''}" style="${taskTab === 'tamamlanan' ? 'background:rgba(55,201,138,.15);border-color:#37c98a;color:#37c98a' : ''}" onclick="setTaskTab('tamamlanan')">${icon('checkCircle', 13)} Tamamlanan (${completed.length})</span>
     ${isTaskAdmin && selectedTaskStaffId ? `<span class="pill" style="border-color:var(--brand-2);color:var(--brand-2)" onclick="selectTaskStaff('${selectedTaskStaffId}')">${escapeHtml(staffName(selectedTaskStaffId) || "")} ✕</span>` : ""}
   </div>`;
 
-      const list = taskTab === "aktif" ? pending : taskTab === "havuz" ? havuzGorevleri : completed;
+      const list = taskTab === "aktif" ? pending : taskTab === "havuz" ? havuzGorevleri : taskTab === "kontrol" ? kontroldekiler : completed;
       const emptyMsg = isTaskAdmin && selectedTaskStaffId
-        ? (taskTab === "aktif" ? "Bu personelin aktif görevi yok." : taskTab === "havuz" ? "Havuzda görev yok." : "Bu personelin tamamlanan görevi yok.")
-        : (taskTab === "aktif" ? "Aktif görev yok." : taskTab === "havuz" ? "Havuzda alınmayı bekleyen görev yok." : "Henüz tamamlanan görev yok.");
+        ? (taskTab === "aktif" ? "Bu personelin aktif görevi yok." : taskTab === "havuz" ? "Havuzda görev yok." : taskTab === "kontrol" ? "Oylamada görev yok." : "Bu personelin tamamlanan görevi yok.")
+        : (taskTab === "aktif" ? "Aktif görev yok." : taskTab === "havuz" ? "Havuzda alınmayı bekleyen görev yok." : taskTab === "kontrol" ? "Oylama bekleyen görev yok." : "Henüz tamamlanan görev yok.");
       html += list.length ? list.map(taskCard).join("") : `<div class="empty">${emptyMsg}</div>`;
 
       // Ertelenmiş görevler havuz sekmesinin altında ayrı bölümde: listeyi
