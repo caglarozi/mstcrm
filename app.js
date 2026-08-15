@@ -4885,7 +4885,24 @@
       const emptyMsg = isTaskAdmin && selectedTaskStaffId
         ? (taskTab === "aktif" ? "Bu personelin aktif görevi yok." : taskTab === "havuz" ? "Havuzda görev yok." : taskTab === "kontrol" ? "Oylamada görev yok." : "Bu personelin tamamlanan görevi yok.")
         : (taskTab === "aktif" ? "Aktif görev yok." : taskTab === "havuz" ? "Havuzda alınmayı bekleyen görev yok." : taskTab === "kontrol" ? "Oylama bekleyen görev yok." : "Henüz tamamlanan görev yok.");
-      html += list.length ? list.map(taskCard).join("") : `<div class="empty">${emptyMsg}</div>`;
+      // Admin Aktif sekmesinde YAPACAĞI görevlerle ATADIĞI görevleri ayrı
+      // görür (personel filtresi seçiliyken bölmeye gerek yok — zaten tek
+      // kişinin listesi).
+      if (isTaskAdmin && taskTab === "aktif" && !selectedTaskStaffId) {
+        const bolumBaslik = (metin, renk) => `<div style="display:flex;align-items:center;gap:10px;margin:18px 0 12px">
+      <div style="flex:1;height:1px;background:var(--line)"></div>
+      <span style="font-size:11px;color:${renk};text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;font-weight:600">${metin}</span>
+      <div style="flex:1;height:1px;background:var(--line)"></div>
+    </div>`;
+        const benimGorevlerim = list.filter(t => isTaskFor(t, "admin"));
+        const atadiklarim = list.filter(t => !isTaskFor(t, "admin"));
+        html += bolumBaslik(`${icon('user', 12)} Yapacağım Görevler (${benimGorevlerim.length})`, "var(--brand-2)");
+        html += benimGorevlerim.length ? benimGorevlerim.map(taskCard).join("") : `<div class="empty">Sana atanmış aktif görev yok.</div>`;
+        html += bolumBaslik(`${icon('users', 12)} Ekibe Atananlar (${atadiklarim.length})`, "var(--amber)");
+        html += atadiklarim.length ? atadiklarim.map(taskCard).join("") : `<div class="empty">Ekipte aktif görev yok.</div>`;
+      } else {
+        html += list.length ? list.map(taskCard).join("") : `<div class="empty">${emptyMsg}</div>`;
+      }
 
       // Ertelenmiş görevler havuz sekmesinin altında ayrı bölümde: listeyi
       // meşgul etmesinler ama görünmez de olmasınlar (unutulan iş olmasın).
