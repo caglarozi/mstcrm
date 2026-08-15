@@ -1134,15 +1134,25 @@
     /* Kurala .yildizSecici ile bagli DEGIL: ayni buton gorev kartindaki
        degerlendirme kutusunda da kullaniliyor, orada da cerceve/zemin
        gorunmemeli. */
+    /* Dokunma hedefi en az 40x40 olmalı (Google/Apple önerisi). Yıldız
+       simgesi 20-24px; kutu büyütülmezse telefonda 26x28px kalıyor ve
+       parmakla yanlış yıldıza basmak çok kolay oluyor. Simge boyutu
+       değişmiyor, yalnızca basılabilir alan genişliyor. */
     .yildizBtn {
       background: none;
       border: none;
       box-shadow: none;
-      padding: 4px 3px;
+      min-width: 40px;
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
       margin: 0;
       cursor: pointer;
       line-height: 0;
-      border-radius: 6px;
+      border-radius: 8px;
+      touch-action: manipulation;   /* çift dokunuşta yakınlaştırmayı engelle */
       transition: transform .12s, background .18s;
     }
 
@@ -1541,6 +1551,40 @@
       transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
+    /* Dilek & Şikayet düğmesi — hangi ekranda olunursa olunsun görünür.
+       SOL altta duruyor: sağ alt köşe Linda ve "Yeni Yazar" düğmelerinin.
+       Giriş yapılmadan görünmesin diye display:none başlıyor, oturum
+       açılınca JS flex yapıyor (chatFabDock ile aynı desen). */
+    #feedbackFab {
+      display: none;
+      position: fixed;
+      left: 20px;
+      bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+      z-index: 500;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 16px;
+      min-height: 44px;
+      border-radius: 999px;
+      border: 1px solid rgba(167, 139, 250, .5);
+      background: linear-gradient(135deg, #6d28d9, #8b5cf6);
+      color: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+      transition: transform .2s, box-shadow .2s;
+      touch-action: manipulation;
+    }
+
+    #feedbackFab:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 30px rgba(109, 40, 217, .45);
+    }
+
+    #feedbackFab .fbIkon { font-size: 16px; line-height: 1; }
+
     /* Mobil alt sekme çubuğu (native app hissi için) — masaüstünde gizli,
        aşağıdaki mobil medya sorgusu display:flex ile açıyor. Bu temel
        kural, override edebilmesi için medya sorgusundan ÖNCE gelmeli
@@ -1840,6 +1884,22 @@
         margin-left: 0 !important;
       }
 
+      /* Telefonda dokunma hedefi en az 40px olmalı. Sekmeler masaüstünde
+         33px yüksekliğinde kalıyordu; parmakla isabet ettirmek zor ve
+         Görevler ekranında sekmeler ana gezinme öğesi. Yalnızca mobilde
+         büyütüyoruz, masaüstü görünümü aynı kalsın. */
+      .pill {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+      }
+
+      /* Aynı gerekçe tüm butonlar için: karttaki küçük simge butonları
+         (düzenle/sil/ertele) telefonda ~30px kalıyordu. */
+      .btn {
+        min-height: 40px;
+      }
+
       .pipe {
         grid-template-columns: 1fr;
       }
@@ -2038,6 +2098,22 @@
       #chatFabDock {
         bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
       }
+
+      /* Dilek & Şikayet düğmesi mobilde: alt sekme çubuğu (yaklaşık 60px)
+         ekranın altını kapattığı için onun ÜSTÜNE alınıyor, yoksa çubuğun
+         arkasında kalıp tıklanamaz oluyordu. Yazı gizlenip yalnız simge
+         kalıyor — dar ekranda yer kaplamasın. */
+      #feedbackFab {
+        left: 14px;
+        bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+        padding: 0;
+        width: 48px;
+        height: 48px;
+        justify-content: center;
+      }
+
+      #feedbackFab .fbYazi { display: none; }
+      #feedbackFab .fbIkon { font-size: 20px; }
 
       /* "+ Yeni Yazar" FAB'ı — sohbet FAB'ıyla aynı köşede çakışmaması için
          onun bir buton boyu üstünde duruyor (sohbet kapalıysa boşuna boşluk

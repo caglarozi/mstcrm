@@ -269,6 +269,7 @@
           document.getElementById("loginScreen").style.display = "none";
           document.querySelector(".app").style.display = "grid";
           document.getElementById("chatFabDock").style.display = "flex";
+          showFeedbackFab(true);
           startChatFabPeek();
           restoreChatHistory();
           if (typeof Notification !== "undefined" && Notification.permission === "default") {
@@ -281,6 +282,7 @@
           document.getElementById("loginScreen").style.display = "grid";
           document.querySelector(".app").style.display = "none";
           document.getElementById("chatFabDock").style.display = "none";
+          showFeedbackFab(false);
           stopChatFabPeek();
         }
       });
@@ -291,12 +293,14 @@
         document.getElementById("loginScreen").style.display = "none";
         document.querySelector(".app").style.display = "grid";
         document.getElementById("chatFabDock").style.display = "flex";
+        showFeedbackFab(true);
         startChatFabPeek();
         restoreChatHistory();
       } else {
         document.getElementById("loginScreen").style.display = "grid";
         document.querySelector(".app").style.display = "none";
         document.getElementById("chatFabDock").style.display = "none";
+        showFeedbackFab(false);
         stopChatFabPeek();
       }
     }
@@ -669,16 +673,51 @@
         if (f) { f.status = status; f.resolvedDate = resolvedDate; }
       });
     }
-    async function submitFeedback() {
-      const type = document.getElementById("fb_type").value;
-      const text = document.getElementById("fb_text").value.trim();
-      if (!text) { alert("Mesaj boş olamaz."); return; }
+    // Ortak gönderim çekirdeği: hem Şikayet & Dilek sayfasındaki form hem de
+    // her ekranda duran yüzen düğmenin penceresi burayı kullanıyor. İki ayrı
+    // kopya olsaydı anonimlik kuralı bir yerde unutulabilirdi.
+    async function feedbackKaydet(type, text) {
+      if (!text) { alert("Mesaj boş olamaz."); return false; }
       // Kimlik bilgisi bilerek eklenmiyor — gönderi anonim. Yalnızca bu
       // tarayıcı, silme yetkisi için kendi gönderdiklerinin id'sini hatırlar.
       const entry = { id: uid(), type, text, date: todayStr() };
       rememberMyFeedback(entry.id);
       await mutateFeedback(d => { if (!d.items.some(x => x.id === entry.id)) d.items.push(entry); });
       customAlert("Teşekkürler! 📮", "Mesajınız kutuya anonim olarak bırakıldı.");
+      return true;
+    }
+
+    async function submitFeedback() {
+      await feedbackKaydet(
+        document.getElementById("fb_type").value,
+        document.getElementById("fb_text").value.trim()
+      );
+    }
+
+    /* ---------- Her ekranda duran dilek/şikayet düğmesi ----------
+     * Kutu daha önce yalnızca kendi sayfasından açılıyordu; menüye girmeyi
+     * gerektirdiği için pratikte kullanılmıyordu. Artık yüzen düğme her
+     * görünümde duruyor ve pencereyi açıyor. */
+    function openFeedbackModal() {
+      document.getElementById("fbm_type").value = "dilek";
+      document.getElementById("fbm_text").value = "";
+      document.getElementById("feedbackModal").classList.add("open");
+      // Odağı metin alanına ver: dokunmatikte bir dokunuş kazandırır.
+      setTimeout(() => { const t = document.getElementById("fbm_text"); if (t) t.focus(); }, 60);
+    }
+    function closeFeedbackModal() {
+      document.getElementById("feedbackModal").classList.remove("open");
+    }
+    async function submitFeedbackModal() {
+      const ok = await feedbackKaydet(
+        document.getElementById("fbm_type").value,
+        document.getElementById("fbm_text").value.trim()
+      );
+      if (ok) closeFeedbackModal();
+    }
+    function showFeedbackFab(goster) {
+      const el = document.getElementById("feedbackFab");
+      if (el) el.style.display = goster ? "inline-flex" : "none";
     }
     async function delFeedback(id) {
       // Yalnızca mesajı gönderen silebilir (bu tarayıcıdan gönderilmişse).
@@ -1208,11 +1247,27 @@
     // fcm_tokens koleksiyonuna personel kimliğiyle kaydedilir. Görev
     // atandığında worker (/notify-task) bu tokenlara push gönderir —
     // CRM sekmesi hatta tarayıcı kapalıyken bile bildirim ulaşır.
+    // Asıl kayıt index.html'deki küçük betikte yapılıyor (Firebase SDK'sına
+    // bağımlı olmasın diye — bkz. oradaki açıklama). Buradaki çağrı aynı
+    // adresi tekrar kaydeder; register() aynı adres/kapsam için mevcut kaydı
+    // döndürdüğünden ikinci bir worker oluşmaz. Eskiden kayıt YALNIZCA burada
+    // ve üstelik messaging desteği varsa yapılıyordu; push desteklemeyen
+    // tarayıcılarda (ör. bazı iOS sürümleri) worker hiç kaydolmuyor,
+    // çevrimdışı çalışma ve "uygulama olarak yükle" hiç devreye girmiyordu.
+    let swKaydiSozu = null;
+    function registerServiceWorker() {
+      if (swKaydiSozu) return swKaydiSozu;
+      if (!("serviceWorker" in navigator)) return Promise.resolve(null);
+      swKaydiSozu = navigator.serviceWorker.register("firebase-messaging-sw.js")
+        .catch(e => { console.error("Servis worker kaydedilemedi:", e); return null; });
+      return swKaydiSozu;
+    }
+
     async function initPushNotifications() {
       try {
-        if (!("serviceWorker" in navigator)) return;
+        const reg = await registerServiceWorker();
+        if (!reg) return;
         if (typeof firebase.messaging !== "function" || !firebase.messaging.isSupported()) return;
-        const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js");
         const fcmToken = await firebase.messaging().getToken({ serviceWorkerRegistration: reg });
         if (!fcmToken) return;
         await firestore.collection("fcm_tokens").doc(fcmToken).set({
