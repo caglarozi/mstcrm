@@ -1990,18 +1990,40 @@
     function hedefiDegistirebilir(staffId) {
       return currentRole === "admin" || staffId === currentStaffId;
     }
+    // Sayı girilmişse aralığa çekilir (0 yazan "en az" demek istemiştir → 1);
+    // sayı DEĞİLSE varsayılana dönülür. "|| varsayılan" kullanılamaz, 0'ı yutar.
+    function hedefeCek(deger) {
+      const sayi = parseInt(deger, 10);
+      return Number.isFinite(sayi) ? Math.min(99, Math.max(1, sayi)) : GUNLUK_HEDEF_VARSAYILAN;
+    }
     async function setGunlukHedef(staffId, deger) {
       if (!hedefiDegistirebilir(staffId)) return;
-      // Sayı girilmişse aralığa çekilir (0 yazan "en az" demek istemiştir → 1);
-      // sayı DEĞİLSE varsayılana dönülür. "|| varsayılan" kullanılamaz, 0'ı yutar.
-      const sayi = parseInt(deger, 10);
-      const n = Number.isFinite(sayi)
-        ? Math.min(99, Math.max(1, sayi))
-        : GUNLUK_HEDEF_VARSAYILAN;
+      const n = hedefeCek(deger);
       await mutateStaff(d => {
         const s = (d.staff || []).find(x => x.id === staffId);
         if (s) s.gunlukHedef = n;
       });
+    }
+    // +/- düğmeleri: ekran anında güncellenir, Firestore'a yazma kısa bir
+    // süre beklenir. Arka arkaya beşe basan biri tek kayıt yapsın —
+    // her tıklamada transaction açmak hem kotayı hem de bağlantıyı yorar.
+    let hedefYazmaZaman = null;
+    function hedefAdimla(staffId, adim) {
+      if (!hedefiDegistirebilir(staffId)) return;
+      const s = (db.staff || []).find(x => x.id === staffId);
+      if (!s) return;
+      const yeni = hedefeCek(gunlukHedef(staffId) + adim);
+      if (yeni === gunlukHedef(staffId)) return;   // sınırdayız, boşuna çizme
+      s.gunlukHedef = yeni;
+      render();
+      clearTimeout(hedefYazmaZaman);
+      hedefYazmaZaman = setTimeout(() => setGunlukHedef(staffId, yeni), 700);
+    }
+    // Kutuya elle yazıldığında (onchange) bekletmeden kaydedilir; bekleyen
+    // bir +/- yazması varsa iptal edilir, yoksa eski değeri geri yazardı.
+    function hedefYaz(staffId, deger) {
+      clearTimeout(hedefYazmaZaman);
+      return setGunlukHedef(staffId, deger);
     }
     // Ortak ilerleme çubuğu: hem personelin kendi kartında hem yöneticinin
     // ekip halkalarında aynı hesap kullanılsın diye tek yerde üretiliyor.
@@ -2026,19 +2048,23 @@
       // kişi günün başında kendi hedefini buraya yazar.
       const kendinin = hedefiDegistirebilir(staffId) && (db.staff || []).some(s => s.id === staffId);
       const hedefAlani = kendinin
-        ? `<span style="font-size:13px;color:var(--muted)">/</span>
-          <input type="number" min="1" max="99" step="1" value="${hedef}" id="hedefKutu_${staffId}"
-            onchange="setGunlukHedef('${staffId}', this.value)"
-            title="Bugün kaç görev tamamlamayı hedefliyorsun?"
-            style="width:62px;padding:4px 6px;text-align:center;font-weight:700;font-size:16px">
-          <span style="font-size:13px;color:var(--muted)">görev</span>`
-        : `<span style="font-size:13px;color:var(--muted)">/ ${hedef} görev</span>`;
+        ? `<span class="bolu">/</span>
+          <span class="hedefKutu">
+            <button type="button" onclick="hedefAdimla('${staffId}', -1)" title="Hedefi azalt" aria-label="Hedefi azalt"${hedef <= 1 ? ' disabled' : ''}>−</button>
+            <input type="number" inputmode="numeric" min="1" max="99" step="1" value="${hedef}" id="hedefKutu_${staffId}"
+              onchange="hedefYaz('${staffId}', this.value)"
+              onfocus="this.select()"
+              title="Bugün kaç görev tamamlamayı hedefliyorsun?" aria-label="Günlük görev hedefi">
+            <button type="button" onclick="hedefAdimla('${staffId}', 1)" title="Hedefi artır" aria-label="Hedefi artır"${hedef >= 99 ? ' disabled' : ''}>+</button>
+          </span>
+          <span class="birim">görev</span>`
+        : `<span class="bolu">/</span><span class="birim" style="font-size:15px;font-weight:700;color:var(--txt)">${hedef}</span><span class="birim">görev</span>`;
 
       return `<div class="card" style="margin-bottom:16px;${tamam ? 'border-color:rgba(55,201,138,.4)' : ''}">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600">${icon('checkCircle', 13)} Günlük hedef</div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <b style="font-size:22px;color:${renk}">${yapilan}</b>
+        <div class="hedefSayac">
+          <b class="yapilan" style="color:${renk}">${yapilan}</b>
           ${hedefAlani}
         </div>
       </div>
