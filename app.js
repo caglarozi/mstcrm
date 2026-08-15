@@ -598,7 +598,7 @@
       <option value="talep">📋 Talep</option>
     </select>
     <label style="margin-top:10px">Mesajınız</label>
-    <textarea id="fb_text" rows="4" placeholder="Dileğinizi ya da şikayetinizi yazın..." style="width:100%;resize:vertical"></textarea>
+    <textarea id="fb_text" rows="4" placeholder="Dileğinizi, şikayetinizi ya da talebinizi yazın..." style="width:100%;resize:vertical"></textarea>
     <div style="display:flex;justify-content:flex-end;margin-top:12px">
       <button class="btn" onclick="submitFeedback()">Anonim Olarak Gönder</button>
     </div>
@@ -698,9 +698,26 @@
      * Kutu daha önce yalnızca kendi sayfasından açılıyordu; menüye girmeyi
      * gerektirdiği için pratikte kullanılmıyordu. Artık yüzen düğme her
      * görünümde duruyor ve pencereyi açıyor. */
+    // Üç tür de aynı kutuya düşüyor ama farklı yerlerde toplanıyor: talepler
+    // kendi bölümünde listeleniyor (bkz. viewFeedback). Kullanıcı hangisini
+    // seçtiğinde ne olacağını bilsin diye kısa bir açıklama gösteriyoruz.
+    const FEEDBACK_IPUCU = {
+      dilek: "Bir fikriniz ya da öneriniz varsa buraya yazın.",
+      sikayet: "Rahatsız olduğunuz bir durumu bildirin. Kişi adı vermek yerine durumu anlatın.",
+      talep: "Somut bir isteğiniz varsa (malzeme, izin, düzenleme) buraya yazın — talepler ayrı bir listede toplanır."
+    };
+    function onFeedbackTypeChange() {
+      const el = document.getElementById("fbm_ipucu");
+      if (!el) return;
+      const tur = document.getElementById("fbm_type").value;
+      el.className = tur === "talep" ? "assigneeHint ortak" : "assigneeHint";
+      el.textContent = FEEDBACK_IPUCU[tur] || "";
+    }
+
     function openFeedbackModal() {
       document.getElementById("fbm_type").value = "dilek";
       document.getElementById("fbm_text").value = "";
+      onFeedbackTypeChange();
       document.getElementById("feedbackModal").classList.add("open");
       // Odağı metin alanına ver: dokunmatikte bir dokunuş kazandırır.
       setTimeout(() => { const t = document.getElementById("fbm_text"); if (t) t.focus(); }, 60);

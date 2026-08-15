@@ -894,12 +894,14 @@
         hiçbir şekilde kaydedilmez ve kimseye gösterilmez. Çekinmeden yazabilirsiniz.
       </div>
       <label>Tür</label>
-      <select id="fbm_type">
+      <select id="fbm_type" onchange="onFeedbackTypeChange()">
         <option value="dilek">💡 Dilek / Öneri</option>
         <option value="sikayet">⚠️ Şikayet</option>
+        <option value="talep">📋 Talep</option>
       </select>
+      <div id="fbm_ipucu" class="assigneeHint"></div>
       <label>Mesajınız</label>
-      <textarea id="fbm_text" rows="5" placeholder="Dileğinizi ya da şikayetinizi yazın..." style="width:100%;resize:vertical"></textarea>
+      <textarea id="fbm_text" rows="5" placeholder="Dileğinizi, şikayetinizi ya da talebinizi yazın..." style="width:100%;resize:vertical"></textarea>
       <div class="actions">
         <button class="btn ghost" onclick="closeFeedbackModal()">Vazgeç</button>
         <button class="btn" onclick="submitFeedbackModal()">Anonim Olarak Gönder</button>
