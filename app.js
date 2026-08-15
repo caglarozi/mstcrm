@@ -1356,7 +1356,7 @@
                 if (!wasCompleted && data.status === "tamamlandı" && currentRole === "admin") notifyTaskCompleted(data);
               } else {
                 db.tasks.unshift(data);
-                if (change.type === "added" && (isTaskFor(data, currentStaffId) || havuzdaAktif(data))) notifyNewTask(data);
+                if (change.type === "added" && (isTaskFor(data, myTaskId()) || havuzdaAktif(data))) notifyNewTask(data);
               }
             });
           }
@@ -4393,24 +4393,25 @@
       const box = document.getElementById("tsk_assignees");
       if (!box) return;
       const sel = selectedIds || [];
+      const chipHtml = (id, ad, on) => `<label class="assigneeChip${on ? ' selected' : ''}">
+        <input type="checkbox" value="${id}"${on ? ' checked' : ''} onchange="onAssigneeToggle(this)">
+        ${escapeHtml(ad)}
+      </label>`;
       if (currentRole !== "admin") {
+        // Personel kendine VEYA yöneticiye görev atayabilir (ikisine birden
+        // seçilirse ortak görev olur); diğer personele atayamaz.
         const ben = (db.staff || []).find(s => s.id === currentStaffId);
-        box.innerHTML = ben
-          ? `<label class="assigneeChip selected" style="cursor:default">
-        <input type="checkbox" value="${ben.id}" checked disabled>
-        ${escapeHtml(ben.name)} (sen)
-      </label>`
-          : `<div style="font-size:12px;color:var(--muted)">Hesabın ekip listesiyle eşleşmediği için kendine görev ekleyemezsin — havuza bırakabilirsin.</div>`;
+        let htmlStr = "";
+        if (ben) htmlStr += chipHtml(ben.id, ben.name + " (sen)", sel.indexOf(ben.id) !== -1);
+        htmlStr += chipHtml("admin", "Sistem Yöneticisi", sel.indexOf("admin") !== -1);
+        if (!ben) htmlStr += `<div style="font-size:12px;color:var(--muted);margin-top:4px">Hesabın ekip listesiyle eşleşmediği için kendine görev ekleyemezsin — yöneticiye atayabilir ya da havuza bırakabilirsin.</div>`;
+        box.innerHTML = htmlStr;
         updateAssigneeHint();
         return;
       }
-      box.innerHTML = (db.staff || []).map(s => {
-        const on = sel.indexOf(s.id) !== -1;
-        return `<label class="assigneeChip${on ? ' selected' : ''}">
-        <input type="checkbox" value="${s.id}"${on ? ' checked' : ''} onchange="onAssigneeToggle(this)">
-        ${escapeHtml(s.name)}
-      </label>`;
-      }).join("");
+      // Admin de görev alabildiği için listede kendisi de var.
+      const kisiler = [{ id: "admin", name: "Sistem Yöneticisi (sen)" }].concat(db.staff || []);
+      box.innerHTML = kisiler.map(s => chipHtml(s.id, s.name, sel.indexOf(s.id) !== -1)).join("");
       updateAssigneeHint();
     }
     function onAssigneeToggle(cb) {
@@ -4456,12 +4457,19 @@
         el.textContent = "Havuz görevi — kimseye atanmayacak. Herkes görür, ilk üstlenen kendi listesine alır.";
         return;
       }
-      const n = selectedAssignees().length;
+      const secili = selectedAssignees();
+      const n = secili.length;
       if (currentRole !== "admin") {
-        el.className = "assigneeHint";
-        el.textContent = n === 1
-          ? "Bu görev sana atanacak."
-          : "Kendine ekleyemiyorsan 'Havuza bırak' seçeneğini kullan.";
+        if (n > 1) {
+          el.className = "assigneeHint ortak";
+          el.textContent = "Ortak görev — sana ve yöneticiye birlikte atanacak.";
+        } else if (n === 1) {
+          el.className = "assigneeHint";
+          el.textContent = secili[0] === "admin" ? "Bu görev Sistem Yöneticisi'ne atanacak." : "Bu görev sana atanacak.";
+        } else {
+          el.className = "assigneeHint";
+          el.textContent = "Kendine ya da yöneticiye ata — ya da 'Havuza bırak' seçeneğini kullan.";
+        }
         return;
       }
       if (n > 1) {
@@ -4498,15 +4506,16 @@
       const title = document.getElementById("tsk_title").value.trim();
       if (!title) { alert("Başlık zorunlu."); return; }
       const havuz = havuzSecili();
-      // Personel yalnızca KENDİNE ya da havuza görev yazabilir. Seçim
-      // ekranda zaten kilitli ama kaynağı burada da sabitliyoruz — ekrana
-      // güvenip başkasına iş yazılmasına açık kapı bırakmıyoruz.
+      // Personel yalnızca KENDİNE, YÖNETİCİYE ya da havuza görev yazabilir.
+      // Seçim ekranda zaten kısıtlı ama kaynağı burada da sabitliyoruz —
+      // ekrana güvenip başka personele iş yazılmasına açık kapı bırakmıyoruz.
+      const izinliler = currentRole === "admin" ? null : [currentStaffId, "admin"].filter(Boolean);
       const assignees = havuz ? []
-        : (currentRole === "admin" ? selectedAssignees() : (currentStaffId ? [currentStaffId] : []));
+        : selectedAssignees().filter(id => !izinliler || izinliler.indexOf(id) !== -1);
       if (!havuz && !assignees.length) {
         alert(currentRole === "admin"
           ? "Görevin kime atanacağını seç — ya da 'Havuza bırak' işaretle."
-          : "Hesabın ekip listesiyle eşleşmediği için kendine görev ekleyemiyorsun. 'Havuza bırak' seçeneğini kullanabilirsin.");
+          : "Görevi kendine ya da yöneticiye ata — ya da 'Havuza bırak' seçeneğini kullan.");
         return;
       }
       const description = document.getElementById("tsk_description").value.trim();
