@@ -814,6 +814,22 @@
     </div>
   </div>
 
+  <!-- DESTEKCI TALEBI -->
+  <div class="modal" id="destekModal" onclick="closeDestekModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2>Destekçi İste</h2>
+      <div id="destek_baslik" style="color:var(--muted);font-size:13px;margin:-10px 0 14px"></div>
+      <input type="hidden" id="destek_id">
+      <label>Ne konuda desteğe ihtiyacın var? <span style="color:var(--red)">*</span></label>
+      <textarea id="destek_not" placeholder="Örn. 'Matbaa fiyatlarını toplayacak birine ihtiyacım var, ben yazarla görüşmeyi sürdüreceğim.'" style="min-height:80px"></textarea>
+      <div class="assigneeHint">Görev sende kalır, havuza düşmez. Karşılık veren kişi göreve eklenir ve iş ortak görev olarak yürür.</div>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeDestekModal()">Vazgeç</button>
+        <button class="btn" onclick="submitDestekTalebi()">Destekçi İste</button>
+      </div>
+    </div>
+  </div>
+
   <!-- BOOK MODAL -->
   <div class="modal" id="bookModal" onclick="closeBookModal()">
     <div class="box" onclick="event.stopPropagation()">

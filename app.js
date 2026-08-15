@@ -2432,7 +2432,9 @@
           // bekler — rozetin işi zaten "bakılacak iş var" demek.
           // Ertelenmiş havuz görevi rozete sayılmaz — tarihi gelmeden
           // yapılacak iş değil, sayılırsa rozet hep dolu kalır.
-          : (db.tasks || []).filter(t => (isTaskFor(t, currentStaffId) && t.status !== "tamamlandı") || havuzdaAktif(t)).length;
+          // Destekçi aranan görevler de sayılır: kimse fark etmezse talep
+          // öylece bekler — rozetin işi zaten "bakılacak iş var" demek.
+          : (db.tasks || []).filter(t => (isTaskFor(t, currentStaffId) && t.status !== "tamamlandı") || havuzdaAktif(t) || destekAraniyor(t)).length;
         if (badgeCount > 0) {
           badge.textContent = badgeCount > 9 ? "9+" : String(badgeCount);
           badge.style.display = "flex";
@@ -4491,6 +4493,145 @@
       }
     }
 
+    /* ---------- Destekçi talebi ----------
+     * Görevi üstlenen kişi işi yaparken tıkanırsa "destekçi" ister; talep
+     * ekipteki herkese görünür, karşılık veren kişi göreve DAHİL olur ve
+     * iş oradan sonra ortak görev olarak yürür (assignees'e eklenir).
+     *
+     * Neden havuza geri bırakmak yerine bu var: erteleme, işi bırakıp
+     * havuza atmaktır — yapılanlar sahipsiz kalır. Destek talebi ise işi
+     * bırakmadan yardım çağırmaktır, görev sahibinde kalmaya devam eder.
+     *
+     * İlk karşılık veren kazanır (transaction): iki kişi aynı anda "Destek
+     * Ol" derse ikisi birden eklenip görev üç kişiye çıkmasın. Sonradan
+     * yine destek istenebilir — talep temizlendiği için yeni talep açılır.
+     */
+    function destekTalebi(t) {
+      return (t && t.destekTalebi && typeof t.destekTalebi === "object") ? t.destekTalebi : null;
+    }
+    // Aktif talep: görev hâlâ yapılıyor olmalı. Oylamadaki/biten ya da
+    // havuza düşmüş görevde talep anlamsızdır (sahibi yok / iş bitmiş).
+    function destekAraniyor(t) {
+      return !!destekTalebi(t) && t.status !== "tamamlandı" && t.status !== "kontrol" && !isHavuzGorevi(t);
+    }
+    function destekIsteyebilir(t) {
+      if (!t || destekAraniyor(t) || isHavuzGorevi(t)) return false;
+      if (t.status === "tamamlandı" || t.status === "kontrol") return false;
+      return isTaskFor(t, myTaskId());
+    }
+    // Talebi yalnızca isteyen kişi (ya da yönetici) geri çekebilir.
+    function destekTalebiGeriCekebilir(t) {
+      if (!destekAraniyor(t)) return false;
+      if (currentRole === "admin") return true;
+      return destekTalebi(t).isteyen === myTaskId();
+    }
+    // Göreve zaten dahil olan kendi talebine "destek olamaz".
+    function destekOlabilir(t) {
+      const benim = myTaskId();
+      return destekAraniyor(t) && !!benim && !isTaskFor(t, benim);
+    }
+    function destekIsteyenAdi(t) {
+      const d = destekTalebi(t);
+      if (!d) return "";
+      return d.isteyen === "admin" ? "Sistem Yöneticisi" : (staffName(d.isteyen) || "Personel");
+    }
+
+    function openDestekModal(taskId) {
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      document.getElementById("destek_id").value = taskId;
+      document.getElementById("destek_baslik").textContent = t.title || "";
+      document.getElementById("destek_not").value = "";
+      document.getElementById("destekModal").classList.add("open");
+      setTimeout(() => { const el = document.getElementById("destek_not"); if (el) el.focus(); }, 50);
+    }
+    function closeDestekModal() { document.getElementById("destekModal").classList.remove("open"); }
+
+    async function submitDestekTalebi() {
+      const taskId = document.getElementById("destek_id").value;
+      // Not ZORUNLU: "yardım lazım" tek başına kimseyi harekete geçirmez;
+      // ne konuda destek istendiği yazılmazsa kimse üstlenip üstlenemeyeceğini
+      // bilemez (erteleme sebebiyle aynı gerekçe).
+      const not = document.getElementById("destek_not").value.trim();
+      if (!not) { alert("Ne konuda desteğe ihtiyacın olduğunu kısaca yaz."); return; }
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!t || !destekIsteyebilir(t)) { closeDestekModal(); return; }
+
+      const talep = { isteyen: myTaskId(), tarih: todayStr(), not };
+      try {
+        await firestore.collection("tasks").doc(taskId).update({ destekTalebi: talep });
+        t.destekTalebi = talep;
+        closeDestekModal();
+        render();
+        customAlert("Destekçi talebin iletildi", "Ekip \"Destek\" sekmesinde görecek. Karşılık veren kişi görevine ortak olur.");
+      } catch (e) {
+        console.error("Destek talebi gönderilemedi:", e);
+        alert(dbErrorText(e, "Destek talebi iletilemedi"));
+      }
+    }
+
+    async function destekTalebiniGeriCek(taskId) {
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!t || !destekTalebiGeriCekebilir(t)) return;
+      if (!(await customConfirm("Destekçi talebi geri çekilsin mi?"))) return;
+      try {
+        await firestore.collection("tasks").doc(taskId).update({ destekTalebi: null });
+        t.destekTalebi = null;
+        render();
+      } catch (e) {
+        console.error("Destek talebi geri çekilemedi:", e);
+        alert(dbErrorText(e, "Talep geri çekilemedi"));
+      }
+    }
+
+    async function destekOl(taskId) {
+      const benim = myTaskId();
+      if (!benim) { customAlert("Destek olunamadı", "Hesabınız ekip listesiyle eşleşmediği için göreve katılamıyorsunuz. Yöneticinize bildirin."); return; }
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      if (!(await customConfirm(`"${t.title}" görevine destekçi olarak katılıyor musun?\n\nGörev ortak göreve dönüşecek ve senin listende de görünecek.`, "Evet, Destek Ol"))) return;
+
+      const ref = firestore.collection("tasks").doc(taskId);
+      let sonuc = null;
+      try {
+        await firestore.runTransaction(async tx => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) throw new Error("YOK");
+          const d = snap.data();
+          if (!d.destekTalebi) throw new Error("KAPANMIS");
+          // assignees boş olabilir (eski kayıt) — assignedTo'ya düşülür.
+          const mevcut = (Array.isArray(d.assignees) && d.assignees.length)
+            ? d.assignees.slice() : (d.assignedTo ? [d.assignedTo] : []);
+          if (mevcut.indexOf(benim) !== -1) throw new Error("ZATEN");
+          const yeni = mevcut.concat([benim]);
+          const gecmis = (Array.isArray(d.destekGecmisi) ? d.destekGecmisi : []).concat([{
+            kisi: benim, isteyen: d.destekTalebi.isteyen, not: d.destekTalebi.not || "", tarih: todayStr()
+          }]);
+          sonuc = { assignees: yeni, destekTalebi: null, destekGecmisi: gecmis, isteyen: d.destekTalebi.isteyen };
+          tx.update(ref, { assignees: yeni, destekTalebi: null, destekGecmisi: gecmis });
+        });
+        if (sonuc) {
+          Object.assign(t, { assignees: sonuc.assignees, destekTalebi: null, destekGecmisi: sonuc.destekGecmisi });
+          // Destek isteyen kişiye haber ver — talebinin karşılandığını
+          // görmek için listeye bakmak zorunda kalmasın.
+          sendTaskPush(t, [sonuc.isteyen]);
+        }
+        render();
+      } catch (e) {
+        if (e.message === "KAPANMIS") {
+          customAlert("Talep kapanmış", "Bu göreve az önce başka biri destek oldu ya da talep geri çekildi.");
+          render();
+        } else if (e.message === "ZATEN") {
+          customAlert("Zaten bu görevdesin", "Bu görev senin listende de görünüyor.");
+        } else if (e.message === "YOK") {
+          customAlert("Görev bulunamadı", "Bu görev silinmiş olabilir.");
+        } else {
+          console.error("Destek olma hatası:", e);
+          alert(dbErrorText(e, "Göreve katılınamadı"));
+        }
+      }
+    }
+
     function openErteleModal(taskId) {
       const t = db.tasks.find(x => x.id === taskId);
       if (!t) return;
@@ -4821,9 +4962,11 @@
       // Havuz görevleri kimseye atanmadığı için isTaskFor süzgecine takılmaz;
       // herkesin görmesi gerektiğinden ayrıca ekleniyor.
       // Oylamadaki (kontrol) görevleri HERKES görür — göremeyen oy kullanamaz.
+      // Destekçi aranan görevler de herkese açılır, yoksa talebi yalnızca
+      // görevin sahibi görür ve kimse karşılık veremez.
       const relevantTasks = isTaskAdmin
         ? db.tasks
-        : db.tasks.filter(t => isTaskFor(t, currentStaffId) || isHavuzGorevi(t) || t.status === "kontrol");
+        : db.tasks.filter(t => isTaskFor(t, currentStaffId) || isHavuzGorevi(t) || t.status === "kontrol" || destekAraniyor(t));
 
       // Görev ekleme herkeste açık: yönetici istediğine atar, personel
       // yalnızca kendine ya da havuza ekleyebilir (bkz. renderAssigneePicker).
@@ -4886,7 +5029,15 @@
       const havuzGorevleri = havuzAktifler;
       const sahipliGorevler = filteredTasks.filter(t => !isHavuzGorevi(t));
 
-      const pending = sahipliGorevler.filter(t => t.status !== "tamamlandı" && t.status !== "kontrol").sort(havuzSirala);
+      // Destekçi aranan görevler kendi sekmesinde toplanır.
+      const destekBekleyenler = sahipliGorevler.filter(destekAraniyor).sort(havuzSirala);
+      // "Aktif" YALNIZCA kendi işlerim (yönetici hepsini görür). Başkasının
+      // destek beklediği görev, sırf herkese görünür oldu diye benim aktif
+      // listemi doldurmamalı — oylamadaki görevlerde de aynı ayrım var.
+      const pending = sahipliGorevler
+        .filter(t => t.status !== "tamamlandı" && t.status !== "kontrol")
+        .filter(t => isTaskAdmin || isTaskFor(t, myTaskId()))
+        .sort(havuzSirala);
       // Oylamadakiler: tamamlandı denmiş ama ekip kontrolünden geçmemiş görevler
       const kontroldekiler = sahipliGorevler.filter(t => t.status === "kontrol")
         .sort((a, b) => new Date(b.completedDate || b.created) - new Date(a.completedDate || a.created));
@@ -4979,6 +5130,35 @@
         // yönetici (bkz. ertelenebilirMi).
         const erteleBtn = ertelenebilirMi(t)
           ? `<button class="btn ghost" style="padding:6px 8px;color:#a78bfa" onclick="openErteleModal('${t.id}')" title="Ertele (sebebiyle havuza bırak)">${icon('clock', 13)}</button>` : "";
+        // Destekçi iste: görevi bırakmadan yardım çağırır (ertelemenin aksine
+        // iş sende kalır). Talep açıkken düğme yerine geri çekme görünür.
+        const destekBtn = destekIsteyebilir(t)
+          ? `<button class="btn ghost" style="padding:6px 8px;color:#ec833c" onclick="openDestekModal('${t.id}')" title="Destekçi iste (görev sende kalır)">🙋</button>`
+          : destekTalebiGeriCekebilir(t)
+            ? `<button class="btn ghost" style="padding:6px 8px;color:var(--muted)" onclick="destekTalebiniGeriCek('${t.id}')" title="Destekçi talebini geri çek">✕🙋</button>`
+            : "";
+
+        // Talep kutusu: ne istendiği ve kimin istediği yazılı; başkaları
+        // buradan doğrudan destek olur.
+        const destekKutusu = destekAraniyor(t)
+          ? `<div style="margin-top:8px;background:rgba(236,131,60,.08);border:1px solid rgba(236,131,60,.35);border-radius:8px;padding:10px 12px">
+        <div style="font-size:11px;color:#ec833c;text-transform:uppercase;letter-spacing:.5px;font-weight:600">🙋 Destekçi aranıyor — ${escapeHtml(destekIsteyenAdi(t))} istedi${destekTalebi(t).tarih ? ' • ' + fmtDate(destekTalebi(t).tarih) : ''}</div>
+        <div style="font-size:13px;color:var(--txt);margin-top:5px">${escapeHtml(destekTalebi(t).not || "")}</div>
+        ${destekOlabilir(t)
+            ? `<button class="btn" style="width:100%;margin-top:10px;background:rgba(236,131,60,.18);border-color:#ec833c;color:#ec833c" onclick="destekOl('${t.id}')">${icon('users', 14)} Destek Ol — göreve katıl</button>`
+            : `<div style="font-size:12px;color:var(--muted);margin-top:6px">${myTaskId() ? "Bu görevde zaten yer alıyorsun; karşılık verecek kişiyi bekliyorsunuz." : "Göreve katılmak için ekip listesinde tanımlı bir personel hesabı gerekir."}</div>`}
+      </div>`
+          : "";
+
+        // Destek geçmişi: göreve kimin, hangi talep üzerine katıldığı.
+        const destekGecmisi = Array.isArray(t.destekGecmisi) ? t.destekGecmisi : [];
+        const destekGecmisKutusu = destekGecmisi.length
+          ? `<div style="margin-top:8px;border-left:3px solid #ec833c;padding:6px 0 6px 10px">
+        ${destekGecmisi.map(d => `<div style="font-size:11px;color:#ec833c;font-weight:600">
+          ${escapeHtml(d.kisi === "admin" ? "Sistem Yöneticisi" : (staffName(d.kisi) || "Personel"))} destekçi oldu${d.tarih ? " • " + fmtDate(d.tarih) : ""}
+        </div>${d.not ? `<div style="font-size:12px;color:var(--muted);margin:2px 0 4px">${escapeHtml(d.not)}</div>` : ""}`).join("")}
+      </div>`
+          : "";
 
         return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
@@ -4989,15 +5169,18 @@
             ${oncelikRozeti(t)}
             ${statusBadge}
             ${sharedBadge}
+            ${destekAraniyor(t) ? `<span class="badge" style="background:rgba(236,131,60,.18);color:#ec833c">🙋 Destekçi aranıyor</span>` : ""}
             ${(!havuzda && (isTaskAdmin || ortak)) ? `<span style="font-size:12px;color:var(--muted)">${icon('user', 12)} ${escapeHtml(assigneeName)}</span>` : ""}
             ${t.alanKisi && !havuzda ? `<span style="font-size:11px;color:#a78bfa">havuzdan aldı${t.alinmaTarihi ? ' • ' + fmtDate(t.alinmaTarihi) : ''}</span>` : ""}
             ${(isTaskAdmin && t.assignedBy && t.assignedBy !== "admin") ? `<span style="font-size:11px;color:var(--muted)">${escapeHtml(staffName(t.assignedBy) || "Personel")} ekledi</span>` : ""}
             ${dueBadge}
           </div>
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">${erteleBtn}${editBtn}${deleteBtn}</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">${destekBtn}${erteleBtn}${editBtn}${deleteBtn}</div>
       </div>
       ${ertelemeKutusu}
+      ${destekGecmisKutusu}
+      ${destekKutusu}
       ${actionArea}
     </div>`;
       };
@@ -5047,15 +5230,16 @@
       html += `<div class="toolbar" style="gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
     <span class="pill ${taskTab === 'aktif' ? 'active' : ''}" style="${taskTab === 'aktif' ? 'background:rgba(244,183,64,.15);border-color:#f4b740;color:#f4b740' : ''}" onclick="setTaskTab('aktif')">${icon('clock', 13)} Aktif (${pending.length})</span>
     <span class="pill ${taskTab === 'havuz' ? 'active' : ''}" style="${taskTab === 'havuz' ? 'background:rgba(167,139,250,.18);border-color:#a78bfa;color:#a78bfa' : (havuzGorevleri.length ? 'border-color:#a78bfa;color:#a78bfa' : '')}" onclick="setTaskTab('havuz')">${icon('users', 13)} Havuz (${havuzGorevleri.length})</span>
+    <span class="pill ${taskTab === 'destek' ? 'active' : ''}" style="${taskTab === 'destek' ? 'background:rgba(236,131,60,.18);border-color:#ec833c;color:#ec833c' : (destekBekleyenler.length ? 'border-color:#ec833c;color:#ec833c' : '')}" onclick="setTaskTab('destek')">🙋 Destek (${destekBekleyenler.length})</span>
     <span class="pill ${taskTab === 'kontrol' ? 'active' : ''}" style="${taskTab === 'kontrol' ? 'background:rgba(45,212,191,.15);border-color:#2dd4bf;color:#2dd4bf' : (kontroldekiler.length ? 'border-color:#2dd4bf;color:#2dd4bf' : '')}" onclick="setTaskTab('kontrol')">🗳️ Oylamada (${kontroldekiler.length})</span>
     <span class="pill ${taskTab === 'tamamlanan' ? 'active' : ''}" style="${taskTab === 'tamamlanan' ? 'background:rgba(55,201,138,.15);border-color:#37c98a;color:#37c98a' : ''}" onclick="setTaskTab('tamamlanan')">${icon('checkCircle', 13)} Tamamlanan (${completed.length})</span>
     ${isTaskAdmin && selectedTaskStaffId ? `<span class="pill" style="border-color:var(--brand-2);color:var(--brand-2)" onclick="selectTaskStaff('${selectedTaskStaffId}')">${escapeHtml(selectedTaskStaffId === "admin" ? "Sistem Yöneticisi" : (staffName(selectedTaskStaffId) || ""))} ✕</span>` : ""}
   </div>`;
 
-      const list = taskTab === "aktif" ? pending : taskTab === "havuz" ? havuzGorevleri : taskTab === "kontrol" ? kontroldekiler : completed;
+      const list = taskTab === "aktif" ? pending : taskTab === "havuz" ? havuzGorevleri : taskTab === "destek" ? destekBekleyenler : taskTab === "kontrol" ? kontroldekiler : completed;
       const emptyMsg = isTaskAdmin && selectedTaskStaffId
-        ? (taskTab === "aktif" ? "Bu personelin aktif görevi yok." : taskTab === "havuz" ? "Havuzda görev yok." : taskTab === "kontrol" ? "Oylamada görev yok." : "Bu personelin tamamlanan görevi yok.")
-        : (taskTab === "aktif" ? "Aktif görev yok." : taskTab === "havuz" ? "Havuzda alınmayı bekleyen görev yok." : taskTab === "kontrol" ? "Oylama bekleyen görev yok." : "Henüz tamamlanan görev yok.");
+        ? (taskTab === "aktif" ? "Bu personelin aktif görevi yok." : taskTab === "havuz" ? "Havuzda görev yok." : taskTab === "destek" ? "Bu personelin destek beklediği görev yok." : taskTab === "kontrol" ? "Oylamada görev yok." : "Bu personelin tamamlanan görevi yok.")
+        : (taskTab === "aktif" ? "Aktif görev yok." : taskTab === "havuz" ? "Havuzda alınmayı bekleyen görev yok." : taskTab === "destek" ? "Destekçi bekleyen görev yok. Bir görevde tıkanırsan kendi kartından destek isteyebilirsin." : taskTab === "kontrol" ? "Oylama bekleyen görev yok." : "Henüz tamamlanan görev yok.");
       // Admin Aktif sekmesinde YAPACAĞI görevlerle ATADIĞI görevleri ayrı
       // görür (personel filtresi seçiliyken bölmeye gerek yok — zaten tek
       // kişinin listesi).
