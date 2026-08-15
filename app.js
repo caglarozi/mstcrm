@@ -1981,8 +1981,14 @@
       const t = tarih || todayStr();
       return (db.tasks || []).filter(x => x.completedBy === staffId && x.completedDate === t).length;
     }
+    // Hedefi kişinin KENDİSİ belirler (Görevler ekranındaki kutudan).
+    // Yönetici de Ekip ekranından herkesinkini düzenleyebilir; başkasının
+    // hedefine karışmak dışında kimse kimsenin sayısını değiştiremez.
+    function hedefiDegistirebilir(staffId) {
+      return currentRole === "admin" || staffId === currentStaffId;
+    }
     async function setGunlukHedef(staffId, deger) {
-      if (currentRole !== "admin") return;
+      if (!hedefiDegistirebilir(staffId)) return;
       // Sayı girilmişse aralığa çekilir (0 yazan "en az" demek istemiştir → 1);
       // sayı DEĞİLSE varsayılana dönülür. "|| varsayılan" kullanılamaz, 0'ı yutar.
       const sayi = parseInt(deger, 10);
@@ -2013,12 +2019,24 @@
       </div>`;
       }
 
+      // Hedef sayısı, sahibi için doğrudan kartın içinde düzenlenebilir —
+      // kişi günün başında kendi hedefini buraya yazar.
+      const kendinin = hedefiDegistirebilir(staffId) && (db.staff || []).some(s => s.id === staffId);
+      const hedefAlani = kendinin
+        ? `<span style="font-size:13px;color:var(--muted)">/</span>
+          <input type="number" min="1" max="99" step="1" value="${hedef}" id="hedefKutu_${staffId}"
+            onchange="setGunlukHedef('${staffId}', this.value)"
+            title="Günlük hedefini buradan kendin belirle"
+            style="width:62px;padding:4px 6px;text-align:center;font-weight:700;font-size:16px">
+          <span style="font-size:13px;color:var(--muted)">görev</span>`
+        : `<span style="font-size:13px;color:var(--muted)">/ ${hedef} görev</span>`;
+
       return `<div class="card" style="margin-bottom:16px;${tamam ? 'border-color:rgba(55,201,138,.4)' : ''}">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600">${icon('checkCircle', 13)} Günlük hedef</div>
-        <div style="display:flex;align-items:baseline;gap:6px">
+        <div style="display:flex;align-items:center;gap:6px">
           <b style="font-size:22px;color:${renk}">${yapilan}</b>
-          <span style="font-size:13px;color:var(--muted)">/ ${hedef} görev</span>
+          ${hedefAlani}
         </div>
       </div>
       <div style="height:10px;border-radius:5px;background:var(--line);overflow:hidden">
@@ -2027,6 +2045,7 @@
       <div style="font-size:12px;color:${renk};font-weight:600;margin-top:8px">
         ${tamam ? "🎉 Bugünün hedefini tamamladın!" : `%${yuzde} — ${kalan} görev kaldı`}
       </div>
+      ${kendinin ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">Hedefini değiştirmek için yandaki sayıyı düzenle.</div>` : ''}
     </div>`;
     }
 
