@@ -175,6 +175,9 @@
 
     let db = { staff: [], authors: [], expenses: [], tasks: [], stock: [], printOrders: [], packageContracts: {}, feedback: [] };
     let currentView = "dashboard";
+    // En son hangi ekranın çizildiği — giriş animasyonunun yalnızca ekran
+    // değişiminde oynaması için (bkz. render()).
+    let sonCizilenGorunum = null;
     let filterStatus = "all";
     let filterDate = "all";
     let authorsGroupBy = "date"; // "date" | "staff" — yazar listesi tarih ya da görüşmeci sütunları halinde gruplanır
@@ -2026,7 +2029,7 @@
         ? `<span style="font-size:13px;color:var(--muted)">/</span>
           <input type="number" min="1" max="99" step="1" value="${hedef}" id="hedefKutu_${staffId}"
             onchange="setGunlukHedef('${staffId}', this.value)"
-            title="Günlük hedefini buradan kendin belirle"
+            title="Bugün kaç görev tamamlamayı hedefliyorsun?"
             style="width:62px;padding:4px 6px;text-align:center;font-weight:700;font-size:16px">
           <span style="font-size:13px;color:var(--muted)">görev</span>`
         : `<span style="font-size:13px;color:var(--muted)">/ ${hedef} görev</span>`;
@@ -2045,7 +2048,9 @@
       <div style="font-size:12px;color:${renk};font-weight:600;margin-top:8px">
         ${tamam ? "🎉 Bugünün hedefini tamamladın!" : `%${yuzde} — ${kalan} görev kaldı`}
       </div>
-      ${kendinin ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">Hedefini değiştirmek için yandaki sayıyı düzenle.</div>` : ''}
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
+        Bugün tamamladığın görevler sayılır, sayaç her gün sıfırdan başlar.${kendinin ? " Hedefini yukarıdaki sayıyı değiştirerek kendin belirlersin." : ""}
+      </div>
     </div>`;
     }
 
@@ -2067,7 +2072,7 @@
     <input type="number" min="1" max="99" step="1" value="${hedef}" id="hedef_${staffId}"
       onchange="setGunlukHedef('${staffId}', this.value)"
       style="width:64px;padding:5px 8px;text-align:center;font-weight:700"
-      title="Bu kişinin günde kaç görev tamamlaması bekleniyor?">
+      title="Bu kişinin günde kaç görev tamamlaması bekleniyor? Kişi bu sayıyı kendi de değiştirebilir.">
     <span style="color:${renk};font-weight:600">bugün ${yapilan} tamamladı${tamam ? " ✔" : ""}</span>
   </div>`;
     }
@@ -2456,13 +2461,19 @@
       if (fab) fab.classList.toggle("show", currentView === "authors");
 
       const c = document.getElementById("content");
-      // Sekme değişince #content'in içeriği yerinde değişiyor (element
-      // yeniden oluşmuyor), o yüzden CSS animasyonu kendiliğinden tetiklenmez
-      // — class'ı çıkarıp reflow'u zorlayarak (void offsetWidth) her render'da
-      // yeniden tetikliyoruz. Animasyonun kendisi mobilde tanımlı, masaüstünü
-      // etkilemiyor (bkz. styles.css @media max-width:768px .view-enter).
+      // Giriş animasyonu (staggerFade) SADECE başka bir ekrana geçildiğinde
+      // oynar. render() aynı zamanda her veri değişiminde de çağrılıyor
+      // (oy verme, görev tamamlama, hedef değiştirme, ödeme ekleme...);
+      // orada da oynasaydı en ufak işlemde bütün ekran baştan yükleniyormuş
+      // gibi görünürdü — kullanıcı bunu "site sürekli yenileniyor" diye
+      // yaşıyordu. Aynı ekran yeniden çizilirken sayfanın kaydırma konumu da
+      // korunuyor, yoksa liste kısalınca en başa fırlıyor.
+      const gorunumDegisti = sonCizilenGorunum !== currentView;
+      const kaydirma = window.scrollY;
+      // Sekme içinde kalırken class'ı kaldırmak şart: yeni oluşan kartlar
+      // .view-enter altındayken animasyonu kendiliğinden baştan oynatır.
       c.classList.remove("view-enter");
-      void c.offsetWidth;
+      if (gorunumDegisti) void c.offsetWidth;
       if (currentView === "dashboard") {
         c.innerHTML = viewDashboard();
         setTimeout(initCharts, 0); // DOM update sonrası çalışması için
@@ -2481,7 +2492,9 @@
       else if (currentView === "team") { c.innerHTML = viewTeam(); if (currentRole === "admin") setTimeout(loadPendingUsers, 0); }
       else if (currentView === "feedback") c.innerHTML = viewFeedback();
       else if (currentView === "settings") { c.innerHTML = viewSettings(); if (currentRole === "admin") setTimeout(loadUserManagement, 0); }
-      c.classList.add("view-enter");
+      if (gorunumDegisti) c.classList.add("view-enter");
+      else if (window.scrollY !== kaydirma) window.scrollTo(0, kaydirma);
+      sonCizilenGorunum = currentView;
     }
 
     // Türkçe duyarlı, büyük/küçük harf ve aksan farkı gözetmeyen arama
