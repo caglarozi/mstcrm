@@ -591,6 +591,7 @@
     <select id="fb_type">
       <option value="dilek">💡 Dilek / Öneri</option>
       <option value="sikayet">⚠️ Şikayet</option>
+      <option value="talep">📋 Talep</option>
     </select>
     <label style="margin-top:10px">Mesajınız</label>
     <textarea id="fb_text" rows="4" placeholder="Dileğinizi ya da şikayetinizi yazın..." style="width:100%;resize:vertical"></textarea>
@@ -606,7 +607,9 @@
         const gorusuluyor = f.status === "gorusuluyor";
         const badge = sikayet
           ? `<span class="badge" style="background:rgba(242,97,122,.15);color:#f2617a;border:1px solid rgba(242,97,122,.4)">⚠️ Şikayet</span>`
-          : `<span class="badge" style="background:rgba(74,168,255,.15);color:#4aa8ff;border:1px solid rgba(74,168,255,.4)">💡 Dilek</span>`;
+          : f.type === "talep"
+            ? `<span class="badge" style="background:rgba(167,139,250,.15);color:#a78bfa;border:1px solid rgba(167,139,250,.4)">📋 Talep</span>`
+            : `<span class="badge" style="background:rgba(74,168,255,.15);color:#4aa8ff;border:1px solid rgba(74,168,255,.4)">💡 Dilek</span>`;
         const durumBadge = cozuldu
           ? `<span class="badge" style="background:rgba(55,201,138,.15);color:#37c98a;border:1px solid rgba(55,201,138,.4)">✔ Çözüldü</span>`
           : gorusuluyor
@@ -627,12 +630,20 @@
       </div>`;
       };
 
-      const bekleyenler = items.filter(f => f.status !== "cozuldu").sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+      const bekleyenTumu = items.filter(f => f.status !== "cozuldu").sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+      // Talepler kendi bölümünde durur; dilek ve şikayetler kutuda kalır.
+      const bekleyenler = bekleyenTumu.filter(f => f.type !== "talep");
+      const talepler = bekleyenTumu.filter(f => f.type === "talep");
       const cozulenler = items.filter(f => f.status === "cozuldu").sort((a, b) => (b.resolvedDate || b.date || "").localeCompare(a.resolvedDate || a.date || ""));
 
       html += `<div class="card" style="max-width:640px;margin-bottom:16px">
     <h3 style="margin:0 0 12px;font-size:14px">${icon('clock', 15)} Kutudakiler (${bekleyenler.length})</h3>`;
       html += bekleyenler.length ? bekleyenler.map(row).join("") : `<div class="empty">Bekleyen dilek/şikayet yok.</div>`;
+      html += `</div>`;
+
+      html += `<div class="card" style="max-width:640px;margin-bottom:16px;border-color:rgba(167,139,250,.35)">
+    <h3 style="margin:0 0 12px;font-size:14px;color:#a78bfa">📋 Talepler (${talepler.length})</h3>`;
+      html += talepler.length ? talepler.map(row).join("") : `<div class="empty">Bekleyen talep yok.</div>`;
       html += `</div>`;
 
       html += `<div class="card" style="max-width:640px;border-color:rgba(55,201,138,.35)">
