@@ -1962,6 +1962,97 @@
       </div>`;
     }
 
+    /* ---------- Günlük görev hedefi ----------
+     * Her personelin günde kaç görev tamamlaması beklendiği ekip kaydında
+     * (crm/staff) tutulur; yönetici Ekip ekranından değiştirir.
+     *
+     * SAYIM KURALI: kişi görevi "tamamlandı" işaretlediği GÜN sayılır —
+     * görev ekip oylamasında ("kontrol") bekliyor olsa bile. Aksi halde
+     * kişinin günlük sayısı meslektaşlarının ne zaman oy verdiğine bağlı
+     * olurdu; kendi emeğini ölçen bir hedef bu olmazdı.
+     */
+    const GUNLUK_HEDEF_VARSAYILAN = 5;
+    function gunlukHedef(staffId) {
+      const s = (db.staff || []).find(x => x.id === staffId);
+      const n = s && Number(s.gunlukHedef);
+      return (Number.isFinite(n) && n >= 1 && n <= 99) ? Math.round(n) : GUNLUK_HEDEF_VARSAYILAN;
+    }
+    function bugunTamamlanan(staffId, tarih) {
+      const t = tarih || todayStr();
+      return (db.tasks || []).filter(x => x.completedBy === staffId && x.completedDate === t).length;
+    }
+    async function setGunlukHedef(staffId, deger) {
+      if (currentRole !== "admin") return;
+      // Sayı girilmişse aralığa çekilir (0 yazan "en az" demek istemiştir → 1);
+      // sayı DEĞİLSE varsayılana dönülür. "|| varsayılan" kullanılamaz, 0'ı yutar.
+      const sayi = parseInt(deger, 10);
+      const n = Number.isFinite(sayi)
+        ? Math.min(99, Math.max(1, sayi))
+        : GUNLUK_HEDEF_VARSAYILAN;
+      await mutateStaff(d => {
+        const s = (d.staff || []).find(x => x.id === staffId);
+        if (s) s.gunlukHedef = n;
+      });
+    }
+    // Ortak ilerleme çubuğu: hem personelin kendi kartında hem yöneticinin
+    // ekip halkalarında aynı hesap kullanılsın diye tek yerde üretiliyor.
+    function hedefCubugu(staffId, kompakt) {
+      const hedef = gunlukHedef(staffId);
+      const yapilan = bugunTamamlanan(staffId);
+      const yuzde = Math.min(100, Math.round(yapilan / hedef * 100));
+      const tamam = yapilan >= hedef;
+      const renk = tamam ? "#37c98a" : yuzde >= 50 ? "var(--brand-2)" : "#f4b740";
+      const kalan = Math.max(0, hedef - yapilan);
+
+      if (kompakt) {
+        return `<div title="Bugün tamamlanan görev: ${yapilan} / ${hedef}" style="margin-top:6px">
+        <div style="height:5px;border-radius:3px;background:var(--line);overflow:hidden">
+          <div style="height:100%;width:${yuzde}%;background:${renk};border-radius:3px;transition:width .3s"></div>
+        </div>
+        <div style="font-size:10px;color:${renk};font-weight:700;margin-top:3px">${tamam ? "✔ hedef tamam" : `${yapilan}/${hedef} bugün`}</div>
+      </div>`;
+      }
+
+      return `<div class="card" style="margin-bottom:16px;${tamam ? 'border-color:rgba(55,201,138,.4)' : ''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600">${icon('checkCircle', 13)} Günlük hedef</div>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <b style="font-size:22px;color:${renk}">${yapilan}</b>
+          <span style="font-size:13px;color:var(--muted)">/ ${hedef} görev</span>
+        </div>
+      </div>
+      <div style="height:10px;border-radius:5px;background:var(--line);overflow:hidden">
+        <div style="height:100%;width:${yuzde}%;background:${renk};border-radius:5px;transition:width .4s"></div>
+      </div>
+      <div style="font-size:12px;color:${renk};font-weight:600;margin-top:8px">
+        ${tamam ? "🎉 Bugünün hedefini tamamladın!" : `%${yuzde} — ${kalan} görev kaldı`}
+      </div>
+    </div>`;
+    }
+
+    // Ekip ekranındaki hedef satırı. Hedefi yalnızca yönetici değiştirir;
+    // ekrana erişebilen diğer roller (muhasebe) sayıyı okur — personel bu
+    // ekrana zaten giremiyor, Görevler'deki kendi çubuğunu görüyor.
+    function hedefSatiri(staffId) {
+      const hedef = gunlukHedef(staffId);
+      const yapilan = bugunTamamlanan(staffId);
+      const tamam = yapilan >= hedef;
+      const renk = tamam ? "#37c98a" : "var(--muted)";
+      if (currentRole !== "admin") {
+        return `<div style="font-size:12px;color:var(--muted);margin-top:6px;padding-top:8px;border-top:1px dashed var(--line)">
+      Günlük hedef: <b style="color:${renk}">${yapilan} / ${hedef}</b> görev
+    </div>`;
+      }
+      return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px;padding-top:8px;border-top:1px dashed var(--line)">
+    <span>${icon('checkCircle', 12)} Günlük görev hedefi</span>
+    <input type="number" min="1" max="99" step="1" value="${hedef}" id="hedef_${staffId}"
+      onchange="setGunlukHedef('${staffId}', this.value)"
+      style="width:64px;padding:5px 8px;text-align:center;font-weight:700"
+      title="Bu kişinin günde kaç görev tamamlaması bekleniyor?">
+    <span style="color:${renk};font-weight:600">bugün ${yapilan} tamamladı${tamam ? " ✔" : ""}</span>
+  </div>`;
+    }
+
     let seciliOncelik = ONCELIK_VARSAYILAN;
     function secOncelik(n) {
       seciliOncelik = Math.min(5, Math.max(1, Number(n) || ONCELIK_VARSAYILAN));
@@ -4682,6 +4773,10 @@
     <button class="btn" onclick="openTaskModal()">${icon('clipboardList', 14)} + Görev Ekle</button>
   </div>`;
 
+      // ---- Günlük hedef — personel kendi ilerlemesini en üstte görür.
+      // Admin'inki ekip kartlarındaki halkanın altında (kompakt) duruyor.
+      if (!isTaskAdmin && currentStaffId) html += hedefCubugu(currentStaffId, false);
+
       // ---- Toplu analiz — sadece admin görür, hangi sekme açık olursa
       // olsun üstte sabit durur ----
       if (isTaskAdmin) {
@@ -4881,6 +4976,7 @@
       ${st.puanOrt === null
           ? `<div style="font-size:10px;color:var(--muted);margin-top:2px" title="Tamamlanan görevlerine henüz kimse puan vermemiş">değerlendirme —</div>`
           : `<div style="font-size:11px;color:${puanRengi(st.puanOrt)};font-weight:700;margin-top:2px" title="Ekibin bu kişinin tamamladığı işlere verdiği puanların ortalaması (${st.puanlananSayi} görev)">${yildizIkon(true, 10, puanRengi(st.puanOrt))} ${st.puanOrt.toFixed(1).replace(".", ",")} / 5</div>`}
+      ${hedefCubugu(s.id, true)}
     </div>`;
         };
         // Admin de görev alabildiği için rapor sistemine o da dahil: ekip
@@ -5982,6 +6078,7 @@
         </div>
         <button class="btn ghost team-card-del" onclick="delStaff('${s.id}')" style="padding:6px 10px" title="Sil">${icon('trash', 14)}</button>
       </div>
+      ${hedefSatiri(s.id)}
       ${recentHtml ? `<div style="margin-top:6px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Son görüşmeler</div>${recentHtml}</div>` : ''}
     </div>`;
       }).join('');
