@@ -1322,9 +1322,16 @@
         if (!fcmToken) return;
         await firestore.collection("fcm_tokens").doc(fcmToken).set({
           token: fcmToken,
-          staffId: currentStaffId || null,
+          // Görev sistemindeki kimlikle AYNI olmalı (myTaskId): yönetici
+          // ekip listesinde kayıtlı olmayabiliyor ve staffId'si boş
+          // kalıyordu; bu yüzden kendisine atanan görevin bildirimi hiç
+          // ulaşmıyordu (görev bildirimleri staffId ile hedefleniyor).
+          staffId: currentStaffId || (currentRole === "admin" ? "admin" : null),
           uid: auth.currentUser ? auth.currentUser.uid : null,
           role: currentRole,
+          // Hangi cihaz olduğu: "bilgisayarıma bildirim geliyor mu"
+          // sorusunun cevabı kayıttan görülebilsin.
+          cihaz: (typeof navigator !== "undefined" && navigator.userAgent) ? navigator.userAgent.slice(0, 180) : null,
           updated: todayStr()
         });
       } catch (e) {
