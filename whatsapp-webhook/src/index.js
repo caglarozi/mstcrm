@@ -614,18 +614,34 @@ async function handleCallRecording(payload, env) {
 // servis hesabı yetkisi gerektirdiğinden client'tan doğrudan yapılamıyor.
 // Artık geçersiz olan (izin kapatılmış/tarayıcı verisi silinmiş) tokenlar
 // gönderim hatasında otomatik temizlenir.
+// Bildirim gönderir. Hedef üç şekilde verilebilir:
+//   staffId  — tek personel (eski çağrılar böyle, bozulmasın diye duruyor)
+//   staffIds — birden çok personel
+//   rol      — o roldeki herkes ("admin" gibi); yöneticiye giden dilek/
+//              şikayet bildirimleri böyle gidiyor, adminin staffId'si
+//              olmayabiliyor (fcm_tokens kaydında role da tutuluyor).
+// staffIds/rol tek İSTEKTE işlenir: token listesi bir kez okunur. Önceden
+// ortak görevde atanan başına ayrı istek atılıyordu ve her istek bütün
+// fcm_tokens koleksiyonunu baştan okuyordu — boşuna okuma maliyeti.
 async function handleNotifyTask(payload, env) {
-  const staffId = String(payload?.staffId || "");
+  const staffIds = Array.isArray(payload?.staffIds)
+    ? payload.staffIds.map(x => String(x || "")).filter(Boolean)
+    : (payload?.staffId ? [String(payload.staffId)] : []);
+  const rol = payload?.rol ? String(payload.rol) : null;
   const title = String(payload?.title || "").slice(0, 200);
-  if (!staffId || !title) throw new Error("staffId ve title zorunlu");
+  if (!staffIds.length && !rol) throw new Error("staffId, staffIds ya da rol zorunlu");
+  if (!title) throw new Error("title zorunlu");
   const dueDate = payload?.dueDate ? String(payload.dueDate) : null;
   const taskId = String(payload?.taskId || "");
+  const baslik = String(payload?.baslik || "Yeni görev atandı").slice(0, 120);
+  const govde = payload?.govde ? String(payload.govde).slice(0, 300) : null;
+  const etiket = payload?.etiket ? String(payload.etiket).slice(0, 80) : null;
 
   const token = await getAccessToken(env, "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.messaging");
   const projectId = env.FIREBASE_PROJECT_ID;
 
-  // Personelin kayıtlı cihaz tokenlarını topla
-  const tokens = [];
+  // Hedeflenen cihaz tokenlarını topla (koleksiyon TEK kez taranır)
+  const tokenSet = new Set();
   let pageToken;
   do {
     const listUrl = new URL(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/fcm_tokens`);
@@ -635,13 +651,18 @@ async function handleNotifyTask(payload, env) {
     const data = await resp.json();
     for (const doc of data.documents || []) {
       const obj = docToObject(doc);
-      if (obj.staffId === staffId && obj.token) tokens.push(obj.token);
+      if (!obj.token) continue;
+      // Aynı cihaz hem staffId hem rol ile eşleşebilir; Set tekrarı önler.
+      if ((obj.staffId && staffIds.includes(obj.staffId)) || (rol && obj.role === rol)) {
+        tokenSet.add(obj.token);
+      }
     }
     pageToken = data.nextPageToken;
   } while (pageToken);
+  const tokens = [...tokenSet];
   if (!tokens.length) return { sent: 0, reason: "kayıtlı cihaz yok" };
 
-  const body = title + (dueDate ? ` — Son tarih: ${dueDate}` : "");
+  const body = govde || (title + (dueDate ? ` — Son tarih: ${dueDate}` : ""));
   let sent = 0;
   for (const t of tokens) {
     const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
@@ -650,13 +671,13 @@ async function handleNotifyTask(payload, env) {
       body: JSON.stringify({
         message: {
           token: t,
-          notification: { title: "Yeni görev atandı", body },
+          notification: { title: baslik, body },
           webpush: {
             notification: {
               icon: "https://mst-crm.web.app/logo.jpeg",
-              // Aynı görev için sekme içi bildirimle çakışırsa tarayıcı
+              // Aynı olay için sekme içi bildirimle çakışırsa tarayıcı
               // aynı tag'li ikisini tek bildirimde birleştirir.
-              tag: taskId ? "task_" + taskId : "task_new"
+              tag: etiket || (taskId ? "task_" + taskId : "task_new")
             },
             fcm_options: { link: "https://mst-crm.web.app/" }
           }

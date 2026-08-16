@@ -561,8 +561,17 @@
     function loadFeedback() {
       return new Promise(resolve => {
         let firstLoad = true;
+        // Hangi mesajları daha önce gördüğümüz: yeni geleni ayırt etmek
+        // için. Dizi uzunluğuna bakmak yetmez — bir mesaj silinirken başka
+        // biri eklenirse uzunluk aynı kalır ve bildirim kaçardı.
+        let bilinenFeedback = new Set();
         listen(firestore.collection("crm").doc("feedback"), doc => {
-          db.feedback = doc.exists ? (doc.data().items || []) : [];
+          const gelen = doc.exists ? (doc.data().items || []) : [];
+          if (!firstLoad && currentRole === "admin") {
+            gelen.filter(x => x && x.id && !bilinenFeedback.has(x.id)).forEach(notifyYeniFeedback);
+          }
+          db.feedback = gelen;
+          bilinenFeedback = new Set(gelen.map(x => x && x.id).filter(Boolean));
           if (firstLoad) { firstLoad = false; resolve(); }
           else onDataChanged();
         }, err => {
@@ -686,6 +695,15 @@
       const entry = { id: uid(), type, text, date: todayStr() };
       rememberMyFeedback(entry.id);
       await mutateFeedback(d => { if (!d.items.some(x => x.id === entry.id)) d.items.push(entry); });
+      // Yöneticiye anlık bildirim. ANONİMLİK korunur: worker'a yalnızca
+      // "admin rolüne gönder" denir, gönderenin kimliği ne iletilir ne de
+      // kaydedilir — bildirimde de yalnızca tür ve mesaj metni vardır.
+      sendPush({
+        rol: "admin",
+        baslik: FEEDBACK_BILDIRIM_BASLIK[type] || "📮 Yeni mesaj",
+        govde: String(text).slice(0, 200),
+        etiket: "feedback_" + entry.id
+      });
       customAlert("Teşekkürler! 📮", "Mesajınız kutuya anonim olarak bırakıldı.");
       return true;
     }
@@ -1308,23 +1326,46 @@
     // cihazlarına FCM push göndertir (client SDK'nın FCM gönderme yetkisi
     // yok, servis hesabı worker'da). Başarısız olsa da görev kaydını
     // etkilemez — bildirim "olsa iyi olur" katmanı.
-    // hedefler verilmezse görevin atandığı herkese gider. Worker uç noktası
-    // tek personel alıyor, o yüzden ortak görevde atanan başına bir istek
-    // atılıyor — worker'ı değiştirmeye gerek kalmıyor.
-    async function sendTaskPush(task, hedefler) {
+    // Tek çağrıda birden çok hedefe gider (worker token listesini bir kez
+    // okusun diye). hedefler: { staffIds: [...], rol: "admin" } — ikisi
+    // birlikte de verilebilir.
+    async function sendPush({ staffIds, rol, baslik, govde, etiket, taskId, dueDate }) {
       try {
         if (!auth.currentUser) return;
-        const ids = (hedefler && hedefler.length) ? hedefler : taskAssignees(task);
-        if (!ids.length) return;
+        const ids = (staffIds || []).filter(Boolean);
+        if (!ids.length && !rol) return;
         const idToken = await auth.currentUser.getIdToken();
-        await Promise.all(ids.map(staffId => fetch(NOTIFY_TASK_WORKER_URL, {
+        await fetch(NOTIFY_TASK_WORKER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
-          body: JSON.stringify({ staffId, taskId: task.id, title: task.title, dueDate: task.dueDate || null })
-        })));
+          body: JSON.stringify({
+            staffIds: ids, rol: rol || null,
+            baslik: baslik || "Yeni görev atandı",
+            title: govde || baslik || "",   // worker'ın zorunlu alanı
+            govde: govde || null, etiket: etiket || null,
+            taskId: taskId || "", dueDate: dueDate || null
+          })
+        });
       } catch (e) {
+        // Bildirim "olsa iyi olur" katmanı — başarısızlığı işlemi bozmaz.
         console.error("Push gönderilemedi:", e);
       }
+    }
+
+    // hedefler verilmezse görevin atandığı herkese gider.
+    async function sendTaskPush(task, hedefler) {
+      const ids = (hedefler && hedefler.length) ? hedefler : taskAssignees(task);
+      return sendPush({
+        staffIds: ids, taskId: task.id, title: task.title,
+        baslik: "Yeni görev atandı", govde: task.title + (task.dueDate ? ` — Son tarih: ${fmtDate(task.dueDate)}` : ""),
+        etiket: "task_" + task.id
+      });
+    }
+
+    // Görev olayları için ekipteki DİĞER herkes (olayı yapan hariç).
+    function digerEkipIdleri() {
+      const ben = myTaskId();
+      return (db.staff || []).map(s => s.id).filter(id => id && id !== ben);
     }
 
     // Tarayıcının kendi bildirim API'si — sadece CRM sekmesi bir yerde
@@ -1343,6 +1384,31 @@
       } catch (e) {
         console.error("Bildirim gösterilemedi:", e);
       }
+    }
+    // Sekme açıkken gösterilen tarayıcı bildirimi. Push (kapalıyken) ile
+    // aynı tag kullanılırsa tarayıcı ikisini tek bildirimde birleştirir.
+    function tarayiciBildirimi(baslik, govde, etiket) {
+      if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+      try {
+        new Notification(baslik, { body: govde, icon: "logo.jpeg", tag: etiket || undefined });
+      } catch (e) {
+        console.error("Bildirim gösterilemedi:", e);
+      }
+    }
+    const FEEDBACK_BILDIRIM_BASLIK = {
+      dilek: "💡 Yeni dilek/öneri",
+      sikayet: "⚠️ Yeni şikayet",
+      talep: "📋 Yeni talep"
+    };
+    // Dilek/şikayet ANONİM: bildirimde de kim gönderdi bilgisi yok, zaten
+    // hiçbir yerde tutulmuyor. Mesajın kendisi kısaltılarak gösteriliyor.
+    function notifyYeniFeedback(item) {
+      if (!item) return;
+      tarayiciBildirimi(
+        FEEDBACK_BILDIRIM_BASLIK[item.type] || "📮 Yeni mesaj",
+        String(item.text || "").slice(0, 120),
+        "feedback_" + item.id
+      );
     }
     function notifyTaskCompleted(task) {
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
@@ -1371,9 +1437,27 @@
               if (change.type === "removed") {
                 if (idx !== -1) db.tasks.splice(idx, 1);
               } else if (idx !== -1) {
-                const wasCompleted = db.tasks[idx].status === "tamamlandı";
+                const onceki = db.tasks[idx];
+                const wasCompleted = onceki.status === "tamamlandı";
+                const oncekiTalep = !!(onceki.destekTalebi);
+                const oncekiDurum = onceki.status;
                 db.tasks[idx] = data;
                 if (!wasCompleted && data.status === "tamamlandı" && currentRole === "admin") notifyTaskCompleted(data);
+                // Destekçi talebi AÇILDIĞI an haber ver — talebi açan kişiye
+                // ve göreve zaten dahil olanlara değil, karşılık verebilecek
+                // olanlara.
+                if (!oncekiTalep && destekAraniyor(data) && !isTaskFor(data, myTaskId())) {
+                  tarayiciBildirimi("🙋 Destekçi aranıyor",
+                    data.title + " — " + ((data.destekTalebi && data.destekTalebi.not) || ""),
+                    "destek_" + data.id);
+                }
+                // Oylamaya düşen görev: kendi işine oy verilemez, tamamlayana
+                // bildirim gitmesi gürültü olur.
+                if (oncekiDurum !== "kontrol" && data.status === "kontrol" && (data.completedBy || null) !== myTaskId()) {
+                  tarayiciBildirimi("🗳️ Oy bekleyen görev",
+                    data.title + " — tamamlandı denildi, ekip onayı bekliyor",
+                    "kontrol_" + data.id);
+                }
               } else {
                 db.tasks.unshift(data);
                 if (change.type === "added" && (isTaskFor(data, myTaskId()) || havuzdaAktif(data))) notifyNewTask(data);
@@ -4561,6 +4645,12 @@
       try {
         await firestore.collection("tasks").doc(taskId).update({ destekTalebi: talep });
         t.destekTalebi = talep;
+        // Talebi kimse görmezse öylece bekler — ekipteki herkese haber ver.
+        sendPush({
+          staffIds: digerEkipIdleri(), rol: currentRole === "admin" ? null : "admin",
+          baslik: "🙋 Destekçi aranıyor",
+          govde: t.title + " — " + not, etiket: "destek_" + taskId, taskId
+        });
         closeDestekModal();
         render();
         customAlert("Destekçi talebin iletildi", "Ekip \"Destek\" sekmesinde görecek. Karşılık veren kişi görevine ortak olur.");
@@ -4901,6 +4991,15 @@
       render();
       try {
         await firestore.collection("tasks").doc(taskId).update(updates);
+        // Görev oylamaya düştü: onaylayacak kişiler haberdar olmazsa iş
+        // "kontrol"de asılı kalır. Kendi işine oy verilemediği için
+        // tamamlayan kişi hedeflerin dışında (bkz. digerEkipIdleri).
+        sendPush({
+          staffIds: digerEkipIdleri(), rol: currentRole === "admin" ? null : "admin",
+          baslik: "🗳️ Oy bekleyen görev",
+          govde: (t ? t.title : "Bir görev") + " — tamamlandı denildi, ekip onayı bekliyor",
+          etiket: "kontrol_" + taskId, taskId
+        });
       } catch (e) {
         console.error("Güncelleme hatası:", e);
         alert(dbErrorText(e, "Görev güncellenemedi"));
