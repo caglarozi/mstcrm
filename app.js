@@ -6895,13 +6895,16 @@
     }
 
     // --- TEMALAR (AÇIK / KOYU TEMA SİSTEMİ) ---
-    function updateLogoSources(theme) {
-      const isLight = (theme === 'light') || (document.documentElement.getAttribute('data-theme') === 'light');
-      const logoSrc = isLight ? 'logo.jpeg' : 'logo-dark.png';
+    // Her iki temada da AYNI dosya kullanılıyor: logo-dark.png, beyaz figür
+    // + şeffaf zemin. Açık temada figür CSS ile koyulaştırılıyor
+    // (bkz. styles.css, [data-theme="light"] ... filter: invert(1)).
+    //
+    // Önceden açık temada logo.jpeg'e geçiliyordu; JPEG şeffaflık
+    // taşıyamadığı için logonun arkasında dolu beyaz bir kutu kalıyor ve
+    // açık gri sayfa zemininde bembeyaz bir leke gibi duruyordu.
+    function updateLogoSources() {
       document.querySelectorAll('.mark img, .topbar-mark img').forEach(img => {
-        if (img.src && !img.src.includes(logoSrc)) {
-          img.src = logoSrc;
-        }
+        if (img.src && !img.src.includes('logo-dark.png')) img.src = 'logo-dark.png';
       });
     }
 

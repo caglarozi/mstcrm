@@ -181,13 +181,23 @@
       color: #1e40af;
     }
 
+    /* Logo dosyası (logo-dark.png) BEYAZ figür + ŞEFFAF zemindir. Koyu
+       temada olduğu gibi kullanılır; açık temada invert(1) figürü
+       koyulaştırır — alfa kanalı korunduğu için zemin şeffaf kalır ve logo
+       sayfaya oturur. mix-blend-mode KULLANILMIYOR: beyaz figürü "multiply"
+       ile karıştırmak onu tamamen görünmez yapıyordu. */
     [data-theme="light"] .logo .mark img,
     [data-theme="light"] .topbar-mark img,
     [data-theme="light"] .login-mobile-brand .mark img,
     [data-theme="light"] .login-left .mark img {
-      filter: none;
-      mix-blend-mode: multiply;
+      filter: invert(1);
+      mix-blend-mode: normal;
     }
+
+    /* Logoyu saran kutular her iki temada da şeffaf (bkz. .logo .mark,
+       .topbar-mark, .login-mobile-brand .mark). Buraya ayrıca tema bazlı
+       bir kural GEREKMİYOR — dolu zemin kalırsa logo bir temada kayboluyor,
+       diğerinde leke gibi duruyor. */
 
     * {
       box-sizing: border-box
@@ -1475,16 +1485,18 @@
       color: var(--txt);
     }
 
+    /* Zemin YOK. Burada dolu beyaz bir kutu vardı: logo beyaz figür +
+       şeffaf zemin olduğu için koyu temada beyaz kutunun üstünde tamamen
+       kayboluyor, giriş ekranında boş bir kare görünüyordu. */
     .login-mobile-brand .mark {
       width: 38px;
       height: 38px;
-      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #ffffff;
-      padding: 3px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      background: transparent;
+      padding: 0;
+      box-shadow: none;
     }
 
     .login-mobile-brand .mark img {
