@@ -567,8 +567,13 @@
         let bilinenFeedback = new Set();
         listen(firestore.collection("crm").doc("feedback"), doc => {
           const gelen = doc.exists ? (doc.data().items || []) : [];
-          if (!firstLoad && currentRole === "admin") {
-            gelen.filter(x => x && x.id && !bilinenFeedback.has(x.id)).forEach(notifyYeniFeedback);
+          if (!firstLoad) {
+            // Kendi yazdığın mesaj için sana bildirim çıkmaz. "Benim mi"
+            // bilgisi yalnızca bu tarayıcının localStorage'ında; sunucuya
+            // ya da başka bir kullanıcıya hiç gitmiyor, anonimlik bozulmuyor.
+            const benimkiler = getMyFeedbackIds();
+            gelen.filter(x => x && x.id && !bilinenFeedback.has(x.id) && benimkiler.indexOf(x.id) === -1)
+              .forEach(notifyYeniFeedback);
           }
           db.feedback = gelen;
           bilinenFeedback = new Set(gelen.map(x => x && x.id).filter(Boolean));
@@ -695,10 +700,17 @@
       const entry = { id: uid(), type, text, date: todayStr() };
       rememberMyFeedback(entry.id);
       await mutateFeedback(d => { if (!d.items.some(x => x.id === entry.id)) d.items.push(entry); });
-      // Yöneticiye anlık bildirim. ANONİMLİK korunur: worker'a yalnızca
-      // "admin rolüne gönder" denir, gönderenin kimliği ne iletilir ne de
-      // kaydedilir — bildirimde de yalnızca tür ve mesaj metni vardır.
+      // Kutuyu ekipte HERKES okuyabildiği için bildirim de herkese gider.
+      //
+      // Gönderen listeden ÇIKARILMAZ — bu bilinçli. Kutu anonim; "herkes
+      // hariç bir kişi" şeklinde bir hedef listesi göndermek, o kişinin
+      // gönderen olduğunu ele verirdi (küçük ekipte "bildirim almayan kim?"
+      // sorusu doğrudan gönderene çıkar). Bu yüzden hedef ayrım yapmadan
+      // tüm ekip + yöneticiler. Gönderenin kendi ekranında bildirim
+      // çıkmaması ayrıca hallediliyor (bkz. loadFeedback) — o bilgi
+      // tarayıcının kendi localStorage'ında, dışarı hiç çıkmıyor.
       sendPush({
+        staffIds: (db.staff || []).map(s => s.id).filter(Boolean),
         rol: "admin",
         baslik: FEEDBACK_BILDIRIM_BASLIK[type] || "📮 Yeni mesaj",
         govde: String(text).slice(0, 200),
