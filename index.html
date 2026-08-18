@@ -53,8 +53,13 @@
       <div class="login-left">
         <div>
           <div style="display:flex; align-items:center; gap:12px; margin-bottom: 40px; position:relative; z-index:2;">
+            <!-- Zemin YOK: logo-dark.png beyaz figür + şeffaf zemindir.
+                 Burada dolu beyaz bir kutu vardı; koyu temada beyaz figür
+                 beyaz kutunun üstünde kayboluyor ve giriş ekranında boş bir
+                 kare görünüyordu. Açık temada da sayfa zemininde leke gibi
+                 duruyordu (figürü koyulaştırma işi styles.css'te). -->
             <div class="mark"
-              style="width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:#ffffff; padding:3px; flex-shrink:0; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+              style="width:38px; height:38px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
               <img src="logo-dark.png" alt="Logo"
                 style="width:100%; height:100%; object-fit:contain;">
             </div>
@@ -814,6 +819,22 @@
     </div>
   </div>
 
+  <!-- DESTEKCI TALEBI -->
+  <div class="modal" id="destekModal" onclick="closeDestekModal()">
+    <div class="box" onclick="event.stopPropagation()">
+      <h2>Destekçi İste</h2>
+      <div id="destek_baslik" style="color:var(--muted);font-size:13px;margin:-10px 0 14px"></div>
+      <input type="hidden" id="destek_id">
+      <label>Ne konuda desteğe ihtiyacın var? <span style="color:var(--red)">*</span></label>
+      <textarea id="destek_not" placeholder="Örn. 'Matbaa fiyatlarını toplayacak birine ihtiyacım var, ben yazarla görüşmeyi sürdüreceğim.'" style="min-height:80px"></textarea>
+      <div class="assigneeHint">Görev sende kalır, havuza düşmez. Karşılık veren kişi göreve eklenir ve iş ortak görev olarak yürür.</div>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeDestekModal()">Vazgeç</button>
+        <button class="btn" onclick="submitDestekTalebi()">Destekçi İste</button>
+      </div>
+    </div>
+  </div>
+
   <!-- BOOK MODAL -->
   <div class="modal" id="bookModal" onclick="closeBookModal()">
     <div class="box" onclick="event.stopPropagation()">
@@ -894,12 +915,14 @@
         hiçbir şekilde kaydedilmez ve kimseye gösterilmez. Çekinmeden yazabilirsiniz.
       </div>
       <label>Tür</label>
-      <select id="fbm_type">
+      <select id="fbm_type" onchange="onFeedbackTypeChange()">
         <option value="dilek">💡 Dilek / Öneri</option>
         <option value="sikayet">⚠️ Şikayet</option>
+        <option value="talep">📋 Talep</option>
       </select>
+      <div id="fbm_ipucu" class="assigneeHint"></div>
       <label>Mesajınız</label>
-      <textarea id="fbm_text" rows="5" placeholder="Dileğinizi ya da şikayetinizi yazın..." style="width:100%;resize:vertical"></textarea>
+      <textarea id="fbm_text" rows="5" placeholder="Dileğinizi, şikayetinizi ya da talebinizi yazın..." style="width:100%;resize:vertical"></textarea>
       <div class="actions">
         <button class="btn ghost" onclick="closeFeedbackModal()">Vazgeç</button>
         <button class="btn" onclick="submitFeedbackModal()">Anonim Olarak Gönder</button>

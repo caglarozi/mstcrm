@@ -181,13 +181,23 @@
       color: #1e40af;
     }
 
+    /* Logo dosyası (logo-dark.png) BEYAZ figür + ŞEFFAF zemindir. Koyu
+       temada olduğu gibi kullanılır; açık temada invert(1) figürü
+       koyulaştırır — alfa kanalı korunduğu için zemin şeffaf kalır ve logo
+       sayfaya oturur. mix-blend-mode KULLANILMIYOR: beyaz figürü "multiply"
+       ile karıştırmak onu tamamen görünmez yapıyordu. */
     [data-theme="light"] .logo .mark img,
     [data-theme="light"] .topbar-mark img,
     [data-theme="light"] .login-mobile-brand .mark img,
     [data-theme="light"] .login-left .mark img {
-      filter: none;
-      mix-blend-mode: multiply;
+      filter: invert(1);
+      mix-blend-mode: normal;
     }
+
+    /* Logoyu saran kutular her iki temada da şeffaf (bkz. .logo .mark,
+       .topbar-mark, .login-mobile-brand .mark). Buraya ayrıca tema bazlı
+       bir kural GEREKMİYOR — dolu zemin kalırsa logo bir temada kayboluyor,
+       diğerinde leke gibi duruyor. */
 
     * {
       box-sizing: border-box
@@ -1161,6 +1171,153 @@
       background: rgba(148, 163, 184, .12);
     }
 
+    /* ---- Gunluk hedef sayaci ---- */
+    /* "2 / 5 gorev" tek bir butun gibi okunmali: yapilan sayi buyuk ve
+       renkli, hedef ise ayni tipografide ama dokunulabilir bir kutu icinde.
+       Onceden duz bir input vardi; global "input { width:100% }" yuzunden
+       sayilarin arasina sikismis bir form alani gibi duruyordu. */
+    .hedefSayac {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hedefSayac .yapilan {
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hedefSayac .bolu {
+      font-size: 18px;
+      color: var(--muted);
+      opacity: .6;
+    }
+
+    .hedefSayac .birim {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* Artı/eksi + yazilabilir sayi: telefonda klavye acmadan da
+       ayarlanabilsin diye adim dugmeleri var.
+       Tek bir hap seklinde duruyor — icinde ayrica cerceveli bir alan
+       OLMAMALI, yoksa kutu icinde kutu gibi gorunuyor. */
+    .hedefKutu {
+      display: inline-flex;
+      align-items: center;
+      gap: 1px;
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px;
+      transition: border-color .2s, background .2s;
+    }
+
+    .hedefKutu:hover {
+      border-color: rgba(148, 163, 184, .45);
+    }
+
+    .hedefKutu:focus-within {
+      border-color: var(--brand-2);
+      background: rgba(59, 130, 246, .08);
+    }
+
+    .hedefKutu button {
+      width: 30px;
+      height: 30px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 1;
+      border-radius: 50%;
+      padding: 0;
+      opacity: .75;
+      touch-action: manipulation;
+      transition: background .18s, color .18s, opacity .18s;
+    }
+
+    .hedefKutu button:hover:not(:disabled) {
+      background: rgba(148, 163, 184, .16);
+      color: var(--txt);
+      opacity: 1;
+    }
+
+    .hedefKutu button:disabled {
+      opacity: .22;
+      cursor: default;
+    }
+
+    /* Global "input" kurali (width:100%, dolgu, cerceve, backdrop-filter)
+       burada tamamen sifirlaniyor. Ozellikle backdrop-filter onemli:
+       zemin seffaf olsa bile arkasini bulaniklastirip sayinin etrafinda
+       acik gri bir dikdortgen birakiyordu. */
+    .hedefKutu input[type="number"] {
+      width: 34px;
+      min-width: 34px;
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      padding: 0;
+      text-align: center;
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--txt);
+      font-variant-numeric: tabular-nums;
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+
+    .hedefKutu input[type="number"]:focus,
+    .hedefKutu input[type="number"]:hover {
+      outline: none;
+      box-shadow: none;
+      border: none;
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    /* Kutuya girince sayi kendiliginden secilir (yazan hemen ustune yazsin).
+       Tarayicinin varsayilan koyu mavi secim blogu bu kucuk alanda sert
+       duruyor; daha yumusak bir vurgu kullaniliyor. */
+    .hedefKutu input[type="number"]::selection {
+      background: rgba(59, 130, 246, .28);
+      color: var(--txt);
+    }
+
+    /* Tarayicinin kendi ok tuslari kaldiriliyor; yerine kendi +/- var. */
+    .hedefKutu input[type="number"]::-webkit-outer-spin-button,
+    .hedefKutu input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    @media (max-width: 768px) {
+      /* Dokunma hedefi en az 40x40 (bkz. .yildizBtn'deki aynı gerekçe) */
+      .hedefKutu button {
+        width: 40px;
+        height: 40px;
+        font-size: 19px;
+      }
+
+      .hedefKutu input[type="number"] {
+        width: 38px;
+        min-width: 38px;
+        font-size: 20px;
+      }
+
+      .hedefSayac .yapilan {
+        font-size: 26px;
+      }
+    }
+
     input,
     select,
     textarea {
@@ -1328,16 +1485,18 @@
       color: var(--txt);
     }
 
+    /* Zemin YOK. Burada dolu beyaz bir kutu vardı: logo beyaz figür +
+       şeffaf zemin olduğu için koyu temada beyaz kutunun üstünde tamamen
+       kayboluyor, giriş ekranında boş bir kare görünüyordu. */
     .login-mobile-brand .mark {
       width: 38px;
       height: 38px;
-      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #ffffff;
-      padding: 3px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      background: transparent;
+      padding: 0;
+      box-shadow: none;
     }
 
     .login-mobile-brand .mark img {

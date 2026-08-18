@@ -175,6 +175,9 @@
 
     let db = { staff: [], authors: [], expenses: [], tasks: [], stock: [], printOrders: [], packageContracts: {}, feedback: [] };
     let currentView = "dashboard";
+    // En son hangi ekranın çizildiği — giriş animasyonunun yalnızca ekran
+    // değişiminde oynaması için (bkz. render()).
+    let sonCizilenGorunum = null;
     let filterStatus = "all";
     let filterDate = "all";
     let authorsGroupBy = "date"; // "date" | "staff" — yazar listesi tarih ya da görüşmeci sütunları halinde gruplanır
@@ -558,8 +561,22 @@
     function loadFeedback() {
       return new Promise(resolve => {
         let firstLoad = true;
+        // Hangi mesajları daha önce gördüğümüz: yeni geleni ayırt etmek
+        // için. Dizi uzunluğuna bakmak yetmez — bir mesaj silinirken başka
+        // biri eklenirse uzunluk aynı kalır ve bildirim kaçardı.
+        let bilinenFeedback = new Set();
         listen(firestore.collection("crm").doc("feedback"), doc => {
-          db.feedback = doc.exists ? (doc.data().items || []) : [];
+          const gelen = doc.exists ? (doc.data().items || []) : [];
+          if (!firstLoad) {
+            // Kendi yazdığın mesaj için sana bildirim çıkmaz. "Benim mi"
+            // bilgisi yalnızca bu tarayıcının localStorage'ında; sunucuya
+            // ya da başka bir kullanıcıya hiç gitmiyor, anonimlik bozulmuyor.
+            const benimkiler = getMyFeedbackIds();
+            gelen.filter(x => x && x.id && !bilinenFeedback.has(x.id) && benimkiler.indexOf(x.id) === -1)
+              .forEach(notifyYeniFeedback);
+          }
+          db.feedback = gelen;
+          bilinenFeedback = new Set(gelen.map(x => x && x.id).filter(Boolean));
           if (firstLoad) { firstLoad = false; resolve(); }
           else onDataChanged();
         }, err => {
@@ -598,7 +615,7 @@
       <option value="talep">📋 Talep</option>
     </select>
     <label style="margin-top:10px">Mesajınız</label>
-    <textarea id="fb_text" rows="4" placeholder="Dileğinizi ya da şikayetinizi yazın..." style="width:100%;resize:vertical"></textarea>
+    <textarea id="fb_text" rows="4" placeholder="Dileğinizi, şikayetinizi ya da talebinizi yazın..." style="width:100%;resize:vertical"></textarea>
     <div style="display:flex;justify-content:flex-end;margin-top:12px">
       <button class="btn" onclick="submitFeedback()">Anonim Olarak Gönder</button>
     </div>
@@ -683,6 +700,22 @@
       const entry = { id: uid(), type, text, date: todayStr() };
       rememberMyFeedback(entry.id);
       await mutateFeedback(d => { if (!d.items.some(x => x.id === entry.id)) d.items.push(entry); });
+      // Kutuyu ekipte HERKES okuyabildiği için bildirim de herkese gider.
+      //
+      // Gönderen listeden ÇIKARILMAZ — bu bilinçli. Kutu anonim; "herkes
+      // hariç bir kişi" şeklinde bir hedef listesi göndermek, o kişinin
+      // gönderen olduğunu ele verirdi (küçük ekipte "bildirim almayan kim?"
+      // sorusu doğrudan gönderene çıkar). Bu yüzden hedef ayrım yapmadan
+      // tüm ekip + yöneticiler. Gönderenin kendi ekranında bildirim
+      // çıkmaması ayrıca hallediliyor (bkz. loadFeedback) — o bilgi
+      // tarayıcının kendi localStorage'ında, dışarı hiç çıkmıyor.
+      sendPush({
+        staffIds: (db.staff || []).map(s => s.id).filter(Boolean),
+        rol: "admin",
+        baslik: FEEDBACK_BILDIRIM_BASLIK[type] || "📮 Yeni mesaj",
+        govde: String(text).slice(0, 200),
+        etiket: "feedback_" + entry.id
+      });
       customAlert("Teşekkürler! 📮", "Mesajınız kutuya anonim olarak bırakıldı.");
       return true;
     }
@@ -698,9 +731,26 @@
      * Kutu daha önce yalnızca kendi sayfasından açılıyordu; menüye girmeyi
      * gerektirdiği için pratikte kullanılmıyordu. Artık yüzen düğme her
      * görünümde duruyor ve pencereyi açıyor. */
+    // Üç tür de aynı kutuya düşüyor ama farklı yerlerde toplanıyor: talepler
+    // kendi bölümünde listeleniyor (bkz. viewFeedback). Kullanıcı hangisini
+    // seçtiğinde ne olacağını bilsin diye kısa bir açıklama gösteriyoruz.
+    const FEEDBACK_IPUCU = {
+      dilek: "Bir fikriniz ya da öneriniz varsa buraya yazın.",
+      sikayet: "Rahatsız olduğunuz bir durumu bildirin. Kişi adı vermek yerine durumu anlatın.",
+      talep: "Somut bir isteğiniz varsa (malzeme, izin, düzenleme) buraya yazın — talepler ayrı bir listede toplanır."
+    };
+    function onFeedbackTypeChange() {
+      const el = document.getElementById("fbm_ipucu");
+      if (!el) return;
+      const tur = document.getElementById("fbm_type").value;
+      el.className = tur === "talep" ? "assigneeHint ortak" : "assigneeHint";
+      el.textContent = FEEDBACK_IPUCU[tur] || "";
+    }
+
     function openFeedbackModal() {
       document.getElementById("fbm_type").value = "dilek";
       document.getElementById("fbm_text").value = "";
+      onFeedbackTypeChange();
       document.getElementById("feedbackModal").classList.add("open");
       // Odağı metin alanına ver: dokunmatikte bir dokunuş kazandırır.
       setTimeout(() => { const t = document.getElementById("fbm_text"); if (t) t.focus(); }, 60);
@@ -1272,9 +1322,16 @@
         if (!fcmToken) return;
         await firestore.collection("fcm_tokens").doc(fcmToken).set({
           token: fcmToken,
-          staffId: currentStaffId || null,
+          // Görev sistemindeki kimlikle AYNI olmalı (myTaskId): yönetici
+          // ekip listesinde kayıtlı olmayabiliyor ve staffId'si boş
+          // kalıyordu; bu yüzden kendisine atanan görevin bildirimi hiç
+          // ulaşmıyordu (görev bildirimleri staffId ile hedefleniyor).
+          staffId: currentStaffId || (currentRole === "admin" ? "admin" : null),
           uid: auth.currentUser ? auth.currentUser.uid : null,
           role: currentRole,
+          // Hangi cihaz olduğu: "bilgisayarıma bildirim geliyor mu"
+          // sorusunun cevabı kayıttan görülebilsin.
+          cihaz: (typeof navigator !== "undefined" && navigator.userAgent) ? navigator.userAgent.slice(0, 180) : null,
           updated: todayStr()
         });
       } catch (e) {
@@ -1288,23 +1345,46 @@
     // cihazlarına FCM push göndertir (client SDK'nın FCM gönderme yetkisi
     // yok, servis hesabı worker'da). Başarısız olsa da görev kaydını
     // etkilemez — bildirim "olsa iyi olur" katmanı.
-    // hedefler verilmezse görevin atandığı herkese gider. Worker uç noktası
-    // tek personel alıyor, o yüzden ortak görevde atanan başına bir istek
-    // atılıyor — worker'ı değiştirmeye gerek kalmıyor.
-    async function sendTaskPush(task, hedefler) {
+    // Tek çağrıda birden çok hedefe gider (worker token listesini bir kez
+    // okusun diye). hedefler: { staffIds: [...], rol: "admin" } — ikisi
+    // birlikte de verilebilir.
+    async function sendPush({ staffIds, rol, baslik, govde, etiket, taskId, dueDate }) {
       try {
         if (!auth.currentUser) return;
-        const ids = (hedefler && hedefler.length) ? hedefler : taskAssignees(task);
-        if (!ids.length) return;
+        const ids = (staffIds || []).filter(Boolean);
+        if (!ids.length && !rol) return;
         const idToken = await auth.currentUser.getIdToken();
-        await Promise.all(ids.map(staffId => fetch(NOTIFY_TASK_WORKER_URL, {
+        await fetch(NOTIFY_TASK_WORKER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
-          body: JSON.stringify({ staffId, taskId: task.id, title: task.title, dueDate: task.dueDate || null })
-        })));
+          body: JSON.stringify({
+            staffIds: ids, rol: rol || null,
+            baslik: baslik || "Yeni görev atandı",
+            title: govde || baslik || "",   // worker'ın zorunlu alanı
+            govde: govde || null, etiket: etiket || null,
+            taskId: taskId || "", dueDate: dueDate || null
+          })
+        });
       } catch (e) {
+        // Bildirim "olsa iyi olur" katmanı — başarısızlığı işlemi bozmaz.
         console.error("Push gönderilemedi:", e);
       }
+    }
+
+    // hedefler verilmezse görevin atandığı herkese gider.
+    async function sendTaskPush(task, hedefler) {
+      const ids = (hedefler && hedefler.length) ? hedefler : taskAssignees(task);
+      return sendPush({
+        staffIds: ids, taskId: task.id, title: task.title,
+        baslik: "Yeni görev atandı", govde: task.title + (task.dueDate ? ` — Son tarih: ${fmtDate(task.dueDate)}` : ""),
+        etiket: "task_" + task.id
+      });
+    }
+
+    // Görev olayları için ekipteki DİĞER herkes (olayı yapan hariç).
+    function digerEkipIdleri() {
+      const ben = myTaskId();
+      return (db.staff || []).map(s => s.id).filter(id => id && id !== ben);
     }
 
     // Tarayıcının kendi bildirim API'si — sadece CRM sekmesi bir yerde
@@ -1323,6 +1403,31 @@
       } catch (e) {
         console.error("Bildirim gösterilemedi:", e);
       }
+    }
+    // Sekme açıkken gösterilen tarayıcı bildirimi. Push (kapalıyken) ile
+    // aynı tag kullanılırsa tarayıcı ikisini tek bildirimde birleştirir.
+    function tarayiciBildirimi(baslik, govde, etiket) {
+      if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+      try {
+        new Notification(baslik, { body: govde, icon: "logo.jpeg", tag: etiket || undefined });
+      } catch (e) {
+        console.error("Bildirim gösterilemedi:", e);
+      }
+    }
+    const FEEDBACK_BILDIRIM_BASLIK = {
+      dilek: "💡 Yeni dilek/öneri",
+      sikayet: "⚠️ Yeni şikayet",
+      talep: "📋 Yeni talep"
+    };
+    // Dilek/şikayet ANONİM: bildirimde de kim gönderdi bilgisi yok, zaten
+    // hiçbir yerde tutulmuyor. Mesajın kendisi kısaltılarak gösteriliyor.
+    function notifyYeniFeedback(item) {
+      if (!item) return;
+      tarayiciBildirimi(
+        FEEDBACK_BILDIRIM_BASLIK[item.type] || "📮 Yeni mesaj",
+        String(item.text || "").slice(0, 120),
+        "feedback_" + item.id
+      );
     }
     function notifyTaskCompleted(task) {
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
@@ -1351,9 +1456,27 @@
               if (change.type === "removed") {
                 if (idx !== -1) db.tasks.splice(idx, 1);
               } else if (idx !== -1) {
-                const wasCompleted = db.tasks[idx].status === "tamamlandı";
+                const onceki = db.tasks[idx];
+                const wasCompleted = onceki.status === "tamamlandı";
+                const oncekiTalep = !!(onceki.destekTalebi);
+                const oncekiDurum = onceki.status;
                 db.tasks[idx] = data;
                 if (!wasCompleted && data.status === "tamamlandı" && currentRole === "admin") notifyTaskCompleted(data);
+                // Destekçi talebi AÇILDIĞI an haber ver — talebi açan kişiye
+                // ve göreve zaten dahil olanlara değil, karşılık verebilecek
+                // olanlara.
+                if (!oncekiTalep && destekAraniyor(data) && !isTaskFor(data, myTaskId())) {
+                  tarayiciBildirimi("🙋 Destekçi aranıyor",
+                    data.title + " — " + ((data.destekTalebi && data.destekTalebi.not) || ""),
+                    "destek_" + data.id);
+                }
+                // Oylamaya düşen görev: kendi işine oy verilemez, tamamlayana
+                // bildirim gitmesi gürültü olur.
+                if (oncekiDurum !== "kontrol" && data.status === "kontrol" && (data.completedBy || null) !== myTaskId()) {
+                  tarayiciBildirimi("🗳️ Oy bekleyen görev",
+                    data.title + " — tamamlandı denildi, ekip onayı bekliyor",
+                    "kontrol_" + data.id);
+                }
               } else {
                 db.tasks.unshift(data);
                 if (change.type === "added" && (isTaskFor(data, myTaskId()) || havuzdaAktif(data))) notifyNewTask(data);
@@ -1945,6 +2068,144 @@
       </div>`;
     }
 
+    /* ---------- Günlük görev hedefi ----------
+     * Her personelin günde kaç görev tamamlaması beklendiği ekip kaydında
+     * (crm/staff) tutulur; yönetici Ekip ekranından değiştirir.
+     *
+     * SAYIM KURALI: kişi görevi "tamamlandı" işaretlediği GÜN sayılır —
+     * görev ekip oylamasında ("kontrol") bekliyor olsa bile. Aksi halde
+     * kişinin günlük sayısı meslektaşlarının ne zaman oy verdiğine bağlı
+     * olurdu; kendi emeğini ölçen bir hedef bu olmazdı.
+     */
+    const GUNLUK_HEDEF_VARSAYILAN = 5;
+    function gunlukHedef(staffId) {
+      const s = (db.staff || []).find(x => x.id === staffId);
+      const n = s && Number(s.gunlukHedef);
+      return (Number.isFinite(n) && n >= 1 && n <= 99) ? Math.round(n) : GUNLUK_HEDEF_VARSAYILAN;
+    }
+    function bugunTamamlanan(staffId, tarih) {
+      const t = tarih || todayStr();
+      return (db.tasks || []).filter(x => x.completedBy === staffId && x.completedDate === t).length;
+    }
+    // Hedefi kişinin KENDİSİ belirler (Görevler ekranındaki kutudan).
+    // Yönetici de Ekip ekranından herkesinkini düzenleyebilir; başkasının
+    // hedefine karışmak dışında kimse kimsenin sayısını değiştiremez.
+    function hedefiDegistirebilir(staffId) {
+      return currentRole === "admin" || staffId === currentStaffId;
+    }
+    // Sayı girilmişse aralığa çekilir (0 yazan "en az" demek istemiştir → 1);
+    // sayı DEĞİLSE varsayılana dönülür. "|| varsayılan" kullanılamaz, 0'ı yutar.
+    function hedefeCek(deger) {
+      const sayi = parseInt(deger, 10);
+      return Number.isFinite(sayi) ? Math.min(99, Math.max(1, sayi)) : GUNLUK_HEDEF_VARSAYILAN;
+    }
+    async function setGunlukHedef(staffId, deger) {
+      if (!hedefiDegistirebilir(staffId)) return;
+      const n = hedefeCek(deger);
+      await mutateStaff(d => {
+        const s = (d.staff || []).find(x => x.id === staffId);
+        if (s) s.gunlukHedef = n;
+      });
+    }
+    // +/- düğmeleri: ekran anında güncellenir, Firestore'a yazma kısa bir
+    // süre beklenir. Arka arkaya beşe basan biri tek kayıt yapsın —
+    // her tıklamada transaction açmak hem kotayı hem de bağlantıyı yorar.
+    let hedefYazmaZaman = null;
+    function hedefAdimla(staffId, adim) {
+      if (!hedefiDegistirebilir(staffId)) return;
+      const s = (db.staff || []).find(x => x.id === staffId);
+      if (!s) return;
+      const yeni = hedefeCek(gunlukHedef(staffId) + adim);
+      if (yeni === gunlukHedef(staffId)) return;   // sınırdayız, boşuna çizme
+      s.gunlukHedef = yeni;
+      render();
+      clearTimeout(hedefYazmaZaman);
+      hedefYazmaZaman = setTimeout(() => setGunlukHedef(staffId, yeni), 700);
+    }
+    // Kutuya elle yazıldığında (onchange) bekletmeden kaydedilir; bekleyen
+    // bir +/- yazması varsa iptal edilir, yoksa eski değeri geri yazardı.
+    function hedefYaz(staffId, deger) {
+      clearTimeout(hedefYazmaZaman);
+      return setGunlukHedef(staffId, deger);
+    }
+    // Ortak ilerleme çubuğu: hem personelin kendi kartında hem yöneticinin
+    // ekip halkalarında aynı hesap kullanılsın diye tek yerde üretiliyor.
+    function hedefCubugu(staffId, kompakt) {
+      const hedef = gunlukHedef(staffId);
+      const yapilan = bugunTamamlanan(staffId);
+      const yuzde = Math.min(100, Math.round(yapilan / hedef * 100));
+      const tamam = yapilan >= hedef;
+      const renk = tamam ? "#37c98a" : yuzde >= 50 ? "var(--brand-2)" : "#f4b740";
+      const kalan = Math.max(0, hedef - yapilan);
+
+      if (kompakt) {
+        return `<div title="Bugün tamamlanan görev: ${yapilan} / ${hedef}" style="margin-top:6px">
+        <div style="height:5px;border-radius:3px;background:var(--line);overflow:hidden">
+          <div style="height:100%;width:${yuzde}%;background:${renk};border-radius:3px;transition:width .3s"></div>
+        </div>
+        <div style="font-size:10px;color:${renk};font-weight:700;margin-top:3px">${tamam ? "✔ hedef tamam" : `${yapilan}/${hedef} bugün`}</div>
+      </div>`;
+      }
+
+      // Hedef sayısı, sahibi için doğrudan kartın içinde düzenlenebilir —
+      // kişi günün başında kendi hedefini buraya yazar.
+      const kendinin = hedefiDegistirebilir(staffId) && (db.staff || []).some(s => s.id === staffId);
+      const hedefAlani = kendinin
+        ? `<span class="bolu">/</span>
+          <span class="hedefKutu">
+            <button type="button" onclick="hedefAdimla('${staffId}', -1)" title="Hedefi azalt" aria-label="Hedefi azalt"${hedef <= 1 ? ' disabled' : ''}>−</button>
+            <input type="number" inputmode="numeric" min="1" max="99" step="1" value="${hedef}" id="hedefKutu_${staffId}"
+              onchange="hedefYaz('${staffId}', this.value)"
+              onfocus="this.select()"
+              title="Bugün kaç görev tamamlamayı hedefliyorsun?" aria-label="Günlük görev hedefi">
+            <button type="button" onclick="hedefAdimla('${staffId}', 1)" title="Hedefi artır" aria-label="Hedefi artır"${hedef >= 99 ? ' disabled' : ''}>+</button>
+          </span>
+          <span class="birim">görev</span>`
+        : `<span class="bolu">/</span><span class="birim" style="font-size:15px;font-weight:700;color:var(--txt)">${hedef}</span><span class="birim">görev</span>`;
+
+      return `<div class="card" style="margin-bottom:16px;${tamam ? 'border-color:rgba(55,201,138,.4)' : ''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600">${icon('checkCircle', 13)} Günlük hedef</div>
+        <div class="hedefSayac">
+          <b class="yapilan" style="color:${renk}">${yapilan}</b>
+          ${hedefAlani}
+        </div>
+      </div>
+      <div style="height:10px;border-radius:5px;background:var(--line);overflow:hidden">
+        <div style="height:100%;width:${yuzde}%;background:${renk};border-radius:5px;transition:width .4s"></div>
+      </div>
+      <div style="font-size:12px;color:${renk};font-weight:600;margin-top:8px">
+        ${tamam ? "🎉 Bugünün hedefini tamamladın!" : `%${yuzde} — ${kalan} görev kaldı`}
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
+        Bugün tamamladığın görevler sayılır, sayaç her gün sıfırdan başlar.${kendinin ? " Hedefini yukarıdaki sayıyı değiştirerek kendin belirlersin." : ""}
+      </div>
+    </div>`;
+    }
+
+    // Ekip ekranındaki hedef satırı. Hedefi yalnızca yönetici değiştirir;
+    // ekrana erişebilen diğer roller (muhasebe) sayıyı okur — personel bu
+    // ekrana zaten giremiyor, Görevler'deki kendi çubuğunu görüyor.
+    function hedefSatiri(staffId) {
+      const hedef = gunlukHedef(staffId);
+      const yapilan = bugunTamamlanan(staffId);
+      const tamam = yapilan >= hedef;
+      const renk = tamam ? "#37c98a" : "var(--muted)";
+      if (currentRole !== "admin") {
+        return `<div style="font-size:12px;color:var(--muted);margin-top:6px;padding-top:8px;border-top:1px dashed var(--line)">
+      Günlük hedef: <b style="color:${renk}">${yapilan} / ${hedef}</b> görev
+    </div>`;
+      }
+      return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px;padding-top:8px;border-top:1px dashed var(--line)">
+    <span>${icon('checkCircle', 12)} Günlük görev hedefi</span>
+    <input type="number" min="1" max="99" step="1" value="${hedef}" id="hedef_${staffId}"
+      onchange="setGunlukHedef('${staffId}', this.value)"
+      style="width:64px;padding:5px 8px;text-align:center;font-weight:700"
+      title="Bu kişinin günde kaç görev tamamlaması bekleniyor? Kişi bu sayıyı kendi de değiştirebilir.">
+    <span style="color:${renk};font-weight:600">bugün ${yapilan} tamamladı${tamam ? " ✔" : ""}</span>
+  </div>`;
+    }
+
     let seciliOncelik = ONCELIK_VARSAYILAN;
     function secOncelik(n) {
       seciliOncelik = Math.min(5, Math.max(1, Number(n) || ONCELIK_VARSAYILAN));
@@ -2274,7 +2535,9 @@
           // bekler — rozetin işi zaten "bakılacak iş var" demek.
           // Ertelenmiş havuz görevi rozete sayılmaz — tarihi gelmeden
           // yapılacak iş değil, sayılırsa rozet hep dolu kalır.
-          : (db.tasks || []).filter(t => (isTaskFor(t, currentStaffId) && t.status !== "tamamlandı") || havuzdaAktif(t)).length;
+          // Destekçi aranan görevler de sayılır: kimse fark etmezse talep
+          // öylece bekler — rozetin işi zaten "bakılacak iş var" demek.
+          : (db.tasks || []).filter(t => (isTaskFor(t, currentStaffId) && t.status !== "tamamlandı") || havuzdaAktif(t) || destekAraniyor(t)).length;
         if (badgeCount > 0) {
           badge.textContent = badgeCount > 9 ? "9+" : String(badgeCount);
           badge.style.display = "flex";
@@ -2329,13 +2592,19 @@
       if (fab) fab.classList.toggle("show", currentView === "authors");
 
       const c = document.getElementById("content");
-      // Sekme değişince #content'in içeriği yerinde değişiyor (element
-      // yeniden oluşmuyor), o yüzden CSS animasyonu kendiliğinden tetiklenmez
-      // — class'ı çıkarıp reflow'u zorlayarak (void offsetWidth) her render'da
-      // yeniden tetikliyoruz. Animasyonun kendisi mobilde tanımlı, masaüstünü
-      // etkilemiyor (bkz. styles.css @media max-width:768px .view-enter).
+      // Giriş animasyonu (staggerFade) SADECE başka bir ekrana geçildiğinde
+      // oynar. render() aynı zamanda her veri değişiminde de çağrılıyor
+      // (oy verme, görev tamamlama, hedef değiştirme, ödeme ekleme...);
+      // orada da oynasaydı en ufak işlemde bütün ekran baştan yükleniyormuş
+      // gibi görünürdü — kullanıcı bunu "site sürekli yenileniyor" diye
+      // yaşıyordu. Aynı ekran yeniden çizilirken sayfanın kaydırma konumu da
+      // korunuyor, yoksa liste kısalınca en başa fırlıyor.
+      const gorunumDegisti = sonCizilenGorunum !== currentView;
+      const kaydirma = window.scrollY;
+      // Sekme içinde kalırken class'ı kaldırmak şart: yeni oluşan kartlar
+      // .view-enter altındayken animasyonu kendiliğinden baştan oynatır.
       c.classList.remove("view-enter");
-      void c.offsetWidth;
+      if (gorunumDegisti) void c.offsetWidth;
       if (currentView === "dashboard") {
         c.innerHTML = viewDashboard();
         setTimeout(initCharts, 0); // DOM update sonrası çalışması için
@@ -2354,7 +2623,9 @@
       else if (currentView === "team") { c.innerHTML = viewTeam(); if (currentRole === "admin") setTimeout(loadPendingUsers, 0); }
       else if (currentView === "feedback") c.innerHTML = viewFeedback();
       else if (currentView === "settings") { c.innerHTML = viewSettings(); if (currentRole === "admin") setTimeout(loadUserManagement, 0); }
-      c.classList.add("view-enter");
+      if (gorunumDegisti) c.classList.add("view-enter");
+      else if (window.scrollY !== kaydirma) window.scrollTo(0, kaydirma);
+      sonCizilenGorunum = currentView;
     }
 
     // Türkçe duyarlı, büyük/küçük harf ve aksan farkı gözetmeyen arama
@@ -4325,6 +4596,151 @@
       }
     }
 
+    /* ---------- Destekçi talebi ----------
+     * Görevi üstlenen kişi işi yaparken tıkanırsa "destekçi" ister; talep
+     * ekipteki herkese görünür, karşılık veren kişi göreve DAHİL olur ve
+     * iş oradan sonra ortak görev olarak yürür (assignees'e eklenir).
+     *
+     * Neden havuza geri bırakmak yerine bu var: erteleme, işi bırakıp
+     * havuza atmaktır — yapılanlar sahipsiz kalır. Destek talebi ise işi
+     * bırakmadan yardım çağırmaktır, görev sahibinde kalmaya devam eder.
+     *
+     * İlk karşılık veren kazanır (transaction): iki kişi aynı anda "Destek
+     * Ol" derse ikisi birden eklenip görev üç kişiye çıkmasın. Sonradan
+     * yine destek istenebilir — talep temizlendiği için yeni talep açılır.
+     */
+    function destekTalebi(t) {
+      return (t && t.destekTalebi && typeof t.destekTalebi === "object") ? t.destekTalebi : null;
+    }
+    // Aktif talep: görev hâlâ yapılıyor olmalı. Oylamadaki/biten ya da
+    // havuza düşmüş görevde talep anlamsızdır (sahibi yok / iş bitmiş).
+    function destekAraniyor(t) {
+      return !!destekTalebi(t) && t.status !== "tamamlandı" && t.status !== "kontrol" && !isHavuzGorevi(t);
+    }
+    function destekIsteyebilir(t) {
+      if (!t || destekAraniyor(t) || isHavuzGorevi(t)) return false;
+      if (t.status === "tamamlandı" || t.status === "kontrol") return false;
+      return isTaskFor(t, myTaskId());
+    }
+    // Talebi yalnızca isteyen kişi (ya da yönetici) geri çekebilir.
+    function destekTalebiGeriCekebilir(t) {
+      if (!destekAraniyor(t)) return false;
+      if (currentRole === "admin") return true;
+      return destekTalebi(t).isteyen === myTaskId();
+    }
+    // Göreve zaten dahil olan kendi talebine "destek olamaz".
+    function destekOlabilir(t) {
+      const benim = myTaskId();
+      return destekAraniyor(t) && !!benim && !isTaskFor(t, benim);
+    }
+    function destekIsteyenAdi(t) {
+      const d = destekTalebi(t);
+      if (!d) return "";
+      return d.isteyen === "admin" ? "Sistem Yöneticisi" : (staffName(d.isteyen) || "Personel");
+    }
+
+    function openDestekModal(taskId) {
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      document.getElementById("destek_id").value = taskId;
+      document.getElementById("destek_baslik").textContent = t.title || "";
+      document.getElementById("destek_not").value = "";
+      document.getElementById("destekModal").classList.add("open");
+      setTimeout(() => { const el = document.getElementById("destek_not"); if (el) el.focus(); }, 50);
+    }
+    function closeDestekModal() { document.getElementById("destekModal").classList.remove("open"); }
+
+    async function submitDestekTalebi() {
+      const taskId = document.getElementById("destek_id").value;
+      // Not ZORUNLU: "yardım lazım" tek başına kimseyi harekete geçirmez;
+      // ne konuda destek istendiği yazılmazsa kimse üstlenip üstlenemeyeceğini
+      // bilemez (erteleme sebebiyle aynı gerekçe).
+      const not = document.getElementById("destek_not").value.trim();
+      if (!not) { alert("Ne konuda desteğe ihtiyacın olduğunu kısaca yaz."); return; }
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!t || !destekIsteyebilir(t)) { closeDestekModal(); return; }
+
+      const talep = { isteyen: myTaskId(), tarih: todayStr(), not };
+      try {
+        await firestore.collection("tasks").doc(taskId).update({ destekTalebi: talep });
+        t.destekTalebi = talep;
+        // Talebi kimse görmezse öylece bekler — ekipteki herkese haber ver.
+        sendPush({
+          staffIds: digerEkipIdleri(), rol: currentRole === "admin" ? null : "admin",
+          baslik: "🙋 Destekçi aranıyor",
+          govde: t.title + " — " + not, etiket: "destek_" + taskId, taskId
+        });
+        closeDestekModal();
+        render();
+        customAlert("Destekçi talebin iletildi", "Ekip \"Destek\" sekmesinde görecek. Karşılık veren kişi görevine ortak olur.");
+      } catch (e) {
+        console.error("Destek talebi gönderilemedi:", e);
+        alert(dbErrorText(e, "Destek talebi iletilemedi"));
+      }
+    }
+
+    async function destekTalebiniGeriCek(taskId) {
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!t || !destekTalebiGeriCekebilir(t)) return;
+      if (!(await customConfirm("Destekçi talebi geri çekilsin mi?"))) return;
+      try {
+        await firestore.collection("tasks").doc(taskId).update({ destekTalebi: null });
+        t.destekTalebi = null;
+        render();
+      } catch (e) {
+        console.error("Destek talebi geri çekilemedi:", e);
+        alert(dbErrorText(e, "Talep geri çekilemedi"));
+      }
+    }
+
+    async function destekOl(taskId) {
+      const benim = myTaskId();
+      if (!benim) { customAlert("Destek olunamadı", "Hesabınız ekip listesiyle eşleşmediği için göreve katılamıyorsunuz. Yöneticinize bildirin."); return; }
+      const t = db.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      if (!(await customConfirm(`"${t.title}" görevine destekçi olarak katılıyor musun?\n\nGörev ortak göreve dönüşecek ve senin listende de görünecek.`, "Evet, Destek Ol"))) return;
+
+      const ref = firestore.collection("tasks").doc(taskId);
+      let sonuc = null;
+      try {
+        await firestore.runTransaction(async tx => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) throw new Error("YOK");
+          const d = snap.data();
+          if (!d.destekTalebi) throw new Error("KAPANMIS");
+          // assignees boş olabilir (eski kayıt) — assignedTo'ya düşülür.
+          const mevcut = (Array.isArray(d.assignees) && d.assignees.length)
+            ? d.assignees.slice() : (d.assignedTo ? [d.assignedTo] : []);
+          if (mevcut.indexOf(benim) !== -1) throw new Error("ZATEN");
+          const yeni = mevcut.concat([benim]);
+          const gecmis = (Array.isArray(d.destekGecmisi) ? d.destekGecmisi : []).concat([{
+            kisi: benim, isteyen: d.destekTalebi.isteyen, not: d.destekTalebi.not || "", tarih: todayStr()
+          }]);
+          sonuc = { assignees: yeni, destekTalebi: null, destekGecmisi: gecmis, isteyen: d.destekTalebi.isteyen };
+          tx.update(ref, { assignees: yeni, destekTalebi: null, destekGecmisi: gecmis });
+        });
+        if (sonuc) {
+          Object.assign(t, { assignees: sonuc.assignees, destekTalebi: null, destekGecmisi: sonuc.destekGecmisi });
+          // Destek isteyen kişiye haber ver — talebinin karşılandığını
+          // görmek için listeye bakmak zorunda kalmasın.
+          sendTaskPush(t, [sonuc.isteyen]);
+        }
+        render();
+      } catch (e) {
+        if (e.message === "KAPANMIS") {
+          customAlert("Talep kapanmış", "Bu göreve az önce başka biri destek oldu ya da talep geri çekildi.");
+          render();
+        } else if (e.message === "ZATEN") {
+          customAlert("Zaten bu görevdesin", "Bu görev senin listende de görünüyor.");
+        } else if (e.message === "YOK") {
+          customAlert("Görev bulunamadı", "Bu görev silinmiş olabilir.");
+        } else {
+          console.error("Destek olma hatası:", e);
+          alert(dbErrorText(e, "Göreve katılınamadı"));
+        }
+      }
+    }
+
     function openErteleModal(taskId) {
       const t = db.tasks.find(x => x.id === taskId);
       if (!t) return;
@@ -4594,6 +5010,15 @@
       render();
       try {
         await firestore.collection("tasks").doc(taskId).update(updates);
+        // Görev oylamaya düştü: onaylayacak kişiler haberdar olmazsa iş
+        // "kontrol"de asılı kalır. Kendi işine oy verilemediği için
+        // tamamlayan kişi hedeflerin dışında (bkz. digerEkipIdleri).
+        sendPush({
+          staffIds: digerEkipIdleri(), rol: currentRole === "admin" ? null : "admin",
+          baslik: "🗳️ Oy bekleyen görev",
+          govde: (t ? t.title : "Bir görev") + " — tamamlandı denildi, ekip onayı bekliyor",
+          etiket: "kontrol_" + taskId, taskId
+        });
       } catch (e) {
         console.error("Güncelleme hatası:", e);
         alert(dbErrorText(e, "Görev güncellenemedi"));
@@ -4655,15 +5080,21 @@
       // Havuz görevleri kimseye atanmadığı için isTaskFor süzgecine takılmaz;
       // herkesin görmesi gerektiğinden ayrıca ekleniyor.
       // Oylamadaki (kontrol) görevleri HERKES görür — göremeyen oy kullanamaz.
+      // Destekçi aranan görevler de herkese açılır, yoksa talebi yalnızca
+      // görevin sahibi görür ve kimse karşılık veremez.
       const relevantTasks = isTaskAdmin
         ? db.tasks
-        : db.tasks.filter(t => isTaskFor(t, currentStaffId) || isHavuzGorevi(t) || t.status === "kontrol");
+        : db.tasks.filter(t => isTaskFor(t, currentStaffId) || isHavuzGorevi(t) || t.status === "kontrol" || destekAraniyor(t));
 
       // Görev ekleme herkeste açık: yönetici istediğine atar, personel
       // yalnızca kendine ya da havuza ekleyebilir (bkz. renderAssigneePicker).
       let html = `<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
     <button class="btn" onclick="openTaskModal()">${icon('clipboardList', 14)} + Görev Ekle</button>
   </div>`;
+
+      // ---- Günlük hedef — personel kendi ilerlemesini en üstte görür.
+      // Admin'inki ekip kartlarındaki halkanın altında (kompakt) duruyor.
+      if (!isTaskAdmin && currentStaffId) html += hedefCubugu(currentStaffId, false);
 
       // ---- Toplu analiz — sadece admin görür, hangi sekme açık olursa
       // olsun üstte sabit durur ----
@@ -4716,7 +5147,15 @@
       const havuzGorevleri = havuzAktifler;
       const sahipliGorevler = filteredTasks.filter(t => !isHavuzGorevi(t));
 
-      const pending = sahipliGorevler.filter(t => t.status !== "tamamlandı" && t.status !== "kontrol").sort(havuzSirala);
+      // Destekçi aranan görevler kendi sekmesinde toplanır.
+      const destekBekleyenler = sahipliGorevler.filter(destekAraniyor).sort(havuzSirala);
+      // "Aktif" YALNIZCA kendi işlerim (yönetici hepsini görür). Başkasının
+      // destek beklediği görev, sırf herkese görünür oldu diye benim aktif
+      // listemi doldurmamalı — oylamadaki görevlerde de aynı ayrım var.
+      const pending = sahipliGorevler
+        .filter(t => t.status !== "tamamlandı" && t.status !== "kontrol")
+        .filter(t => isTaskAdmin || isTaskFor(t, myTaskId()))
+        .sort(havuzSirala);
       // Oylamadakiler: tamamlandı denmiş ama ekip kontrolünden geçmemiş görevler
       const kontroldekiler = sahipliGorevler.filter(t => t.status === "kontrol")
         .sort((a, b) => new Date(b.completedDate || b.created) - new Date(a.completedDate || a.created));
@@ -4809,6 +5248,35 @@
         // yönetici (bkz. ertelenebilirMi).
         const erteleBtn = ertelenebilirMi(t)
           ? `<button class="btn ghost" style="padding:6px 8px;color:#a78bfa" onclick="openErteleModal('${t.id}')" title="Ertele (sebebiyle havuza bırak)">${icon('clock', 13)}</button>` : "";
+        // Destekçi iste: görevi bırakmadan yardım çağırır (ertelemenin aksine
+        // iş sende kalır). Talep açıkken düğme yerine geri çekme görünür.
+        const destekBtn = destekIsteyebilir(t)
+          ? `<button class="btn ghost" style="padding:6px 8px;color:#ec833c" onclick="openDestekModal('${t.id}')" title="Destekçi iste (görev sende kalır)">🙋</button>`
+          : destekTalebiGeriCekebilir(t)
+            ? `<button class="btn ghost" style="padding:6px 8px;color:var(--muted)" onclick="destekTalebiniGeriCek('${t.id}')" title="Destekçi talebini geri çek">✕🙋</button>`
+            : "";
+
+        // Talep kutusu: ne istendiği ve kimin istediği yazılı; başkaları
+        // buradan doğrudan destek olur.
+        const destekKutusu = destekAraniyor(t)
+          ? `<div style="margin-top:8px;background:rgba(236,131,60,.08);border:1px solid rgba(236,131,60,.35);border-radius:8px;padding:10px 12px">
+        <div style="font-size:11px;color:#ec833c;text-transform:uppercase;letter-spacing:.5px;font-weight:600">🙋 Destekçi aranıyor — ${escapeHtml(destekIsteyenAdi(t))} istedi${destekTalebi(t).tarih ? ' • ' + fmtDate(destekTalebi(t).tarih) : ''}</div>
+        <div style="font-size:13px;color:var(--txt);margin-top:5px">${escapeHtml(destekTalebi(t).not || "")}</div>
+        ${destekOlabilir(t)
+            ? `<button class="btn" style="width:100%;margin-top:10px;background:rgba(236,131,60,.18);border-color:#ec833c;color:#ec833c" onclick="destekOl('${t.id}')">${icon('users', 14)} Destek Ol — göreve katıl</button>`
+            : `<div style="font-size:12px;color:var(--muted);margin-top:6px">${myTaskId() ? "Bu görevde zaten yer alıyorsun; karşılık verecek kişiyi bekliyorsunuz." : "Göreve katılmak için ekip listesinde tanımlı bir personel hesabı gerekir."}</div>`}
+      </div>`
+          : "";
+
+        // Destek geçmişi: göreve kimin, hangi talep üzerine katıldığı.
+        const destekGecmisi = Array.isArray(t.destekGecmisi) ? t.destekGecmisi : [];
+        const destekGecmisKutusu = destekGecmisi.length
+          ? `<div style="margin-top:8px;border-left:3px solid #ec833c;padding:6px 0 6px 10px">
+        ${destekGecmisi.map(d => `<div style="font-size:11px;color:#ec833c;font-weight:600">
+          ${escapeHtml(d.kisi === "admin" ? "Sistem Yöneticisi" : (staffName(d.kisi) || "Personel"))} destekçi oldu${d.tarih ? " • " + fmtDate(d.tarih) : ""}
+        </div>${d.not ? `<div style="font-size:12px;color:var(--muted);margin:2px 0 4px">${escapeHtml(d.not)}</div>` : ""}`).join("")}
+      </div>`
+          : "";
 
         return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
@@ -4819,15 +5287,18 @@
             ${oncelikRozeti(t)}
             ${statusBadge}
             ${sharedBadge}
+            ${destekAraniyor(t) ? `<span class="badge" style="background:rgba(236,131,60,.18);color:#ec833c">🙋 Destekçi aranıyor</span>` : ""}
             ${(!havuzda && (isTaskAdmin || ortak)) ? `<span style="font-size:12px;color:var(--muted)">${icon('user', 12)} ${escapeHtml(assigneeName)}</span>` : ""}
             ${t.alanKisi && !havuzda ? `<span style="font-size:11px;color:#a78bfa">havuzdan aldı${t.alinmaTarihi ? ' • ' + fmtDate(t.alinmaTarihi) : ''}</span>` : ""}
             ${(isTaskAdmin && t.assignedBy && t.assignedBy !== "admin") ? `<span style="font-size:11px;color:var(--muted)">${escapeHtml(staffName(t.assignedBy) || "Personel")} ekledi</span>` : ""}
             ${dueBadge}
           </div>
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">${erteleBtn}${editBtn}${deleteBtn}</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">${destekBtn}${erteleBtn}${editBtn}${deleteBtn}</div>
       </div>
       ${ertelemeKutusu}
+      ${destekGecmisKutusu}
+      ${destekKutusu}
       ${actionArea}
     </div>`;
       };
@@ -4864,6 +5335,7 @@
       ${st.puanOrt === null
           ? `<div style="font-size:10px;color:var(--muted);margin-top:2px" title="Tamamlanan görevlerine henüz kimse puan vermemiş">değerlendirme —</div>`
           : `<div style="font-size:11px;color:${puanRengi(st.puanOrt)};font-weight:700;margin-top:2px" title="Ekibin bu kişinin tamamladığı işlere verdiği puanların ortalaması (${st.puanlananSayi} görev)">${yildizIkon(true, 10, puanRengi(st.puanOrt))} ${st.puanOrt.toFixed(1).replace(".", ",")} / 5</div>`}
+      ${hedefCubugu(s.id, true)}
     </div>`;
         };
         // Admin de görev alabildiği için rapor sistemine o da dahil: ekip
@@ -4876,15 +5348,16 @@
       html += `<div class="toolbar" style="gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
     <span class="pill ${taskTab === 'aktif' ? 'active' : ''}" style="${taskTab === 'aktif' ? 'background:rgba(244,183,64,.15);border-color:#f4b740;color:#f4b740' : ''}" onclick="setTaskTab('aktif')">${icon('clock', 13)} Aktif (${pending.length})</span>
     <span class="pill ${taskTab === 'havuz' ? 'active' : ''}" style="${taskTab === 'havuz' ? 'background:rgba(167,139,250,.18);border-color:#a78bfa;color:#a78bfa' : (havuzGorevleri.length ? 'border-color:#a78bfa;color:#a78bfa' : '')}" onclick="setTaskTab('havuz')">${icon('users', 13)} Havuz (${havuzGorevleri.length})</span>
+    <span class="pill ${taskTab === 'destek' ? 'active' : ''}" style="${taskTab === 'destek' ? 'background:rgba(236,131,60,.18);border-color:#ec833c;color:#ec833c' : (destekBekleyenler.length ? 'border-color:#ec833c;color:#ec833c' : '')}" onclick="setTaskTab('destek')">🙋 Destek (${destekBekleyenler.length})</span>
     <span class="pill ${taskTab === 'kontrol' ? 'active' : ''}" style="${taskTab === 'kontrol' ? 'background:rgba(45,212,191,.15);border-color:#2dd4bf;color:#2dd4bf' : (kontroldekiler.length ? 'border-color:#2dd4bf;color:#2dd4bf' : '')}" onclick="setTaskTab('kontrol')">🗳️ Oylamada (${kontroldekiler.length})</span>
     <span class="pill ${taskTab === 'tamamlanan' ? 'active' : ''}" style="${taskTab === 'tamamlanan' ? 'background:rgba(55,201,138,.15);border-color:#37c98a;color:#37c98a' : ''}" onclick="setTaskTab('tamamlanan')">${icon('checkCircle', 13)} Tamamlanan (${completed.length})</span>
     ${isTaskAdmin && selectedTaskStaffId ? `<span class="pill" style="border-color:var(--brand-2);color:var(--brand-2)" onclick="selectTaskStaff('${selectedTaskStaffId}')">${escapeHtml(selectedTaskStaffId === "admin" ? "Sistem Yöneticisi" : (staffName(selectedTaskStaffId) || ""))} ✕</span>` : ""}
   </div>`;
 
-      const list = taskTab === "aktif" ? pending : taskTab === "havuz" ? havuzGorevleri : taskTab === "kontrol" ? kontroldekiler : completed;
+      const list = taskTab === "aktif" ? pending : taskTab === "havuz" ? havuzGorevleri : taskTab === "destek" ? destekBekleyenler : taskTab === "kontrol" ? kontroldekiler : completed;
       const emptyMsg = isTaskAdmin && selectedTaskStaffId
-        ? (taskTab === "aktif" ? "Bu personelin aktif görevi yok." : taskTab === "havuz" ? "Havuzda görev yok." : taskTab === "kontrol" ? "Oylamada görev yok." : "Bu personelin tamamlanan görevi yok.")
-        : (taskTab === "aktif" ? "Aktif görev yok." : taskTab === "havuz" ? "Havuzda alınmayı bekleyen görev yok." : taskTab === "kontrol" ? "Oylama bekleyen görev yok." : "Henüz tamamlanan görev yok.");
+        ? (taskTab === "aktif" ? "Bu personelin aktif görevi yok." : taskTab === "havuz" ? "Havuzda görev yok." : taskTab === "destek" ? "Bu personelin destek beklediği görev yok." : taskTab === "kontrol" ? "Oylamada görev yok." : "Bu personelin tamamlanan görevi yok.")
+        : (taskTab === "aktif" ? "Aktif görev yok." : taskTab === "havuz" ? "Havuzda alınmayı bekleyen görev yok." : taskTab === "destek" ? "Destekçi bekleyen görev yok. Bir görevde tıkanırsan kendi kartından destek isteyebilirsin." : taskTab === "kontrol" ? "Oylama bekleyen görev yok." : "Henüz tamamlanan görev yok.");
       // Admin Aktif sekmesinde YAPACAĞI görevlerle ATADIĞI görevleri ayrı
       // görür (personel filtresi seçiliyken bölmeye gerek yok — zaten tek
       // kişinin listesi).
@@ -5995,6 +6468,7 @@
         </div>
         <button class="btn ghost team-card-del" onclick="delStaff('${s.id}')" style="padding:6px 10px" title="Sil">${icon('trash', 14)}</button>
       </div>
+      ${hedefSatiri(s.id)}
       ${recentHtml ? `<div style="margin-top:6px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Son görüşmeler</div>${recentHtml}</div>` : ''}
     </div>`;
       }).join('');
@@ -6451,13 +6925,16 @@
     }
 
     // --- TEMALAR (AÇIK / KOYU TEMA SİSTEMİ) ---
-    function updateLogoSources(theme) {
-      const isLight = (theme === 'light') || (document.documentElement.getAttribute('data-theme') === 'light');
-      const logoSrc = isLight ? 'logo.jpeg' : 'logo-dark.png';
+    // Her iki temada da AYNI dosya kullanılıyor: logo-dark.png, beyaz figür
+    // + şeffaf zemin. Açık temada figür CSS ile koyulaştırılıyor
+    // (bkz. styles.css, [data-theme="light"] ... filter: invert(1)).
+    //
+    // Önceden açık temada logo.jpeg'e geçiliyordu; JPEG şeffaflık
+    // taşıyamadığı için logonun arkasında dolu beyaz bir kutu kalıyor ve
+    // açık gri sayfa zemininde bembeyaz bir leke gibi duruyordu.
+    function updateLogoSources() {
       document.querySelectorAll('.mark img, .topbar-mark img').forEach(img => {
-        if (img.src && !img.src.includes(logoSrc)) {
-          img.src = logoSrc;
-        }
+        if (img.src && !img.src.includes('logo-dark.png')) img.src = 'logo-dark.png';
       });
     }
 
