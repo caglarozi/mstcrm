@@ -162,10 +162,23 @@
       arsiv: { label: "Arşiv", color: "#5b6070" }
     };
     const PIPELINE = ["aday", "gorusuluyor", "degerlendirme", "eseryaziyor", "sozlesme", "yayinda"];
+    // mstyayincilik.com'daki paket merdiveni (Basamak I-VII + Zirve).
+    // withVat sitedeki KDV dahil bedel, noVat %20 KDV'siz karşılığı.
+    // Aylık paketlerde tutar, asgari sözleşme süresinin toplamıdır
+    // (ödeme ekranına otomatik dolar, elle değiştirilebilir).
     const PACKAGES = {
-      vip: { label: "VIP Paket", withVat: 70800, noVat: 59000 },
-      pro: { label: "Profesyonel Paket", withVat: 42000, noVat: 35000 },
-      standart: { label: "Standart Paket", withVat: 24000, noVat: 20000 }
+      sifirpesin: { label: "Sıfır Peşin (Ortak Yayın)", withVat: 0, noVat: 0 },
+      dijital: { label: "Dijital Yazar (1.490 ₺/ay · min 6 ay)", withVat: 8940, noVat: 7450 },
+      gorunur: { label: "Görünür Yazar (3.490 ₺/ay · min 3 ay)", withVat: 10470, noVat: 8725 },
+      kademeli: { label: "Kademeli Yayın", withVat: 19900, noVat: 16583 },
+      baslangic: { label: "Başlangıç Yayın", withVat: 29900, noVat: 24917 },
+      profbuyume: { label: "Profesyonel Büyüme", withVat: 59900, noVat: 49917 },
+      vipint: { label: "VIP Uluslararası (99.900 ₺'den)", withVat: 99900, noVat: 83250 },
+      prestij: { label: "Prestij Yazar Markası (179.000 ₺'den)", withVat: 179000, noVat: 149167 },
+      // Eski paketler — mevcut kayıtların etiket ve tutarları bozulmasın diye durur:
+      vip: { label: "VIP Paket (eski)", withVat: 70800, noVat: 59000 },
+      pro: { label: "Profesyonel Paket (eski)", withVat: 42000, noVat: 35000 },
+      standart: { label: "Standart Paket (eski)", withVat: 24000, noVat: 20000 }
     };
     const PAYMENT_METHODS = {
       taksit: { label: "Taksit", vatIncluded: true, installments: true },
@@ -3792,7 +3805,7 @@
     function setPackageFilter(p) { filterPackage = p; render(); }
     function openPackageFilterModal() {
       const allContracted = visibleAuthors().filter(a => a.status === "sozlesme" || a.status === "yayinda");
-      const PKG_TYPES = ["vip", "pro", "standart"];
+      const PKG_TYPES = Object.keys(PACKAGES);
 
       let content = `
         <div class="box" style="max-width: 320px; padding: 20px;">
