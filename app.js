@@ -5246,9 +5246,39 @@
 
       // Yazar yeni sözleşmeli olduysa (durum ilk kez "Sözleşme"ye geçtiyse)
       // ödeme şekli sorulması için ödeme ekranı otomatik açılır; formda
-      // seçilen paket buraya otomatik taşınır.
+      // seçilen paket buraya otomatik taşınır. Yönetim paneline de
+      // "sözleşme alındı" haberi düşülür.
       if (payload.status === "sozlesme" && !wasContracted) {
+        panelEventGonder("sozlesme_alindi", {
+          yazarId: newId,
+          yazarAdi: name,
+          paket: payload.package || null,
+          gorusmeci: currentStaffId ? (staffName(currentStaffId) || null) : "Sistem Yöneticisi"
+        });
         openPayModal(newId);
+      }
+    }
+
+    /* ---------- Yönetim paneli bildirimleri (CRM -> panel) ----------
+     * Reklam kartının tersi yönde çalışan köprü: CRM'de önemli bir olay
+     * olduğunda (örn. sözleşme alındı) panel_events koleksiyonuna bir olay
+     * dokümanı yazılır. Yönetim paneli (app.mstyayincilik.com) bu
+     * koleksiyonu servis hesabıyla dinler, işlediğini iletildi=true yapar.
+     * Şema ve panel tarafı kodu: PANEL-CRM-BILDIRIM-ENTEGRASYONU.md */
+    async function panelEventGonder(tur, veri) {
+      const ev = Object.assign({
+        id: uid(),
+        tur,
+        tarih: new Date().toISOString(),
+        iletildi: false,
+        kaynak: "crm"
+      }, veri);
+      try {
+        await firestore.collection("panel_events").doc(ev.id).set(ev);
+      } catch (e) {
+        // Panel haberdar edilemese bile CRM akışı durmaz — sözleşme kaydı
+        // zaten alınmıştır; olay yalnızca konsola düşer.
+        console.error("Panel bildirimi yazılamadı:", e);
       }
     }
     function customAlert(title, message) {

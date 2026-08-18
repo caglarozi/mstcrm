@@ -117,6 +117,14 @@ service cloud.firestore {
       allow read, write: if isApproved();
     }
 
+    // CRM -> yönetim paneli olay kuyruğu (örn. "sözleşme alındı").
+    // CRM yalnızca olay OLUŞTURUR; okumayı/işaretlemeyi panel servis
+    // hesabıyla yapar (servis hesabı bu kurallara tabi değildir).
+    match /panel_events/{eventId} {
+      allow create: if isApproved();
+      allow read, update, delete: if false;
+    }
+
     // Tanımlanmamış her şeyi varsayılan olarak reddet
     match /{document=**} {
       allow read, write: if false;
