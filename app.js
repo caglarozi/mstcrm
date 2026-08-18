@@ -4903,7 +4903,8 @@
       document.getElementById("tsk_id").value = taskId || "";
       document.getElementById("tsk_title").value = t ? t.title : "";
       document.getElementById("tsk_description").value = t ? (t.description || "") : "";
-      document.getElementById("tsk_dueDate").value = t ? (t.dueDate || "") : "";
+      // Yeni görevde tarih alanı otomatik olarak bugünle gelir (değiştirilebilir).
+      document.getElementById("tsk_dueDate").value = t ? (t.dueDate || "") : todayStr();
       document.getElementById("tsk_havuz").checked = !!(t && t.havuzda === true);
       secOncelik(t ? gorevOnceligi(t) : ONCELIK_VARSAYILAN);
       // Başlıktaki açıklama role göre değişir: personel çoklu seçim yapamaz,
