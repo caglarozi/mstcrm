@@ -5817,7 +5817,12 @@
     /* ---------- Görüşme devri (danışmanlar arası transfer) ---------- */
     function openTransferModal(authorId) {
       const a = db.authors.find(x => x.id === authorId); if (!a) return;
-      const candidates = (db.staff || []).filter(s => s.id !== a.addedBy);
+      // Liste "kendim hariç herkes"tir. Önceden kaydın SAHİBİ (addedBy)
+      // çıkarılıyordu; sahiplik başka birindeyse devreden kişi listede
+      // kendini görüyor, asıl devretmek istediği kişiyi göremiyordu.
+      // Kaydın şu anki sahibi de listede kalır (etiketiyle) — ona devir,
+      // günlük görünümde kartı onun sütununa taşımak için anlamlıdır.
+      const candidates = (db.staff || []).filter(s => s.id !== currentStaffId);
       if (!candidates.length) { customAlert("Devredilecek danışman yok", "Ekipte bu kaydı devredebileceğiniz başka bir danışman bulunmuyor."); return; }
       let content = `
         <div class="box" style="max-width: 320px; padding: 20px;">
@@ -5826,7 +5831,7 @@
           <div style="display:flex; flex-direction:column; gap:8px; max-height:320px; overflow-y:auto; padding-right:4px;">` +
         candidates.map(s => `<button class="btn ghost" style="justify-content:flex-start; width:100%;" onclick="transferAuthor('${a.id}','${s.id}')">
             <span class="avatar" style="background:${avatarColor(s.name)};width:22px;height:22px;font-size:10px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;margin-right:8px">${escapeHtml(initials(s.name))}</span>
-            ${escapeHtml(s.name)}${s.role ? ' <span style="color:var(--muted);font-size:11px">(' + escapeHtml(s.role) + ')</span>' : ''}
+            ${escapeHtml(s.name)}${s.role ? ' <span style="color:var(--muted);font-size:11px">(' + escapeHtml(s.role) + ')</span>' : ''}${s.id === a.addedBy ? ' <span style="color:#2dd4bf;font-size:11px">• şu anki sahibi</span>' : ''}
           </button>`).join("") +
         `</div>
           <div class="actions" style="margin-top:16px;">
@@ -5849,7 +5854,9 @@
     }
     async function transferAuthor(authorId, newStaffId) {
       const a = db.authors.find(x => x.id === authorId); if (!a) return;
-      const fromName = a.addedBy === "admin" ? "Sistem Yöneticisi" : (staffName(a.addedBy) || "Personel");
+      // Not, devri YAPAN kişi üzerinden yazılır (eski sahip değil) — sahip
+      // farklı biriyken devri başkası yapabildiği için doğru iz budur.
+      const fromName = currentStaffId ? (staffName(currentStaffId) || "Personel") : "Sistem Yöneticisi";
       const toName = staffName(newStaffId) || "Personel";
       closeTransferModal();
       // Devir hem sahipliği (addedBy) taşır hem de geçmişe iz düşer: yeni
