@@ -2598,7 +2598,7 @@
         searchWrap.style.display = "none";
       } else {
         searchWrap.style.display = "block";
-        searchInput.placeholder = currentView === "team" ? "Ekip üyesi ara..." : currentView === "accounting" ? "Yazar veya eser ara..." : "Yazar, telefon, tür, not ara...";
+        searchInput.placeholder = currentView === "team" ? "Ekip üyesi ara..." : currentView === "accounting" ? "Yazar veya eser ara..." : "Yazar, telefon, görüşme, not ara...";
       }
       document.getElementById("btnNewAuthor").style.display = currentView === "authors" ? "inline-block" : "none";
       const fab = document.getElementById("fabNewAuthor");
@@ -2679,7 +2679,9 @@
     function filteredAuthors() {
       const t = searchTerm();
       return visibleAuthors().filter(a => {
-        const hay = searchKey(a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || ""));
+        // Görüşme (log) metinleri de aranır: bir görüşmede geçen kelime
+        // yazıldığında o görüşmenin yapıldığı yazarlar listelenir.
+        const hay = searchKey(a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "") + " " + (a.logs || []).map(l => l.text || "").join(" "));
         let statusMatch = (filterStatus === "all" || a.status === filterStatus);
         if (filterStatus === "havuz") statusMatch = isInCommonPool(a);
         if (currentView === "authors" && (a.status === "sozlesme" || a.status === "yayinda")) {
@@ -3851,7 +3853,7 @@
 
     function viewContracts() {
       const t = searchTerm();
-      const match = a => !t || searchKey(a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).includes(t);
+      const match = a => !t || searchKey(a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "") + " " + (a.logs || []).map(l => l.text || "").join(" ")).includes(t);
       const getCDate = a => new Date(getContractDate(a) || 0).getTime();
       const sozlesme = visibleAuthors().filter(a => a.status === "sozlesme" && match(a)).sort((x, y) => getCDate(y) - getCDate(x));
       const yayinda = visibleAuthors().filter(a => a.status === "yayinda" && match(a)).sort((x, y) => getCDate(y) - getCDate(x));
@@ -5427,7 +5429,7 @@
     function viewFollowups() {
       const t = searchTerm();
       const matchSearch = a =>
-        !t || searchKey(a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "")).includes(t);
+        !t || searchKey(a.name + " " + (a.genres || []).join(" ") + " " + (a.work || "") + " " + (a.notes || "") + " " + (a.phone || "") + " " + (a.logs || []).map(l => l.text || "").join(" ")).includes(t);
 
       const list = visibleAuthors().filter(a => {
         if (a.status === "sozlesme" || a.status === "yayinda" || a.status === "arsiv") return false;
