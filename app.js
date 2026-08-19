@@ -2650,6 +2650,26 @@
         .replace(/ü/g, "u").replace(/ö/g, "o").replace(/ç/g, "c");
     }
     function searchTerm() { return searchKey(document.getElementById("search").value).trim(); }
+    // Aranan kelimeyi metnin içinde fosforlu kalemle çizilmiş gibi işaretler.
+    // Eşleştirme searchKey ile yapılır (büyük/küçük harf ve Türkçe karakter
+    // duyarsız); dönüştürme harf başına bire bir olduğundan işaret konumları
+    // orijinal metne aynen oturur. Çıktı HTML-kaçışlıdır, güvenle basılır.
+    function vurgula(text, term) {
+      const kaynak = String(text || "");
+      const needle = searchKey(term || "").trim();
+      if (!needle) return escapeHtml(kaynak);
+      const key = searchKey(kaynak);
+      if (key.length !== kaynak.length) return escapeHtml(kaynak); // beklenmedik uzunluk farkı — vurgusuz bas
+      let out = "", i = 0;
+      while (true) {
+        const idx = key.indexOf(needle, i);
+        if (idx === -1) { out += escapeHtml(kaynak.slice(i)); break; }
+        out += escapeHtml(kaynak.slice(i, idx));
+        out += `<mark style="background:#f4b740;color:#1a1a1e;border-radius:3px;padding:0 2px;font-weight:600">${escapeHtml(kaynak.slice(idx, idx + needle.length))}</mark>`;
+        i = idx + needle.length;
+      }
+      return out;
+    }
     // Personel yalnızca kendi görüşmelerini görür: kaydı kendisi eklemiş ya da
     // en az bir görüşmesini (log) kendisi yapmış olmalı. Admin ve muhasebe
     // tüm kayıtları görür. Ekip eşleşmesi olmayan personel hiçbirini göremez.
@@ -5536,7 +5556,7 @@
           <button class="btn ghost" style="padding:2px 6px" onclick="delLog('${a.id}', ${l._idx})" title="Sil">${icon('trash', 12)}</button>
         </span>
       </div>
-      <div class="tx"><span class="type">${escapeHtml(l.type)}</span>${escapeHtml(l.text)}</div>
+      <div class="tx"><span class="type">${escapeHtml(l.type)}</span>${vurgula(l.text, document.getElementById("search") ? document.getElementById("search").value : "")}</div>
     </div>`;
       }).join("") || `<div class="empty" style="padding:16px">Henüz görüşme kaydı yok.</div>`;
 
