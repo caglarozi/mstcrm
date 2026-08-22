@@ -6723,7 +6723,7 @@
       [/^(ilgi|ilgi düzeyi|sıcaklık|puan)$/i, "temp"],
       [/^(takip|takip tarihi|geri dönüş)$/i, "followup"],
       [/^(randevu|görüşme tarihi|randevu tarihi)$/i, "interviewDate"],
-      [/^(görüşme|gorusme|görüşme notu|arama|konuşma)$/i, "log"],
+      [/^(görüşme|gorusme|görüşme notu|görüşme kaydı|arama|konuşma)\s*\d*$/i, "log"],
       [/^(not|notlar|açıklama|aciklama)$/i, "notes"]
     ];
     function importEtiketAnahtari(label) {
@@ -6756,7 +6756,9 @@
       if (key === "genres") y.genres = v.split(/[,;\/]/).map(s => s.trim()).filter(Boolean);
       else if (key === "temp") { const n = parseInt(v, 10); if (n >= 1 && n <= 5) y.temp = n; }
       else if (key === "followup" || key === "interviewDate") { const d = importTarihCoz(v); if (d) y[key] = d; }
-      else if (key === "log") importGorusmeEkle(y, v);
+      // Görüşmeler: tek hücrede satır satır ya da ";" / "|" ile ayrılmış
+      // birden çok görüşme olabilir — HEPSİ ayrı kayıt olarak eklenir.
+      else if (key === "log") v.split(/\n|;|\|/).map(s => s.trim()).filter(Boolean).forEach(g => importGorusmeEkle(y, g));
       else if (key === "notes") y.notes = y.notes ? y.notes + "\n" + v : v;
       else y[key] = v;
     }
@@ -6861,8 +6863,9 @@
           <div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn ghost" style="font-size:12px" onclick="importMetniIsle()">Metni Çözümle</button></div>
           <details style="margin-top:10px;font-size:12px;color:var(--muted)"><summary style="cursor:pointer;color:var(--txt)">Belge nasıl hazırlanmalı? (zorunlu alanlar)</summary>
             <div style="margin-top:8px;line-height:1.6">
-              <b style="color:var(--txt)">Zorunlu:</b> <b>Ad Soyad</b> ve <b>Telefon</b> — telefon olmadan kayıt yapılmaz (mükerrer kontrolü ve WhatsApp/arama eşleşmesi telefona bağlıdır).<br>
-              <b style="color:var(--txt)">İsteğe bağlı:</b> E-posta, Eser, Tür, Kaynak, İlgi (1-5), Takip tarihi, Randevu tarihi, Not, Görüşme (istediğiniz kadar; "Görüşme: 10.08.2026 - konuşulanlar" biçiminde, tarih verilmezse bugün yazılır).<br>
+              <b style="color:var(--txt)">Zorunlu:</b> <b>Ad Soyad</b>, <b>Telefon</b> ve <b>en az bir Görüşme</b> — telefon olmadan kayıt yapılmaz (mükerrer kontrolü ve WhatsApp/arama eşleşmesi telefona bağlıdır); görüşmesi olmayan yazar da atlanır.<br>
+              <b style="color:var(--txt)">Görüşmeler:</b> O yazarla yapılmış görüşmelerin <b>tamamını</b> yazın — her biri ayrı "Görüşme: 10.08.2026 - konuşulanlar" satırı (Excel'de "Görüşme 1", "Görüşme 2"… sütunları ya da tek hücrede satır satır / ";" ile ayrılmış). Tarih verilmezse bugün yazılır. Hepsi yazarın görüşme geçmişine aynen işlenir.<br>
+              <b style="color:var(--txt)">İsteğe bağlı:</b> E-posta, Eser, Tür, Kaynak, İlgi (1-5), Takip tarihi, Randevu tarihi, Not.<br>
               <b style="color:var(--txt)">Biçim:</b> Her yazar "Ad:" satırıyla başlar, alanlar "Etiket: değer" şeklinde alt alta yazılır. Excel'de ise ilk satır başlık olur (Ad, Telefon, E-posta, Eser, Tür, Not, Görüşme…).<br>
               Etiketsiz düz listeler de okunur: telefon geçen her satır bir yazar sayılır (ad = telefondan önceki kısım).
             </div>
@@ -6906,6 +6909,7 @@
         let durum = "yeni", sebep = "";
         if (!y.name) { durum = "atla"; sebep = "ad yok"; }
         else if (!np || np.length < 10) { durum = "atla"; sebep = "telefon yok/geçersiz"; }
+        else if (!y.logs.length) { durum = "atla"; sebep = "görüşme kaydı yok (zorunlu)"; }
         else if (gorulen.has(np)) { durum = "atla"; sebep = "belgede tekrar ediyor"; }
         else {
           const mevcut = (db.authors || []).find(a => a.phone && normalizePhone(a.phone) === np);
