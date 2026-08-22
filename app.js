@@ -2375,6 +2375,15 @@
     // Hem soldaki (masaüstü/hamburger) menüyü hem mobil alt sekme çubuğunu
     // aynı anda senkron tutan tek görünüm değiştirme fonksiyonu.
     function switchView(view) {
+      // "Linda" menüde bir bölüm gibi durur ama ayrı bir sayfa açmaz:
+      // tıklanınca sohbet paneli açılır, bulunulan sayfa değişmez.
+      if (view === "linda") {
+        const panel = document.getElementById("chatPanel");
+        if (panel && panel.style.display === "none") toggleChatWidget();
+        const side = document.querySelector('.side');
+        if (side) side.classList.remove('open');
+        return;
+      }
       if (currentView === view) return;
       doSwitch(view);
     }
