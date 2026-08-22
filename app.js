@@ -897,6 +897,19 @@
      * kendi raporunu, sistem yöneticisi tüm görüşmecilerinkini görür. */
     const EOD_REPORT_KEY = "mstcrm_eodReportShown_v1";
     const EOD_REPORT_HOUR = 20;
+    // Kaçırılan aramalar: o gün ulaşılması GEREKTİĞİ halde (takip tarihi o
+    // gün ya da geçmiş, veya randevusu o gün) hiç aranmamış adaylar.
+    // Arayıp ulaşamadıklarımız sayılmaz — o arama yapılmıştır ve görüşme
+    // kaydı olarak zaten "görüşme" sayısına girer.
+    function kacirilanAramaYazarlari(staffKey, date) {
+      return (db.authors || []).filter(a => {
+        if (!["aday", "gorusuluyor", "degerlendirme", "eseryaziyor"].includes(a.status)) return false;
+        if ((a.addedBy || "admin") !== staffKey) return false;
+        const aranmaliydi = (a.followup && a.followup <= date) || (a.interviewDate === date);
+        if (!aranmaliydi) return false;
+        return !(a.logs || []).some(l => l.date === date);
+      });
+    }
     function dailyReportStatsFor(staffKey, date) {
       // O gün bu görüşmecinin "dokunduğu" kayıtlar: o gün ekledikleri +
       // o gün görüşme (log) girdikleri.
@@ -908,17 +921,7 @@
       const olumlu = records.filter(a => a.status === "sozlesme" || a.status === "yayinda").length;
       const olumsuz = records.filter(a => a.status === "arsiv").length;
       const devam = records.length - olumlu - olumsuz;
-      // Kaçırılan aramalar: o gün ulaşılması GEREKTİĞİ halde (takip tarihi o
-      // gün ya da geçmiş, veya randevusu o gün) hiç aranmamış adaylar.
-      // Arayıp ulaşamadıklarımız sayılmaz — o arama yapılmıştır ve görüşme
-      // kaydı olarak zaten "görüşme" sayısına girer.
-      const kacirilan = (db.authors || []).filter(a => {
-        if (!["aday", "gorusuluyor", "degerlendirme", "eseryaziyor"].includes(a.status)) return false;
-        if ((a.addedBy || "admin") !== staffKey) return false;
-        const aranmaliydi = (a.followup && a.followup <= date) || (a.interviewDate === date);
-        if (!aranmaliydi) return false;
-        return !(a.logs || []).some(l => l.date === date);
-      }).length;
+      const kacirilan = kacirilanAramaYazarlari(staffKey, date).length;
       const sonuclanan = olumlu + olumsuz;
       const basari = sonuclanan > 0 ? Math.round(olumlu / sonuclanan * 100) : null;
       return { gorusme: records.length, kacirilan, olumlu, olumsuz, devam, basari };
@@ -974,6 +977,7 @@
       const rows = keys.map(k => {
         const items = dailyConversationsFor(k, date);
         return {
+          key: k,
           name: k === "admin" ? "Sistem Yöneticisi" : (staffName(k) || "Personel"),
           st: dailyReportStatsFor(k, date),
           konusmaAdedi: items.length,
@@ -991,7 +995,9 @@
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:6px">
             ${chip("görüşme", r.st.gorusme, "#4aa8ff")}
-            ${chip("kaçırılan arama", r.st.kacirilan, "#9aa1b2")}
+            ${r.st.kacirilan > 0
+              ? `<button onclick="openKacirilanList('${r.key}','${date}')" title="Kimlerin aranmadığını gör" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#ef5350;background:#ef535018;border:1px solid #ef535066;border-radius:20px;padding:2px 8px;white-space:nowrap;cursor:pointer;font-weight:600"><b>${r.st.kacirilan}</b> kaçırılan arama ▸</button>`
+              : chip("kaçırılan arama", 0, "#9aa1b2")}
             ${chip("olumlu", r.st.olumlu, "#37c98a")}
             ${chip("olumsuz", r.st.olumsuz, "#ef5350")}
             ${chip("devam eden", r.st.devam, "#f4b740")}
@@ -1030,6 +1036,57 @@
     }
     function closeDailyReport() {
       const m = document.getElementById("eodReportModal");
+      if (m) m.classList.remove("open");
+    }
+    // Rapordaki "kaçırılan arama" çipine tıklanınca açılır: o gün aranması
+    // gerekip aranmamış adayları tek tek listeler; satıra tıklayınca yazarın
+    // detayı açılır (hemen arayıp görüşme eklenebilsin diye).
+    function openKacirilanList(staffKey, date) {
+      const gName = staffKey === "admin" ? "Sistem Yöneticisi" : (staffName(staffKey) || "Personel");
+      const liste = kacirilanAramaYazarlari(staffKey, date);
+      const gunFarki = d => Math.max(0, Math.round((new Date(date) - new Date(d)) / 864e5));
+      let body;
+      if (!liste.length) {
+        body = `<div class="empty">Kaçırılan arama kalmadı — hepsiyle ilgilenilmiş. 🎉</div>`;
+      } else {
+        body = liste.map(a => {
+          const sebep = a.interviewDate === date
+            ? `Bugün${a.interviewTime ? " saat " + escapeHtml(a.interviewTime) : ""} randevusu vardı, aranmadı`
+            : `Takip tarihi ${fmtDate(a.followup)} — ${gunFarki(a.followup) === 0 ? "bugündü" : gunFarki(a.followup) + " gün geçti"}, aranmadı`;
+          return `<div class="mini" onclick="closeKacirilanList();closeDailyReport();openDrawer('${a.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0">
+              <span class="avatar" style="background:${avatarColor(a.name)};width:26px;height:26px;font-size:11px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;flex-shrink:0">${escapeHtml(initials(a.name))}</span>
+              <div style="min-width:0">
+                <span class="mn">${escapeHtml(a.name)}</span>
+                <div class="ms" style="color:var(--red)">${sebep}</div>
+                <div class="ms">${STATUS[a.status] ? STATUS[a.status].label : ""}${a.phone ? " • " + escapeHtml(a.phone) : ""}</div>
+              </div>
+            </div>
+            <span onclick="event.stopPropagation()" style="flex-shrink:0">${waBtn(a.phone)}</span>
+          </div>`;
+        }).join("");
+      }
+      const content = `
+        <div class="box" style="max-width:420px;padding:22px">
+          <h2 style="margin:0 0 4px;font-size:16px">📵 Kaçırılan Aramalar</h2>
+          <div style="color:var(--muted);font-size:12px;margin-bottom:10px">${escapeHtml(gName)} • ${fmtDate(date)} — aranması gerekip aranmayanlar</div>
+          <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${body}</div>
+          <div class="actions" style="margin-top:16px">
+            <button class="btn" style="width:100%" onclick="closeKacirilanList()">Kapat</button>
+          </div>
+        </div>`;
+      let m = document.getElementById("kacirilanModal");
+      if (!m) {
+        m = document.createElement("div");
+        m.className = "modal";
+        m.id = "kacirilanModal";
+        document.body.appendChild(m);
+      }
+      m.innerHTML = content;
+      m.classList.add("open");
+    }
+    function closeKacirilanList() {
+      const m = document.getElementById("kacirilanModal");
       if (m) m.classList.remove("open");
     }
     /* ---------- Dönülmemiş yazarlar raporu ----------
