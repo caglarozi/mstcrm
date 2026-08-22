@@ -117,6 +117,12 @@ service cloud.firestore {
       allow read, write: if isApproved();
     }
 
+    // Linda sohbet geçmişi — her kullanıcı yalnızca KENDİ geçmişini okur/yazar
+    // (doküman id'si = auth uid). Cihazlar arası sohbet sürekliliği için.
+    match /chat_history/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
     // CRM -> yönetim paneli olay kuyruğu (örn. "sözleşme alındı").
     // CRM yalnızca olay OLUŞTURUR; okumayı/işaretlemeyi panel servis
     // hesabıyla yapar (servis hesabı bu kurallara tabi değildir).

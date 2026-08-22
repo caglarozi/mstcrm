@@ -286,7 +286,7 @@
           document.querySelector(".app").style.display = "grid";
           document.getElementById("chatFabDock").style.display = "flex";
           showFeedbackFab(true);
-          startChatFabPeek();
+          // Balon kısayoldur: kendiliğinden mesaj/ açılma yapmaz, yalnızca tıklanınca açılır.
           restoreChatHistory();
           if (typeof Notification !== "undefined" && Notification.permission === "default") {
             Notification.requestPermission().then(() => initPushNotifications());
@@ -310,7 +310,6 @@
         document.querySelector(".app").style.display = "grid";
         document.getElementById("chatFabDock").style.display = "flex";
         showFeedbackFab(true);
-        startChatFabPeek();
         restoreChatHistory();
       } else {
         document.getElementById("loginScreen").style.display = "grid";
@@ -2375,15 +2374,6 @@
     // Hem soldaki (masaüstü/hamburger) menüyü hem mobil alt sekme çubuğunu
     // aynı anda senkron tutan tek görünüm değiştirme fonksiyonu.
     function switchView(view) {
-      // "Linda" menüde bir bölüm gibi durur ama ayrı bir sayfa açmaz:
-      // tıklanınca sohbet paneli açılır, bulunulan sayfa değişmez.
-      if (view === "linda") {
-        const panel = document.getElementById("chatPanel");
-        if (panel && panel.style.display === "none") toggleChatWidget();
-        const side = document.querySelector('.side');
-        if (side) side.classList.remove('open');
-        return;
-      }
       if (currentView === view) return;
       doSwitch(view);
     }
@@ -2569,6 +2559,7 @@
       stock: "Dahiliye Stok",
       matbaa: "Matbaa",
       feedback: "Şikayet & Dilek",
+      linda: "Linda (AI Asistan)",
       settings: "Ayarlar"
     };
 
@@ -2660,7 +2651,7 @@
       // Arama çubuğu ve buton gösterimi
       const searchInput = document.getElementById("search");
       const searchWrap = document.getElementById("searchWrap");
-      if (currentView === "dashboard" || currentView === "settings" || currentView === "muhasebe" || currentView === "tasks" || currentView === "stock" || currentView === "matbaa" || currentView === "feedback") {
+      if (currentView === "dashboard" || currentView === "settings" || currentView === "muhasebe" || currentView === "tasks" || currentView === "stock" || currentView === "matbaa" || currentView === "feedback" || currentView === "linda") {
         searchWrap.style.display = "none";
       } else {
         searchWrap.style.display = "block";
@@ -2701,6 +2692,7 @@
       else if (currentView === "followups") c.innerHTML = viewFollowups();
       else if (currentView === "team") { c.innerHTML = viewTeam(); if (currentRole === "admin") setTimeout(loadPendingUsers, 0); }
       else if (currentView === "feedback") c.innerHTML = viewFeedback();
+      else if (currentView === "linda") { c.innerHTML = viewLinda(); renderChatInto("lindaMessages"); setTimeout(() => { const i = document.getElementById("lindaInput"); if (i) i.focus(); }, 0); }
       else if (currentView === "settings") { c.innerHTML = viewSettings(); if (currentRole === "admin") setTimeout(loadUserManagement, 0); }
       if (gorunumDegisti) c.classList.add("view-enter");
       else if (window.scrollY !== kaydirma) window.scrollTo(0, kaydirma);
@@ -6852,6 +6844,8 @@
       dock.style.right = "36px";
       if (!isOpen) {
         document.getElementById("chatFabBubble").style.opacity = "0";
+        // Sayfadan yazılan mesajlar balona da yansısın: açılışta geçmişten çiz.
+        renderChatInto("chatMessages");
         document.getElementById("chatInput").focus();
       }
     }
@@ -6937,37 +6931,69 @@
       };
     }
 
-    // Sohbet geçmişi, hesaba özel (uid'ye göre) localStorage'da saklanır —
-    // aynı bilgisayarı kullanan farklı personelin geçmişi birbirine karışmaz.
+    // Sohbet geçmişi hesaba özeldir (uid). İki yerde tutulur: tarayıcıda
+    // (localStorage, anında) ve Firestore'da (chat_history/{uid}, cihazlar
+    // arası). Köşedeki balon ile sol menüdeki Linda sayfası AYNI geçmişi
+    // paylaşır — hangisinden yazılırsa yazılsın tek bir sohbet sürer.
     let chatHistoryData = [];
+    const CHAT_HISTORY_MAX = 300;
     function chatHistoryKey() {
       return "chatHistory_" + (auth.currentUser ? auth.currentUser.uid : "anon");
     }
     function persistChatHistory() {
+      if (chatHistoryData.length > CHAT_HISTORY_MAX) chatHistoryData = chatHistoryData.slice(-CHAT_HISTORY_MAX);
       try { localStorage.setItem(chatHistoryKey(), JSON.stringify(chatHistoryData)); } catch (e) { /* depolama dolu/kapalı olabilir, sessizce geç */ }
+      if (auth.currentUser) {
+        firestore.collection("chat_history").doc(auth.currentUser.uid)
+          .set({ messages: chatHistoryData, updatedAt: new Date().toISOString() })
+          .catch(e => console.error("Sohbet geçmişi sunucuya yazılamadı:", e));
+      }
     }
     let chatHistoryRestored = false;
     function restoreChatHistory() {
       if (chatHistoryRestored) return; // birden fazla çağrılırsa mesajlar tekrarlanmasın
+      chatHistoryRestored = true;
       let saved = [];
       try { saved = JSON.parse(localStorage.getItem(chatHistoryKey()) || "[]"); } catch (e) { saved = []; }
-      if (!saved.length) return;
-      chatHistoryRestored = true;
-      const suggestions = document.getElementById("chatSuggestions");
-      if (suggestions) suggestions.remove();
-      chatHistoryData = [];
-      saved.forEach(m => addChatMessage(m.role, m.text, false));
+      chatHistoryData = Array.isArray(saved) ? saved : [];
+      renderChatInto("chatMessages");
+      // Sunucudaki kopya daha uzunsa (başka cihazdan yazılmışsa) onu esas al.
+      if (auth.currentUser) {
+        firestore.collection("chat_history").doc(auth.currentUser.uid).get().then(doc => {
+          const sunucu = doc.exists && Array.isArray(doc.data().messages) ? doc.data().messages : [];
+          if (sunucu.length > chatHistoryData.length) {
+            chatHistoryData = sunucu;
+            try { localStorage.setItem(chatHistoryKey(), JSON.stringify(chatHistoryData)); } catch (e) { /* sessizce geç */ }
+            renderChatInto("chatMessages");
+            if (currentView === "linda") render();
+          }
+        }).catch(e => console.error("Sohbet geçmişi okunamadı:", e));
+      }
+    }
+    // Verilen kapsayıcıyı geçmişten baştan çizer (balon ve sayfa ortak).
+    function renderChatInto(containerId) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      const suggestions = container.querySelector("#chatSuggestions, #lindaSuggestions");
+      const intro = container.querySelector(".chat-intro");
+      if (chatHistoryData.length) {
+        if (suggestions) suggestions.remove();
+        if (intro) intro.remove();
+      }
+      container.querySelectorAll(".chat-msg").forEach(el => el.remove());
+      chatHistoryData.forEach(m => addChatMessage(m.role, m.text, false, containerId));
+      container.scrollTop = container.scrollHeight;
     }
 
-    function addChatMessage(role, text, save) {
-      const container = document.getElementById("chatMessages");
+    function addChatMessage(role, text, save, containerId) {
+      const container = document.getElementById(containerId || "chatMessages");
       const bubble = document.createElement("div");
+      bubble.className = "chat-msg";
       bubble.style.cssText = role === "user"
         ? "align-self:flex-end;background:var(--brand);color:#fff;padding:8px 12px;border-radius:12px 12px 2px 12px;max-width:85%;font-size:13px;white-space:pre-wrap"
         : "align-self:flex-start;background:var(--panel-2);color:var(--txt);padding:8px 12px;border-radius:12px 12px 12px 2px;max-width:85%;font-size:13px;white-space:pre-wrap";
       bubble.textContent = text;
-      container.appendChild(bubble);
-      container.scrollTop = container.scrollHeight;
+      if (container) { container.appendChild(bubble); container.scrollTop = container.scrollHeight; }
       if (save !== false) {
         chatHistoryData.push({ role, text });
         persistChatHistory();
@@ -6975,9 +7001,10 @@
       return bubble;
     }
 
-    function addLoadingCatBubble() {
-      const container = document.getElementById("chatMessages");
+    function addLoadingCatBubble(containerId) {
+      const container = document.getElementById(containerId || "chatMessages");
       const bubble = document.createElement("div");
+      bubble.className = "chat-msg";
       bubble.style.cssText = "align-self:flex-start;background:var(--panel-2);color:var(--txt);padding:12px 18px;border-radius:12px 12px 12px 2px;max-width:85%";
       bubble.innerHTML = `<div class="cat-loader walking" style="display:flex;flex-direction:column;align-items:center;width:40px">
         <div class="cat-icon" style="font-size:28px;line-height:1;display:block;filter:brightness(0) invert(1)">🐈</div>
@@ -6992,18 +7019,40 @@
       document.getElementById("chatInput").value = text;
       sendChatMessage();
     }
+    function askLindaSuggestion(text) {
+      document.getElementById("lindaInput").value = text;
+      sendLindaPageMessage();
+    }
 
-    async function sendChatMessage() {
-      const input = document.getElementById("chatInput");
+    // Köşedeki balondan gönder
+    function sendChatMessage() {
+      return runChatQuestion({ inputId: "chatInput", containerId: "chatMessages", sendBtnId: "chatSendBtn", suggestionsId: "chatSuggestions" });
+    }
+    // Sol menüdeki Linda sayfasından gönder
+    function sendLindaPageMessage() {
+      return runChatQuestion({ inputId: "lindaInput", containerId: "lindaMessages", sendBtnId: "lindaSendBtn", suggestionsId: "lindaSuggestions" });
+    }
+
+    // Ortak sohbet motoru: soruyu geçmişe yazar, Linda'ya (worker /chat)
+    // son 10 mesajlık bağlamla birlikte gönderir, cevabı geçmişe ekler.
+    // Balon ve sayfa aynı geçmişi paylaştığından diğer arayüz bir sonraki
+    // açılışında/çiziminde güncel halini gösterir.
+    async function runChatQuestion(ui) {
+      const input = document.getElementById(ui.inputId);
+      if (!input) return;
       const question = input.value.trim();
       if (!question) return;
       input.value = "";
-      const suggestions = document.getElementById("chatSuggestions");
+      const suggestions = document.getElementById(ui.suggestionsId);
       if (suggestions) suggestions.remove();
-      addChatMessage("user", question);
-      const sendBtn = document.getElementById("chatSendBtn");
-      sendBtn.disabled = true;
-      const loadingBubble = addLoadingCatBubble();
+      const container = document.getElementById(ui.containerId);
+      if (container) { const intro = container.querySelector(".chat-intro"); if (intro) intro.remove(); }
+      // Sunucuya gidecek geçmiş, soru eklenmeden ÖNCEKİ son 10 mesaj
+      const history = chatHistoryData.slice(-10).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: String(m.text || "").slice(0, 2000) }));
+      addChatMessage("user", question, true, ui.containerId);
+      const sendBtn = document.getElementById(ui.sendBtnId);
+      if (sendBtn) sendBtn.disabled = true;
+      const loadingBubble = addLoadingCatBubble(ui.containerId);
       const catLoader = loadingBubble.querySelector(".cat-loader");
 
       let finalText;
@@ -7012,7 +7061,7 @@
         const resp = await fetch(CHAT_WORKER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
-          body: JSON.stringify({ question, context: buildChatContext() })
+          body: JSON.stringify({ question, history, context: buildChatContext() })
         });
         const data = await resp.json();
         finalText = resp.ok ? data.answer : ("Hata: " + (data.error || "Bilinmeyen hata"));
@@ -7020,13 +7069,60 @@
         finalText = "Bağlantı hatası: " + e.message;
       } finally {
         // Kedi bir anda yere yığılıp kaybolsun, sonra gerçek cevap belirsin.
-        catLoader.className = "cat-loader collapsing";
+        if (catLoader) catLoader.className = "cat-loader collapsing";
         await new Promise(r => setTimeout(r, 550));
         loadingBubble.textContent = finalText;
         chatHistoryData.push({ role: "assistant", text: finalText });
         persistChatHistory();
-        sendBtn.disabled = false;
+        if (sendBtn) sendBtn.disabled = false;
+        const c = document.getElementById(ui.containerId);
+        if (c) c.scrollTop = c.scrollHeight;
       }
+    }
+
+    /* ---------- Linda sayfası (sol menüdeki bölüm) ----------
+     * Köşedeki balonla aynı sohbet geçmişini paylaşan, tam sayfa bir
+     * sohbet arayüzü. Balon kısayol gibi kalır; asıl çalışma alanı burasıdır. */
+    function viewLinda() {
+      const oneriler = [
+        "Bugün kimlerle ilgilenmem lazım?",
+        "Hangi ödemeler gecikmiş?",
+        "Bu ay kaç yeni aday eklendi?",
+        "Sözleşmeye en sıcak bakan kim?",
+        "Görev oylaması nasıl çalışıyor?",
+        "Ortak havuz kuralı nedir?"
+      ];
+      const bos = !chatHistoryData.length;
+      return `<div class="card" style="display:flex;flex-direction:column;height:calc(100vh - 150px);min-height:420px;padding:0;overflow:hidden">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:grid;place-items:center;font-size:20px">🐱</span>
+        <div>
+          <div style="font-weight:700;font-size:15px">Linda</div>
+          <div style="font-size:11px;color:var(--muted)">CRM asistanın — veri soruları ve kullanım desteği</div>
+        </div>
+      </div>
+      <button class="btn ghost" style="font-size:12px" onclick="clearLindaChat()" title="Geçmişi temizle, yeni sohbete başla">${icon('trash', 13)} Yeni Sohbet</button>
+    </div>
+    <div id="lindaMessages" style="flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px">
+      ${bos ? `<div class="chat-intro" style="color:var(--muted);font-size:13px">Miyav! Ben Linda. 🐾 Yazarlar, ödemeler, görevler ve CRM'in kullanımı hakkında her şeyi sorabilirsin — sohbetimiz kayıtlı kalır, kaldığımız yerden devam ederiz.</div>
+      <div id="lindaSuggestions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+        ${oneriler.map(o => `<button class="btn ghost" style="font-size:12px;padding:7px 12px" onclick="askLindaSuggestion('${o.replace(/'/g, "\\'")}')">${escapeHtml(o)}</button>`).join("")}
+      </div>` : ""}
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;flex-shrink:0">
+      <input id="lindaInput" placeholder="Linda'ya bir şey sor..." style="flex:1;margin:0" onkeydown="if(event.key==='Enter')sendLindaPageMessage()">
+      <button class="btn" id="lindaSendBtn" onclick="sendLindaPageMessage()" style="padding:8px 18px">Gönder</button>
+    </div>
+  </div>`;
+    }
+    async function clearLindaChat() {
+      if (!chatHistoryData.length) return;
+      if (!(await customConfirm("Sohbet geçmişi silinip yeni bir sohbet başlatılsın mı?", "Evet, Temizle"))) return;
+      chatHistoryData = [];
+      persistChatHistory();
+      render();
+      renderChatInto("chatMessages");
     }
 
     // --- TEMALAR (AÇIK / KOYU TEMA SİSTEMİ) ---

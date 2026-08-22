@@ -568,6 +568,15 @@ async function handleChat(payload, env) {
     // başında olduğundan kırpılmadan ulaşır.
     JSON.stringify(context).slice(0, 300000);
 
+  // Sohbet sürekliliği: CRM son 10 mesajı "history" olarak gönderir; Linda
+  // önceki konuşmayı hatırlayarak cevap verir. Roller ve uzunluk süzülür.
+  const history = Array.isArray(payload?.history)
+    ? payload.history
+        .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+        .slice(-10)
+        .map(m => ({ role: m.role, content: m.content.slice(0, 2000) }))
+    : [];
+
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -578,6 +587,7 @@ async function handleChat(payload, env) {
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
+        ...history,
         { role: "user", content: question }
       ],
       temperature: 0.3,
