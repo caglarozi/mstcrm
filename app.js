@@ -3566,6 +3566,7 @@
       const gbStyle = gbActive ? `background: rgba(167, 139, 250, 0.15); border-color: #a78bfa; color: #a78bfa;` : `border: 1px solid rgba(255,255,255,0.15);`;
       bar += `<button class="btn ${gbActive ? '' : 'ghost'}" style="${gbStyle}" onclick="setAuthorsGroupBy('${gbActive ? 'date' : 'staff'}')">${icon('users', 14)} Görüşmeciye Göre</button>`;
       bar += `<button class="btn ghost" style="border: 1px solid rgba(255,255,255,0.15);" onclick="openDailyReport()" title="Bugünün şu ana kadarki raporu">${icon('trendingUp', 14)} Rapor</button>`;
+      bar += `<button class="btn ghost" style="border: 1px solid rgba(45,212,191,0.4);color:#2dd4bf" onclick="openImportModal()" title="PDF / Word / Excel belgesinden yazarları toplu kaydet">📄 Belgeden Yükle</button>`;
 
       bar += `</div>`;
       
@@ -6693,6 +6694,273 @@
       XLSX.writeFile(wb, "mst-crm-yazarlar-" + todayStr() + ".xlsx");
       customAlert("Excel hazır 📊", `${sayilar.yazar} yazar, ${sayilar.gorusme} görüşme, ${sayilar.odeme} ödeme ve ${sayilar.eser} eser kaydı 4 ayrı sayfada indirildi.`);
     }
+    /* ---------- Belgeden yazar yükleme (PDF / Word / Excel / metin) ----------
+     * Her durum bölümü için toplu kayıt: belge seçilir, metin çıkarılır,
+     * yazarlar ayrıştırılıp ÖNİZLEME gösterilir, onaylanınca seçilen durumla
+     * CRM'e kaydedilir. Telefonu kayıtlı olanlar (mükerrer kuralı) ve
+     * telefonu olmayanlar atlanır.
+     *
+     * Desteklenen biçimler:
+     *  1) ETİKETLİ BLOK (PDF/Word/metin için en güvenilir):
+     *       Ad: Ahmet Yılmaz
+     *       Telefon: 0532 111 22 33
+     *       E-posta: ahmet@...      Eser: Kırık Kanatlar     Tür: Roman
+     *       Görüşme: 10.08.2026 - İlk görüşme olumlu    (tekrarlanabilir)
+     *       Not: ...
+     *     Her yeni "Ad:" satırı yeni yazar başlatır.
+     *  2) SATIR BAŞINA BİR YAZAR: "Ahmet Yılmaz 0532 111 22 33 not..." —
+     *     telefon bulunan her satır bir yazar sayılır (ad = telefondan önceki
+     *     kısım, kalan = not).
+     *  3) EXCEL/CSV: başlık satırındaki sütun adlarına göre (Ad, Telefon,
+     *     E-posta, Eser, Tür, Kaynak, Not, Görüşme...). */
+    const IMPORT_ETIKETLER = [
+      [/^(ad soyad|ad|isim|i̇sim|yazar|ad-soyad)$/i, "name"],
+      [/^(telefon|tel|gsm|numara|cep|telefon no|tel no)$/i, "phone"],
+      [/^(e-?posta|eposta|email|e-?mail|mail)$/i, "email"],
+      [/^(eser|kitap|eser adı|kitap adı|çalışma)$/i, "work"],
+      [/^(tür|tur|türler|kategori|janr)$/i, "genres"],
+      [/^(kaynak|nereden)$/i, "source"],
+      [/^(ilgi|ilgi düzeyi|sıcaklık|puan)$/i, "temp"],
+      [/^(takip|takip tarihi|geri dönüş)$/i, "followup"],
+      [/^(randevu|görüşme tarihi|randevu tarihi)$/i, "interviewDate"],
+      [/^(görüşme|gorusme|görüşme notu|arama|konuşma)$/i, "log"],
+      [/^(not|notlar|açıklama|aciklama)$/i, "notes"]
+    ];
+    function importEtiketAnahtari(label) {
+      const l = String(label || "").trim().toLocaleLowerCase("tr");
+      for (const [re, key] of IMPORT_ETIKETLER) if (re.test(l)) return key;
+      return null;
+    }
+    function importTarihCoz(s) {
+      const t = String(s || "").trim();
+      let m = t.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0");
+      m = t.match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
+      if (m) return m[3] + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+      return null;
+    }
+    const IMPORT_TEL_RE = /(\+?\s*9?0?\s*\(?5\d{2}\)?[\s.\-]?\d{3}[\s.\-]?\d{2}[\s.\-]?\d{2})|(\b0?\d{3}[\s.\-]?\d{3}[\s.\-]?\d{2}[\s.\-]?\d{2}\b)/;
+    function importYeniYazar() {
+      return { name: "", phone: "", email: "", work: "", genres: [], source: "", temp: 3, followup: "", interviewDate: "", notes: "", logs: [] };
+    }
+    function importGorusmeEkle(y, deger) {
+      const v = String(deger || "").trim();
+      if (!v) return;
+      const tarih = importTarihCoz(v) || todayStr();
+      const metin = v.replace(/^\s*[\d.\/-]+\s*[-:–]?\s*/, "").trim() || v;
+      y.logs.push({ type: "Telefon", date: tarih, time: null, text: metin, staffId: currentStaffId || null });
+    }
+    function importAlanYaz(y, key, deger) {
+      const v = String(deger || "").trim();
+      if (!v) return;
+      if (key === "genres") y.genres = v.split(/[,;\/]/).map(s => s.trim()).filter(Boolean);
+      else if (key === "temp") { const n = parseInt(v, 10); if (n >= 1 && n <= 5) y.temp = n; }
+      else if (key === "followup" || key === "interviewDate") { const d = importTarihCoz(v); if (d) y[key] = d; }
+      else if (key === "log") importGorusmeEkle(y, v);
+      else if (key === "notes") y.notes = y.notes ? y.notes + "\n" + v : v;
+      else y[key] = v;
+    }
+    // Metinden yazar listesi çıkarır (etiketli blok ya da satır başına yazar).
+    function parseImportText(text) {
+      const lines = String(text || "").replace(/\r/g, "").split("\n").map(l => l.trim()).filter(Boolean);
+      const etiketli = lines.some(l => { const m = l.match(/^([^:：]{2,20})[:：]/); return m && importEtiketAnahtari(m[1]) === "name"; });
+      const sonuc = [];
+      if (etiketli) {
+        let y = null;
+        lines.forEach(line => {
+          // Bir satırda birden çok "Etiket: değer" olabilir (PDF tabloları böyle gelir)
+          const parcalar = line.split(/\s{2,}|\t/).map(p => p.trim()).filter(Boolean);
+          parcalar.forEach(p => {
+            const m = p.match(/^([^:：]{2,20})[:：]\s*(.*)$/);
+            const key = m ? importEtiketAnahtari(m[1]) : null;
+            if (key === "name") { y = importYeniYazar(); sonuc.push(y); y.name = m[2].trim(); }
+            else if (key && y) importAlanYaz(y, key, m[2]);
+            else if (y && !m) importAlanYaz(y, "notes", p);
+          });
+        });
+      } else {
+        lines.forEach(line => {
+          const m = line.match(IMPORT_TEL_RE);
+          if (!m) return;
+          const y = importYeniYazar();
+          y.phone = m[0].trim();
+          y.name = line.slice(0, m.index).replace(/[\s,;:\-–|]+$/, "").trim();
+          const kalan = line.slice(m.index + m[0].length).replace(/^[\s,;:\-–|]+/, "").trim();
+          if (kalan) y.notes = kalan;
+          if (y.name) sonuc.push(y);
+        });
+      }
+      return sonuc;
+    }
+    // Excel/CSV satırlarından (dizi dizisi) yazar listesi çıkarır.
+    function parseImportRows(rows) {
+      if (!rows || !rows.length) return [];
+      const baslik = rows[0].map(c => importEtiketAnahtari(c));
+      const basliklı = baslik.some(k => k === "name" || k === "phone");
+      const kolonlar = basliklı ? baslik : ["name", "phone", "email", "work", "notes"];
+      const veri = basliklı ? rows.slice(1) : rows;
+      const sonuc = [];
+      veri.forEach(r => {
+        if (!r || !r.some(c => String(c || "").trim())) return;
+        const y = importYeniYazar();
+        kolonlar.forEach((key, i) => { if (key) importAlanYaz(y, key, r[i]); });
+        if (y.name || y.phone) sonuc.push(y);
+      });
+      return sonuc;
+    }
+    async function importDosyadanMetin(file) {
+      const ad = (file.name || "").toLowerCase();
+      if (/\.(xlsx|xls|csv)$/.test(ad)) {
+        if (typeof XLSX === "undefined") throw new Error("Excel kütüphanesi yüklenemedi.");
+        const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        return { rows: XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) };
+      }
+      if (/\.pdf$/.test(ad)) {
+        if (typeof pdfjsLib === "undefined") throw new Error("PDF kütüphanesi yüklenemedi.");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+        const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+        let metin = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const sayfa = await pdf.getPage(i);
+          const icerik = await sayfa.getTextContent();
+          // Aynı y hizasındaki parçalar aynı satırdır; satırlar y'ye göre sıralanır
+          const satirlar = [];
+          icerik.items.forEach(it => {
+            const y = Math.round(it.transform[5]);
+            let s = satirlar.find(r => Math.abs(r.y - y) <= 2);
+            if (!s) { s = { y, parcalar: [] }; satirlar.push(s); }
+            s.parcalar.push({ x: it.transform[4], str: it.str });
+          });
+          satirlar.sort((a, b) => b.y - a.y);
+          satirlar.forEach(s => { s.parcalar.sort((a, b) => a.x - b.x); metin += s.parcalar.map(p => p.str).join(" ") + "\n"; });
+        }
+        return { text: metin };
+      }
+      if (/\.docx$/.test(ad)) {
+        if (typeof mammoth === "undefined") throw new Error("Word kütüphanesi yüklenemedi.");
+        const r = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+        return { text: r.value };
+      }
+      return { text: await file.text() };
+    }
+    let importOnizleme = [];
+    function openImportModal() {
+      const varsayilan = STATUS[filterStatus] ? filterStatus : "aday";
+      const durumlar = Object.keys(STATUS).map(k => `<option value="${k}"${k === varsayilan ? " selected" : ""}>${STATUS[k].label}</option>`).join("");
+      const content = `
+        <div class="box" style="max-width:640px;padding:22px">
+          <h2 style="margin:0 0 4px;font-size:17px">📄 Belgeden Yazar Yükle</h2>
+          <div style="color:var(--muted);font-size:12px;margin-bottom:12px">PDF, Word (.docx), Excel/CSV veya metin dosyasındaki yazarlar seçtiğiniz duruma toplu kaydedilir. Önce önizleme gösterilir, onaylamadan hiçbir şey kaydedilmez.</div>
+          <label>Hangi bölüme kaydedilsin?</label>
+          <select id="imp_status">${durumlar}</select>
+          <label style="margin-top:10px">Belge</label>
+          <input type="file" id="imp_file" accept=".pdf,.docx,.xlsx,.xls,.csv,.txt" onchange="importDosyaSecildi(this)">
+          <div style="color:var(--muted);font-size:11px;margin-top:6px">…ya da listeyi buraya yapıştırın:</div>
+          <textarea id="imp_text" rows="4" placeholder="Ad: Ahmet Yılmaz&#10;Telefon: 0532 111 22 33&#10;Eser: Kırık Kanatlar&#10;Görüşme: 10.08.2026 - İlk görüşme olumlu&#10;&#10;Ad: ..." style="width:100%;resize:vertical;font-family:monospace;font-size:12px"></textarea>
+          <div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn ghost" style="font-size:12px" onclick="importMetniIsle()">Metni Çözümle</button></div>
+          <details style="margin-top:10px;font-size:12px;color:var(--muted)"><summary style="cursor:pointer;color:var(--txt)">Belge nasıl hazırlanmalı? (zorunlu alanlar)</summary>
+            <div style="margin-top:8px;line-height:1.6">
+              <b style="color:var(--txt)">Zorunlu:</b> <b>Ad Soyad</b> ve <b>Telefon</b> — telefon olmadan kayıt yapılmaz (mükerrer kontrolü ve WhatsApp/arama eşleşmesi telefona bağlıdır).<br>
+              <b style="color:var(--txt)">İsteğe bağlı:</b> E-posta, Eser, Tür, Kaynak, İlgi (1-5), Takip tarihi, Randevu tarihi, Not, Görüşme (istediğiniz kadar; "Görüşme: 10.08.2026 - konuşulanlar" biçiminde, tarih verilmezse bugün yazılır).<br>
+              <b style="color:var(--txt)">Biçim:</b> Her yazar "Ad:" satırıyla başlar, alanlar "Etiket: değer" şeklinde alt alta yazılır. Excel'de ise ilk satır başlık olur (Ad, Telefon, E-posta, Eser, Tür, Not, Görüşme…).<br>
+              Etiketsiz düz listeler de okunur: telefon geçen her satır bir yazar sayılır (ad = telefondan önceki kısım).
+            </div>
+          </details>
+          <div id="imp_onizleme" style="margin-top:12px"></div>
+          <div class="actions" style="margin-top:16px;display:flex;gap:8px">
+            <button class="btn ghost" style="flex:1" onclick="closeImportModal()">Vazgeç</button>
+            <button class="btn" style="flex:1" id="imp_kaydet" onclick="importKaydet()" disabled>Kaydet</button>
+          </div>
+        </div>`;
+      let m = document.getElementById("importModal");
+      if (!m) { m = document.createElement("div"); m.className = "modal"; m.id = "importModal"; document.body.appendChild(m); }
+      m.innerHTML = content;
+      m.classList.add("open");
+      importOnizleme = [];
+    }
+    function closeImportModal() { const m = document.getElementById("importModal"); if (m) m.classList.remove("open"); }
+    async function importDosyaSecildi(inp) {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const alan = document.getElementById("imp_onizleme");
+      alan.innerHTML = `<div class="empty">Belge okunuyor…</div>`;
+      try {
+        const r = await importDosyadanMetin(file);
+        const liste = r.rows ? parseImportRows(r.rows) : parseImportText(r.text);
+        if (r.text) document.getElementById("imp_text").value = r.text.slice(0, 20000);
+        importOnizlemeGoster(liste);
+      } catch (e) {
+        console.error("Belge okunamadı:", e);
+        alan.innerHTML = `<div class="empty" style="color:var(--red)">Belge okunamadı: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+    function importMetniIsle() {
+      importOnizlemeGoster(parseImportText(document.getElementById("imp_text").value));
+    }
+    function importOnizlemeGoster(liste) {
+      const alan = document.getElementById("imp_onizleme");
+      const gorulen = new Set();
+      importOnizleme = liste.map(y => {
+        const np = normalizePhone(y.phone || "");
+        let durum = "yeni", sebep = "";
+        if (!y.name) { durum = "atla"; sebep = "ad yok"; }
+        else if (!np || np.length < 10) { durum = "atla"; sebep = "telefon yok/geçersiz"; }
+        else if (gorulen.has(np)) { durum = "atla"; sebep = "belgede tekrar ediyor"; }
+        else {
+          const mevcut = (db.authors || []).find(a => a.phone && normalizePhone(a.phone) === np);
+          if (mevcut) { durum = "atla"; sebep = "zaten kayıtlı: " + mevcut.name; }
+        }
+        if (np) gorulen.add(np);
+        return { y, durum, sebep, sec: durum === "yeni" };
+      });
+      const yeni = importOnizleme.filter(x => x.durum === "yeni").length;
+      if (!importOnizleme.length) {
+        alan.innerHTML = `<div class="empty">Belgede yazar bulunamadı. Biçimi kontrol edin (aşağıdaki "Belge nasıl hazırlanmalı?" bölümüne bakın).</div>`;
+        document.getElementById("imp_kaydet").disabled = true;
+        return;
+      }
+      alan.innerHTML = `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">${importOnizleme.length} kayıt bulundu — <b style="color:#37c98a">${yeni} yeni</b>, ${importOnizleme.length - yeni} atlanacak</div>
+        <div style="max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">
+          ${importOnizleme.map((x, i) => `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px dashed var(--line);font-size:12px;${x.durum === 'atla' ? 'opacity:.55' : ''}">
+            <input type="checkbox" ${x.sec ? "checked" : ""} ${x.durum === 'atla' ? "disabled" : ""} onchange="importOnizleme[${i}].sec=this.checked">
+            <div style="flex:1;min-width:0">
+              <b>${escapeHtml(x.y.name || "—")}</b> <span style="color:var(--muted)">${escapeHtml(x.y.phone || "")}</span>
+              ${x.y.work ? `<span style="color:var(--muted)"> • ${escapeHtml(x.y.work)}</span>` : ""}
+              ${x.y.logs.length ? `<span style="color:#4aa8ff"> • ${x.y.logs.length} görüşme</span>` : ""}
+              ${x.durum === 'atla' ? `<div style="color:var(--amber)">Atlanacak — ${escapeHtml(x.sebep)}</div>` : ""}
+            </div>
+          </div>`).join("")}
+        </div>`;
+      document.getElementById("imp_kaydet").disabled = yeni === 0;
+      document.getElementById("imp_kaydet").textContent = yeni ? `${yeni} Yazarı Kaydet` : "Kaydet";
+    }
+    async function importKaydet() {
+      const status = document.getElementById("imp_status").value;
+      const secilenler = importOnizleme.filter(x => x.durum === "yeni" && x.sec);
+      if (!secilenler.length) return;
+      if (!(await customConfirm(`${secilenler.length} yazar "${STATUS[status].label}" durumuyla kaydedilsin mi?`, "Evet, Kaydet"))) return;
+      const btn = document.getElementById("imp_kaydet");
+      btn.disabled = true; btn.textContent = "Kaydediliyor…";
+      const today = todayStr();
+      let ok = 0;
+      for (const x of secilenler) {
+        const y = x.y;
+        const payload = {
+          id: uid(), name: y.name, status, email: y.email || "", phone: y.phone, phoneNorm: normalizePhone(y.phone),
+          genres: y.genres || [], temp: y.temp || 3, work: y.work || "", interviewDate: y.interviewDate || "", interviewTime: null,
+          followup: y.followup || "", source: y.source || "Belgeden yükleme", notes: y.notes || "", package: null,
+          contractDate: status === "sozlesme" || status === "yayinda" ? today : null, contractEndDate: null,
+          created: today, logs: y.logs || [], addedBy: currentStaffId || "admin",
+          statusHistory: [{ status, date: today }]
+        };
+        try { await createAuthor(payload); ok++; } catch (e) { console.error("Yazar kaydedilemedi:", y.name, e); }
+      }
+      closeImportModal();
+      render();
+      customAlert("Yükleme tamamlandı 📄", `${ok} yazar "${STATUS[status].label}" bölümüne kaydedildi.`);
+    }
+
     // Not: dosyadaki yazarları/personeli yazar (var olanların üzerine
     // yazar) ama dosyada OLMAYAN, sunucuda hâlâ duran yazarları silmez.
     function importData(e) {
