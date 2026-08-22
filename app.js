@@ -6847,32 +6847,28 @@
       const dock = document.getElementById("chatFabDock");
       const isOpen = panel.style.display !== "none";
       panel.style.display = isOpen ? "none" : "flex";
-      if (isOpen) {
-        dock.style.right = "-42px";
-      } else {
-        dock.style.right = "24px";
+      // Balon artık kenara gizlenmiyor; her zaman arayüzün içinde, tam
+      // görünür durur (önceden kapanınca sağ kenardan dışarı kayıyordu).
+      dock.style.right = "36px";
+      if (!isOpen) {
         document.getElementById("chatFabBubble").style.opacity = "0";
         document.getElementById("chatInput").focus();
       }
     }
 
-    // Buton normalde köşede yarı gizli duruyor, çok yer kaplamasın diye.
-    // Belirli aralıklarla kısa bir süreliğine dışarı çıkıp bir mesaj
-    // gösteriyor, sonra tekrar geri çekiliyor — kullanıcı unutmasın diye.
+    // Buton her zaman görünür; belirli aralıklarla yanında kısa bir mesaj
+    // balonu belirip kayboluyor — kullanıcı Linda'yı unutmasın diye.
     let chatFabPeekInterval = null;
     function peekChatFab() {
-      const dock = document.getElementById("chatFabDock");
       const bubble = document.getElementById("chatFabBubble");
       const panel = document.getElementById("chatPanel");
       if (panel.style.display === "flex") return; // sohbet zaten açıksa dokunma
-      dock.style.right = "24px";
       bubble.style.opacity = "1";
       bubble.style.transform = "translateX(0)";
       setTimeout(() => {
         if (panel.style.display === "flex") return;
         bubble.style.opacity = "0";
         bubble.style.transform = "translateX(8px)";
-        dock.style.right = "-42px";
       }, 3500);
     }
     function startChatFabPeek() {
