@@ -6,7 +6,7 @@
 // - /call-recording: MacroDroid, telefonun kendi arayıcısının kaydettiği
 //   ses dosyasını (varsa) her yeni kayıt oluştuğunda buraya yükler —
 //   eşleşen yazarın "Dosyalar" bölümüne eklenir.
-// - /chat: CRM içi "Linda" asistanı için Gemini API proxy'si.
+// - /chat: CRM içi "Linda" asistanı için OpenAI (ChatGPT) API proxy'si.
 // - /admin/update-user: Admin panelinden başka bir kullanıcının kullanıcı
 //   adını (=e-posta) ve/veya şifresini değiştirir (Firebase client SDK bunu
 //   başka bir kullanıcı için yapamadığından, servis hesabıyla Identity
@@ -21,7 +21,7 @@
 //   FIREBASE_SERVICE_ACCOUNT  - Firebase servis hesabı JSON'ı (tek satır)
 //   CALL_LOG_SECRET           - MacroDroid isteklerini doğrulamak için
 //                                kendi seçtiğimiz rastgele bir metin
-//   GEMINI_API_KEY             - Google Gemini API anahtarı (CRM içi asistan için)
+//   OPENAI_API_KEY             - OpenAI (ChatGPT) API anahtarı (CRM içi asistan için)
 // wrangler.toml içindeki [vars] altında (secret olmayan):
 //   FIREBASE_PROJECT_ID       - "mst-crm"
 
@@ -493,23 +493,31 @@ async function handleChat(payload, env) {
     `yarıda kesme, listeyi tam ver.\n` +
     `Veride hiç bulunmayan bir konu sorulursa (ör. veride hiç olmayan bir alan) "bu bilgi elimde yok" de, ama ` +
     `"authors" listesinden çıkarılabilecek bir şeyi asla "elimde yok" deme, listeye bakıp bul.\n\nVeri:\n` +
-    JSON.stringify(context).slice(0, 500000);
+    // gpt-4o-mini'nin bağlam sınırı 128k token (~400-500k karakter). Gemini'de
+    // 500k idi; soru + cevap payıyla birlikte sınırı aşmamak için 300k'ya
+    // çekildi. Veri baştan kırpılır, "stats" gibi özet alanlar JSON'ın
+    // başında olduğundan kırpılmadan ulaşır.
+    JSON.stringify(context).slice(0, 300000);
 
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: question }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 4000 }
-      })
-    }
-  );
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: question }
+      ],
+      temperature: 0.3,
+      max_tokens: 4000
+    })
+  });
   const data = await resp.json();
-  if (!resp.ok) throw new Error("Gemini hatası: " + JSON.stringify(data));
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || "Cevap alınamadı.";
+  if (!resp.ok) throw new Error("OpenAI hatası: " + JSON.stringify(data));
+  return data.choices?.[0]?.message?.content || "Cevap alınamadı.";
 }
 
 async function handleIncoming(payload, env) {
