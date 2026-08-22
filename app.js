@@ -2988,7 +2988,7 @@
     <h3 style="margin:0 0 8px;font-size:14px">${icon('save', 15)} Veri Yedeği</h3>
     <div style="color:var(--muted);font-size:12px;margin-bottom:12px">Veri kaybına karşı güncel bir kopyayı bilgisayarına indirebilirsin.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn ghost" onclick="exportFullBackupExcel()">${icon('download', 14)} Excel (CSV)</button>
+      <button class="btn ghost" onclick="exportFullBackupExcel()">${icon('download', 14)} Excel — Tüm Yazarlar (.xlsx)</button>
       <button class="btn ghost" onclick="exportData()">${icon('download', 14)} JSON</button>
     </div>
   </div>`;
@@ -6622,24 +6622,76 @@
       });
       downloadBlob(rowsToCsvBlob(rows), "odemeler-" + todayStr() + ".csv");
     }
-    function exportFullBackupExcel() {
-      const rows = [["Ad", "Telefon", "E-posta", "Tür", "Durum", "Paket", "Sözleşme Tarihi", "Ödeme Şekli", "Toplam Tahsilat", "Bekleyen Tutar", "Kayıt Tarihi", "Notlar"]];
-      visibleAuthors().forEach(a => {
+    // Tüm yazarları TÜM bilgileriyle, gerçek bir Excel (.xlsx) dosyası olarak
+    // hazırlar: 4 sayfa — Yazarlar, Görüşmeler, Ödemeler, Eserler.
+    // (Önceki sürüm noktalı virgüllü CSV üretiyordu; Excel'de çoğu zaman tek
+    // sütuna yığılıyor ve yalnızca 12 alan içeriyordu.)
+    function kisiAdi(id) {
+      if (!id) return "";
+      return id === "admin" ? "Sistem Yöneticisi" : (staffName(id) || "");
+    }
+    function buildAuthorsWorkbook() {
+      const yazarlar = [[
+        "Ad Soyad", "Telefon", "E-posta", "Durum", "Paket", "Türler", "Eser", "İlgi Düzeyi (1-5)", "Kaynak",
+        "Kayıt Tarihi", "Görüşme Tarihi", "Görüşme Saati", "Takip Tarihi", "Sözleşme Tarihi", "Sözleşme Bitiş",
+        "Ekleyen Görüşmeci", "Görüşme Sayısı", "Son Görüşme", "Son Görüşme Notu",
+        "Toplam Tahsilat", "Bekleyen Tutar", "Ödeme Sayısı", "Son Ödeme Şekli", "Notlar"
+      ]];
+      const gorusmeler = [["Yazar", "Telefon", "Tarih", "Saat", "Tür", "Görüşmeci", "Not"]];
+      const odemeler = [["Yazar", "Tarih", "Hizmet", "Tutar", "KDV", "Durum", "Ödeme Şekli", "Resmi", "Not", "Ekleyen"]];
+      const eserler = [["Yazar", "Eser", "Yayın Tarihi", "Telif Oranı (%)", "Satış Kaydı Sayısı"]];
+
+      const liste = visibleAuthors().slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
+      liste.forEach(a => {
         const payments = a.payments || [];
+        const logs = (a.logs || []).filter(l => l.date).slice().sort((x, y) => x.date.localeCompare(y.date));
+        const sonLog = logs.length ? logs[logs.length - 1] : null;
         const totalPaid = payments.filter(p => p.status === "Ödendi").reduce((s, p) => s + (p.amount || 0), 0);
         const totalPending = payments.filter(p => p.status === "Bekliyor").reduce((s, p) => s + (p.amount || 0), 0);
         const lastMethod = payments.length ? payments[payments.length - 1].method : null;
         const cDateStr = getContractDate(a);
-        rows.push([
-          a.name, a.phone || "", a.email || "", (a.genres || []).join(", "),
+        yazarlar.push([
+          a.name || "", a.phone || "", a.email || "",
           STATUS[a.status] ? STATUS[a.status].label : (a.status || ""),
           a.package && PACKAGES[a.package] ? PACKAGES[a.package].label : "",
-          cDateStr ? fmtDate(cDateStr) : "",
+          (a.genres || []).join(", "), a.work || "", a.temp || "", a.source || "",
+          a.created || "", a.interviewDate || "", a.interviewTime || "", a.followup || "",
+          cDateStr || "", a.contractEndDate || "",
+          kisiAdi(a.addedBy), logs.length, sonLog ? sonLog.date : "", sonLog ? (sonLog.text || "") : "",
+          totalPaid, totalPending, payments.length,
           lastMethod && PAYMENT_METHODS[lastMethod] ? PAYMENT_METHODS[lastMethod].label : "",
-          totalPaid, totalPending, a.created ? fmtDate(a.created) : "", a.notes || ""
+          a.notes || ""
         ]);
+        logs.forEach(l => gorusmeler.push([a.name || "", a.phone || "", l.date || "", l.time || "", l.type || "", kisiAdi(l.staffId), l.text || ""]));
+        payments.forEach(p => odemeler.push([
+          a.name || "", p.date || "", p.serviceName || "", p.amount || 0, vatPortion(p), p.status || "",
+          p.method && PAYMENT_METHODS[p.method] ? PAYMENT_METHODS[p.method].label : (p.method || ""),
+          p.resmi === false ? "Hayır" : "Evet", p.notes || "", kisiAdi(p.addedBy)
+        ]));
+        (a.books || []).forEach(b => eserler.push([a.name || "", b.title || "", b.publishDate || "", b.royaltyRate != null ? b.royaltyRate : "", (b.sales || []).length]));
       });
-      downloadBlob(rowsToCsvBlob(rows), "mst-crm-yedek-" + todayStr() + ".csv");
+
+      const wb = XLSX.utils.book_new();
+      const sayfaEkle = (ad, rows, genislikler) => {
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws["!cols"] = genislikler.map(w => ({ wch: w }));
+        ws["!freeze"] = { xSplit: 0, ySplit: 1 }; // başlık satırı sabit
+        XLSX.utils.book_append_sheet(wb, ws, ad);
+      };
+      sayfaEkle("Yazarlar", yazarlar, [24, 16, 26, 14, 30, 20, 24, 10, 18, 12, 12, 8, 12, 14, 14, 18, 10, 12, 40, 14, 14, 10, 16, 40]);
+      sayfaEkle("Görüşmeler", gorusmeler, [24, 16, 12, 8, 12, 18, 60]);
+      sayfaEkle("Ödemeler", odemeler, [24, 12, 24, 12, 10, 10, 16, 8, 30, 18]);
+      sayfaEkle("Eserler", eserler, [24, 30, 12, 14, 16]);
+      return { wb, sayilar: { yazar: yazarlar.length - 1, gorusme: gorusmeler.length - 1, odeme: odemeler.length - 1, eser: eserler.length - 1 } };
+    }
+    function exportFullBackupExcel() {
+      if (typeof XLSX === "undefined") {
+        alert("Excel kütüphanesi yüklenemedi (internet bağlantısını kontrol edin). Sayfayı yenileyip tekrar deneyin.");
+        return;
+      }
+      const { wb, sayilar } = buildAuthorsWorkbook();
+      XLSX.writeFile(wb, "mst-crm-yazarlar-" + todayStr() + ".xlsx");
+      customAlert("Excel hazır 📊", `${sayilar.yazar} yazar, ${sayilar.gorusme} görüşme, ${sayilar.odeme} ödeme ve ${sayilar.eser} eser kaydı 4 ayrı sayfada indirildi.`);
     }
     // Not: dosyadaki yazarları/personeli yazar (var olanların üzerine
     // yazar) ama dosyada OLMAYAN, sunucuda hâlâ duran yazarları silmez.
