@@ -2988,7 +2988,9 @@
     <h3 style="margin:0 0 8px;font-size:14px">${icon('save', 15)} Veri Yedeği</h3>
     <div style="color:var(--muted);font-size:12px;margin-bottom:12px">Veri kaybına karşı güncel bir kopyayı bilgisayarına indirebilirsin.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn ghost" onclick="exportFullBackupExcel()">${icon('download', 14)} Excel — Tüm Yazarlar (.xlsx)</button>
+      <button class="btn ghost" onclick="exportFullBackupExcel()">${icon('download', 14)} 1. Tüm Veri (Görüşmeler Dahil)</button>
+      <button class="btn ghost" onclick="exportSimplePhonesExcel()">${icon('download', 14)} 2. Tüm Rehber (Sadece İsim + Numara)</button>
+      <button class="btn ghost" onclick="exportTargetAuthors()">${icon('download', 14)} 3. Hedef Kitle (Sadece İsim + Numara)</button>
       <button class="btn ghost" onclick="exportData()">${icon('download', 14)} JSON</button>
     </div>
   </div>`;
@@ -3567,6 +3569,7 @@
       bar += `<button class="btn ${gbActive ? '' : 'ghost'}" style="${gbStyle}" onclick="setAuthorsGroupBy('${gbActive ? 'date' : 'staff'}')">${icon('users', 14)} Görüşmeciye Göre</button>`;
       bar += `<button class="btn ghost" style="border: 1px solid rgba(255,255,255,0.15);" onclick="openDailyReport()" title="Bugünün şu ana kadarki raporu">${icon('trendingUp', 14)} Rapor</button>`;
       bar += `<button class="btn ghost" style="border: 1px solid rgba(45,212,191,0.4);color:#2dd4bf" onclick="openImportModal()" title="PDF / Word / Excel belgesinden yazarları toplu kaydet">📄 Belgeden Yükle</button>`;
+      bar += `<button class="btn ghost" style="border: 1px solid var(--line); margin-left: 10px;" onclick="openBulkMessageModal(filteredAuthors().filter(a => a.status !== 'sozlesme' && a.status !== 'yayinda'))">${icon('messageSquare', 14) || '📩'} Toplu Mesaj</button>`;
 
       bar += `</div>`;
       
@@ -4238,9 +4241,16 @@
     <div class="card stat"><div class="n">${totalVat.toLocaleString('tr-TR')} ₺</div><div class="l">Tahsilattaki KDV</div><span class="chip" style="background:rgba(169,155,255,.15);color:#a99bff">%20 KDV</span></div>` : ''}
   </div>`;
 
+      window.lastRenderedAccountingList = displayAuthors;
+      
       if (canSeeAmounts) {
-        html += `<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+        html += `<div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:16px">
     <button class="btn ghost" onclick="exportPaymentsCSV()">${icon('download', 14)} Ödemeleri CSV İndir</button>
+    <button class="btn ghost" onclick="openBulkMessageModal(window.lastRenderedAccountingList)">${icon('messageSquare', 14) || '📩'} Toplu Mesaj</button>
+  </div>`;
+      } else {
+        html += `<div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:16px">
+    <button class="btn ghost" onclick="openBulkMessageModal(window.lastRenderedAccountingList)">${icon('messageSquare', 14) || '📩'} Toplu Mesaj</button>
   </div>`;
       }
 
@@ -5571,14 +5581,18 @@
           ${t.label} (${t.count})
         </span>`;
       });
-      bar += `</div>`;
-
+      
       let activeList = list;
       if (filterStatus === 'overdue') activeList = overdue;
       else if (filterStatus === 'today') activeList = today;
       else if (filterStatus === 'upcoming') activeList = upcoming;
       else if (filterStatus === 'randevu') activeList = randevular;
       else if (filterStatus === 'unreached') activeList = unreached;
+      
+      window.lastRenderedFollowupList = activeList;
+
+      bar += `<button class="btn ghost" style="border: 1px solid var(--line); margin-left:auto;" onclick="openBulkMessageModal(window.lastRenderedFollowupList)">${icon('messageSquare', 14) || '📩'} Toplu Mesaj</button>`;
+      bar += `</div>`;
 
       if (!activeList.length) return bar + `<div class="empty">Bu kategoride kayıt bulunamadı.</div>`;
       const cards = activeList.map(authorCard).join("");
@@ -6694,6 +6708,66 @@
       XLSX.writeFile(wb, "mst-crm-yazarlar-" + todayStr() + ".xlsx");
       customAlert("Excel hazır 📊", `${sayilar.yazar} yazar, ${sayilar.gorusme} görüşme, ${sayilar.odeme} ödeme ve ${sayilar.eser} eser kaydı 4 ayrı sayfada indirildi.`);
     }
+
+    function exportTargetAuthors() {
+      if (typeof XLSX === "undefined") {
+        alert("Excel kütüphanesi yüklenemedi (internet bağlantısını kontrol edin). Sayfayı yenileyip tekrar deneyin.");
+        return;
+      }
+      const headers = [["İsim", "Telefon", "Alan/Tür"]];
+      const rows = [];
+      
+      visibleAuthors().forEach(a => {
+        if (a.status === "aday" || a.status === "gorusuluyor" || a.status === "arsiv") {
+          rows.push([
+            a.name || "",
+            a.phone || "",
+            (a.genres || []).join(", ")
+          ]);
+        }
+      });
+      
+      if (rows.length === 0) {
+        alert("Belirtilen kriterlerde (Aday, Görüşülüyor, Arşiv) kayıt bulunamadı.");
+        return;
+      }
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
+      
+      // Sütun genişlikleri ayarı
+      ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 30 }];
+      
+      XLSX.utils.book_append_sheet(wb, ws, "Numaralar");
+      XLSX.writeFile(wb, "mst-crm-hedef-numaralar-" + todayStr() + ".xlsx");
+      customAlert("Excel hazır 🎯", `${rows.length} kişinin bilgisi (İsim, Telefon, Tür) başarıyla indirildi.`);
+    }
+    function exportSimplePhonesExcel() {
+      if (typeof XLSX === "undefined") {
+        alert("Excel kütüphanesi yüklenemedi (internet bağlantısını kontrol edin). Sayfayı yenileyip tekrar deneyin.");
+        return;
+      }
+      const headers = [["İsim", "Telefon", "Durum"]];
+      const rows = [];
+      
+      visibleAuthors().forEach(a => {
+        rows.push([
+          a.name || "",
+          a.phone || "",
+          a.status && STATUS[a.status] ? STATUS[a.status].label : ""
+        ]);
+      });
+      
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
+      
+      ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 20 }];
+      
+      XLSX.utils.book_append_sheet(wb, ws, "Rehber");
+      XLSX.writeFile(wb, "mst-crm-tum-numaralar-" + todayStr() + ".xlsx");
+      customAlert("Excel hazır 📱", `${rows.length} kişinin sadece isim ve telefon bilgisi indirildi.`);
+    }
+
     /* ---------- Belgeden yazar yükleme (PDF / Word / Excel / metin) ----------
      * Her durum bölümü için toplu kayıt: belge seçilir, metin çıkarılır,
      * yazarlar ayrıştırılıp ÖNİZLEME gösterilir, onaylanınca seçilen durumla
@@ -7559,18 +7633,22 @@
     const BULK_TEMPLATES = {
       bayram: "Merhaba {isim},\n\nBayramınızı en içten dileklerimle kutlar, sevdiklerinizle birlikte sağlıklı ve mutlu bir bayram geçirmenizi dileriz.",
       hatirlatma: "Merhaba {isim},\n\nNasılsınız? Uzun zamandır görüşemiyoruz, müsait olduğunuzda durum değerlendirmesi yapmak isteriz.",
-      sozlesme: "Sayın {isim},\n\nSözleşme sürecinizle ilgili bir bilgilendirme yapmak için iletişime geçiyoruz. Detaylar için lütfen dönüş yapınız."
+      sozlesme: "Sayın {isim},\n\nSözleşme sürecinizle ilgili bir bilgilendirme yapmak için iletişime geçiyoruz. Detaylar için lütfen dönüş yapınız.",
+      etkinlik: "Merhaba {isim},\n\nSizi yaklaşan etkinliğimize davet etmek isteriz. Detayları en kısa sürede paylaşacağız. Katılımınız bizim için çok değerli.",
+      yeniYayin: "Merhaba {isim},\n\nYeni yayın dönemimiz başladı. Sizinle bu konuda görüşmek isteriz. Müsait olduğunuzda bize dönüş yapabilir misiniz?",
+      bilgilendirme: "Merhaba {isim},\n\nSizlere önemli bir bilgilendirme yapmak istiyoruz. Detaylar için lütfen bizimle iletişime geçiniz."
     };
 
     window.bulkMessageTempList = []; // Filtrelenmiş tüm liste
     
-    function openBulkMessageModal() {
-      if (!window.lastRenderedContractsList || window.lastRenderedContractsList.length === 0) {
+    function openBulkMessageModal(sourceList) {
+      const rawList = sourceList || window.lastRenderedContractsList || [];
+      if (!rawList || rawList.length === 0) {
         alert("Bu listede yazar bulunmuyor.");
         return;
       }
       
-      const allWithPhone = window.lastRenderedContractsList.filter(a => a.phone && a.phone.trim().length > 5);
+      const allWithPhone = rawList.filter(a => a.phone && a.phone.trim().length > 5);
       
       if (allWithPhone.length === 0) {
         alert("Bu listedeki yazarların geçerli bir telefon numarası bulunmuyor.");
@@ -7708,8 +7786,9 @@
       }
       
       if (mockTarget) {
-        text = text.replace(/{isim}/gi, mockTarget.name);
-        text = text.replace(/{telefon}/gi, mockTarget.phone);
+        text = text.replace(/{isim}/gi, mockTarget.name || "");
+        text = text.replace(/{telefon}/gi, mockTarget.phone || "");
+        text = text.replace(/{eser}/gi, mockTarget.work || "");
       }
       
       previewEl.textContent = text;
@@ -7815,8 +7894,9 @@
       let text = document.getElementById("bulkMessageText").value || "";
       
       // Şablon değişkenlerini değiştirme
-      text = text.replace(/{isim}/gi, target.name);
-      text = text.replace(/{telefon}/gi, target.phone);
+      text = text.replace(/{isim}/gi, target.name || "");
+      text = text.replace(/{telefon}/gi, target.phone || "");
+      text = text.replace(/{eser}/gi, target.work || "");
       
       const url = toWaLink(target.phone, text);
       window.open(url, "_blank");
