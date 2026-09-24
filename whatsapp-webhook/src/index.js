@@ -6,6 +6,8 @@
 // - /call-recording: MacroDroid, telefonun kendi arayıcısının kaydettiği
 //   ses dosyasını (varsa) her yeni kayıt oluştuğunda buraya yükler —
 //   eşleşen yazarın "Dosyalar" bölümüne eklenir.
+// - /randevu: Web sitesindeki randevu eklentisi (mst-randevu) her yeni
+//   randevuda POST isteği gönderir — bkz. handleWebRandevu.
 // - /chat: CRM içi "Linda" asistanı için OpenAI (ChatGPT) API proxy'si.
 // - /admin/update-user: Admin panelinden başka bir kullanıcının kullanıcı
 //   adını (=e-posta) ve/veya şifresini değiştirir (Firebase client SDK bunu
@@ -22,6 +24,9 @@
 //   CALL_LOG_SECRET           - MacroDroid isteklerini doğrulamak için
 //                                kendi seçtiğimiz rastgele bir metin
 //   OPENAI_API_KEY             - OpenAI (ChatGPT) API anahtarı (CRM içi asistan için)
+//   RANDEVU_SECRET             - Web sitesindeki randevu eklentisinin /randevu
+//                                isteklerini doğrulamak için rastgele bir metin
+//                                (eklentide "Webhook anahtarı" alanına da yazılır)
 // wrangler.toml içindeki [vars] altında (secret olmayan):
 //   FIREBASE_PROJECT_ID       - "mst-crm"
 
@@ -695,6 +700,151 @@ async function handleCallRecording(payload, env) {
   }
 }
 
+// Web sitesindeki randevu eklentisinden (mst-randevu, WordPress) gelen
+// yazar adayı randevuları. Numara mevcut bir yazarla eşleşirse randevu o
+// kayda eklenir; yoksa "Aday" statüsünde, kaynağı "Web randevu" olan yeni
+// bir kayıt açılır. Her iki durumda da:
+//   - interviewDate/interviewTime randevu saatine ayarlanır (CRM'in mevcut
+//     randevu hatırlatıcısı ve Takip Listesi bunu kullanıyor),
+//   - webRandevular dizisine { id, tarih, saat, not, durum } eklenir — CRM'deki
+//     "Web Randevuları" sekmesi bu diziden beslenir ve bu kayıtlar TÜM
+//     kullanıcılara açıktır (bkz. app.js > canSeeAuthor),
+//   - görüşme geçmişine bir satır düşülür.
+// Aynı randevu iki kez gelirse (eklentideki "yeniden bildir" düğmesi) id
+// eşleştiği için ikinci kez eklenmez.
+function webRandevuYazisi(payload) {
+  const m = String(payload?.baslangic || "").match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  if (!m) return null;
+  return {
+    id: "web_" + String(payload?.randevu_id || uid()).replace(/[^\w-]/g, ""),
+    tarih: m[1],
+    saat: m[2],
+    not: String(payload?.not || "").trim().slice(0, 1000),
+    durum: "bekliyor",
+    olusturma: new Date().toISOString()
+  };
+}
+
+async function firestoreCommit(projectId, token, writes) {
+  const resp = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ writes })
+  });
+  if (!resp.ok) throw new Error("Firestore yazma hatası: " + resp.status + " " + (await resp.text()).slice(0, 300));
+}
+
+async function handleWebRandevu(payload, env) {
+  const olay = String(payload?.olay || "");
+  // Eklentinin ayarlar sayfasındaki "Test gönder" düğmesi: bağlantı ve
+  // anahtar doğru mu diye bakılır, CRM'e hiçbir şey yazılmaz.
+  if (olay === "test") return { ok: true, test: true };
+  if (olay !== "randevu.olusturuldu" && olay !== "randevu.iptal") return { ok: true, yoksayildi: olay };
+
+  const phone = normalizePhone(payload?.telefon);
+  if (!phone || phoneKey(phone).length !== 10) throw Object.assign(new Error("Geçersiz telefon numarası"), { status: 400 });
+  const randevu = webRandevuYazisi(payload);
+  if (!randevu) throw Object.assign(new Error("Geçersiz randevu saati (baslangic)"), { status: 400 });
+
+  const token = await getAccessToken(env);
+  const projectId = env.FIREBASE_PROJECT_ID;
+  const docPath = id => `projects/${projectId}/databases/(default)/documents/authors/${id}`;
+  const matched = await findMatchingAuthor(projectId, token, phone);
+  const mevcut = matched && (matched.webRandevular || []).find(r => r.id === randevu.id);
+
+  if (olay === "randevu.iptal") {
+    if (!mevcut || mevcut.durum === "iptal") return { ok: true, degisiklik: false };
+    const liste = matched.webRandevular.map(r => r.id === randevu.id ? { ...r, durum: "iptal" } : r);
+    const alanlar = { webRandevular: liste };
+    // Görüşme saati hâlâ bu randevuyu gösteriyorsa temizlenir; hatırlatıcı
+    // ve Takip Listesi iptal edilmiş randevu için uyarmasın.
+    if (matched.interviewDate === mevcut.tarih && matched.interviewTime === mevcut.saat) {
+      alanlar.interviewDate = "";
+      alanlar.interviewTime = "";
+    }
+    const fields = {};
+    for (const [k, v] of Object.entries(alanlar)) fields[k] = toFirestoreValue(v);
+    await firestoreCommit(projectId, token, [{
+      update: { name: docPath(matched.id), fields },
+      updateMask: { fieldPaths: Object.keys(alanlar) },
+      updateTransforms: [
+        { fieldPath: "logs", appendMissingElements: { values: [toFirestoreValue({ type: "Web randevu", date: crmBugun(), text: `Web randevusu iptal edildi (${mevcut.tarih} ${mevcut.saat})`, staffId: "" })] } },
+        { fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" }
+      ],
+      currentDocument: { exists: true }
+    }]);
+    return { ok: true, yazarId: matched.id, iptal: true };
+  }
+
+  if (mevcut) return { ok: true, yazarId: matched.id, tekrar: true };
+
+  const ad = String(payload?.ad_soyad || "").trim().slice(0, 100);
+  const tarihMetin = String(payload?.tarih_metin || `${randevu.tarih} ${randevu.saat}`);
+  const logEntry = {
+    type: "Web randevu",
+    date: crmBugun(),
+    text: `Web sitesinden randevu aldı: ${tarihMetin}` + (randevu.not ? ` — Not: ${randevu.not}` : ""),
+    staffId: ""
+  };
+
+  let yazarId;
+  if (matched) {
+    yazarId = matched.id;
+    await firestoreCommit(projectId, token, [{
+      update: {
+        name: docPath(yazarId),
+        fields: { interviewDate: toFirestoreValue(randevu.tarih), interviewTime: toFirestoreValue(randevu.saat) }
+      },
+      updateMask: { fieldPaths: ["interviewDate", "interviewTime"] },
+      updateTransforms: [
+        { fieldPath: "webRandevular", appendMissingElements: { values: [toFirestoreValue(randevu)] } },
+        { fieldPath: "logs", appendMissingElements: { values: [toFirestoreValue(logEntry)] } },
+        { fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" }
+      ],
+      currentDocument: { exists: true }
+    }]);
+  } else {
+    // createLead ile aynı alan düzeni (yeni kayıt CRM'de diğer adaylardan
+    // farksız görünsün), artı randevu alanları.
+    yazarId = uid();
+    const today = crmBugun();
+    const kayit = {
+      id: yazarId, name: ad || "+" + phone, status: "aday", email: "", phone: "+" + phone,
+      phoneNorm: phoneKey(phone),
+      genres: [], temp: 3, work: "", interviewDate: randevu.tarih, interviewTime: randevu.saat, followup: "",
+      source: "Web randevu", notes: randevu.not ? "Kitap notu (web randevu formu): " + randevu.not : "", package: null,
+      created: today,
+      logs: [logEntry],
+      files: [],
+      statusHistory: [{ status: "aday", date: today }],
+      webRandevular: [randevu],
+      addedBy: "web-randevu"
+    };
+    const fields = {};
+    for (const [k, v] of Object.entries(kayit)) fields[k] = toFirestoreValue(v);
+    await firestoreCommit(projectId, token, [{
+      update: { name: docPath(yazarId), fields },
+      updateTransforms: [{ fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" }],
+      currentDocument: { exists: false }
+    }]);
+  }
+
+  // Telefon bildirimi — başarısız olursa randevu kaydı yine de geçerli.
+  try {
+    await handleNotifyTask({
+      herkes: true,
+      title: "Web randevusu",
+      baslik: "📅 Yeni web randevusu",
+      govde: `${ad || "+" + phone} — ${tarihMetin}`,
+      etiket: "webrandevu_" + randevu.id
+    }, env);
+  } catch (e) {
+    console.error("Web randevu bildirimi gönderilemedi:", e);
+  }
+
+  return { ok: true, yazarId, yeni: !matched };
+}
+
 // Görev atanınca, atanan personelin fcm_tokens'ta kayıtlı tüm cihazlarına
 // FCM (Firebase Cloud Messaging) push bildirimi gönderir. CRM arayüzü,
 // görevi Firestore'a yazdıktan sonra burayı çağırır — FCM'e gönderim
@@ -707,6 +857,8 @@ async function handleCallRecording(payload, env) {
 //   rol      — o roldeki herkes ("admin" gibi); yöneticiye giden dilek/
 //              şikayet bildirimleri böyle gidiyor, adminin staffId'si
 //              olmayabiliyor (fcm_tokens kaydında role da tutuluyor).
+//   herkes   — kayıtlı bütün cihazlar (web randevuları; bkz. handleWebRandevu).
+//              Yalnızca worker içinden verilir, /notify-task isteğinden kabul edilmez.
 // staffIds/rol tek İSTEKTE işlenir: token listesi bir kez okunur. Önceden
 // ortak görevde atanan başına ayrı istek atılıyordu ve her istek bütün
 // fcm_tokens koleksiyonunu baştan okuyordu — boşuna okuma maliyeti.
@@ -715,8 +867,9 @@ async function handleNotifyTask(payload, env) {
     ? payload.staffIds.map(x => String(x || "")).filter(Boolean)
     : (payload?.staffId ? [String(payload.staffId)] : []);
   const rol = payload?.rol ? String(payload.rol) : null;
+  const herkes = payload?.herkes === true;
   const title = String(payload?.title || "").slice(0, 200);
-  if (!staffIds.length && !rol) throw new Error("staffId, staffIds ya da rol zorunlu");
+  if (!staffIds.length && !rol && !herkes) throw new Error("staffId, staffIds ya da rol zorunlu");
   if (!title) throw new Error("title zorunlu");
   const dueDate = payload?.dueDate ? String(payload.dueDate) : null;
   const taskId = String(payload?.taskId || "");
@@ -740,7 +893,7 @@ async function handleNotifyTask(payload, env) {
       const obj = docToObject(doc);
       if (!obj.token) continue;
       // Aynı cihaz hem staffId hem rol ile eşleşebilir; Set tekrarı önler.
-      if ((obj.staffId && staffIds.includes(obj.staffId)) || (rol && obj.role === rol)) {
+      if (herkes || (obj.staffId && staffIds.includes(obj.staffId)) || (rol && obj.role === rol)) {
         tokenSet.add(obj.token);
       }
     }
@@ -1498,6 +1651,9 @@ export default {
       } catch {
         return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
       }
+      // "herkes" yalnızca worker içinden (web randevusu) kullanılır; oturum
+      // açmış herhangi biri bütün cihazlara bildirim yağdıramasın.
+      if (payload && typeof payload === "object") delete payload.herkes;
       try {
         const result = await handleNotifyTask(payload, env);
         return new Response(JSON.stringify(result), { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
@@ -1615,6 +1771,28 @@ export default {
       } catch (e) {
         console.error("Kullanıcı silme hatası:", e);
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+      }
+    }
+
+    // Web sitesindeki randevu eklentisi (mst-randevu). Eklenti anahtarı hem
+    // "Authorization: Bearer …" hem "X-MST-Token" başlığıyla gönderiyor.
+    if (url.pathname === "/randevu" && request.method === "POST") {
+      const json = (obj, status) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8" } });
+      const auth = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "") || request.headers.get("X-MST-Token") || "";
+      if (!env.RANDEVU_SECRET || auth !== env.RANDEVU_SECRET) {
+        return json({ ok: false, error: "Yetkisiz" }, 403);
+      }
+      let payload;
+      try {
+        payload = await request.json();
+      } catch {
+        return json({ ok: false, error: "Bad request" }, 400);
+      }
+      try {
+        return json(await handleWebRandevu(payload, env), 200);
+      } catch (e) {
+        console.error("Web randevu işleme hatası:", e);
+        return json({ ok: false, error: e.message }, e.status || 500);
       }
     }
 
