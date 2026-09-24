@@ -953,7 +953,7 @@
         return `<div style="padding:7px 0 7px 10px;border-left:2px solid ${st.color};margin-top:8px">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <b style="font-size:12.5px">${escapeHtml(a.name || "—")}</b>
-            ${a.phone ? `<span style="font-size:11px;color:var(--muted)">${escapeHtml(a.phone)}</span>` : ""}
+            ${a.phone ? `<span style="font-size:11px;color:var(--muted);white-space:nowrap">${escapeHtml(telGoster(a.phone))}</span>` : ""}
             <span style="font-size:10px;color:${st.color};background:${st.color}18;border:1px solid ${st.color}44;border-radius:20px;padding:1px 7px">${escapeHtml(st.label)}</span>
             ${createdToday ? `<span style="font-size:10px;color:var(--muted)">• bugün eklendi</span>` : ""}
             ${notes.length > 1 ? `<span style="font-size:10px;color:var(--muted)">• ${notes.length} görüşme</span>` : ""}
@@ -1058,7 +1058,7 @@
               <div style="min-width:0">
                 <span class="mn">${escapeHtml(a.name)}</span>
                 <div class="ms" style="color:var(--red)">${sebep}</div>
-                <div class="ms">${STATUS[a.status] ? STATUS[a.status].label : ""}${a.phone ? " • " + escapeHtml(a.phone) : ""}</div>
+                <div class="ms">${STATUS[a.status] ? STATUS[a.status].label : ""}${a.phone ? " • " + escapeHtml(telGoster(a.phone)) : ""}</div>
               </div>
             </div>
             <span onclick="event.stopPropagation()" style="flex-shrink:0">${waBtn(a.phone)}</span>
@@ -2326,6 +2326,20 @@
     function normalizePhone(phone) {
       const digits = (phone || "").replace(/\D/g, "");
       return digits.length >= 10 ? digits.slice(-10) : digits;
+    }
+    // Ekranda okunaklı telefon: Türkiye numaraları hangi biçimde kaydedilmiş
+    // olursa olsun (+905321234567, 905321234567, 05321234567, 5321234567)
+    // "0532 123 45 67" olarak gösterilir. Kayıt değişmez; yurt dışı ya da
+    // tanınmayan numaralar olduğu gibi kalır.
+    function telGoster(phone) {
+      const ham = String(phone || "").trim();
+      const d = ham.replace(/\D/g, "");
+      let yerel = "";
+      if (d.length === 12 && d.startsWith("90")) yerel = d.slice(2);
+      else if (d.length === 11 && d.startsWith("0")) yerel = d.slice(1);
+      else if (d.length === 10 && /^[2-58]/.test(d)) yerel = d;
+      if (yerel.length !== 10 || !/^[2-58]/.test(yerel)) return ham;
+      return "0" + yerel.slice(0, 3) + " " + yerel.slice(3, 6) + " " + yerel.slice(6, 8) + " " + yerel.slice(8);
     }
     function toWaLink(phone, text) {
       if (!phone) return "";
@@ -5619,7 +5633,7 @@
           <div style="font-size:20px;font-weight:700;min-width:58px;${r.durum === 'iptal' ? 'text-decoration:line-through;color:var(--muted)' : ''}">${escapeHtml(r.saat)}</div>
           <div style="flex:1;min-width:160px">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="mn">${escapeHtml(a.name)}</span>${durumEtiketi}</div>
-            <div class="ms">${a.phone ? `<a href="tel:${escapeHtml(a.phone)}" onclick="event.stopPropagation()" style="color:inherit">${escapeHtml(a.phone)}</a>` : "—"}${kim ? ` • ${escapeHtml(d.label)}: ${escapeHtml(kim)}` : ""}</div>
+            <div class="ms">${a.phone ? `<a href="tel:${escapeHtml(a.phone)}" onclick="event.stopPropagation()" style="color:inherit;white-space:nowrap">${escapeHtml(telGoster(a.phone))}</a>` : "—"}${kim ? ` • ${escapeHtml(d.label)}: ${escapeHtml(kim)}` : ""}</div>
             ${r.not ? `<div class="ms" style="color:var(--txt);margin-top:6px">📖 ${escapeHtml(r.not)}</div>` : ""}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -5844,7 +5858,7 @@
     <div class="db">
       <div class="section"><h4>İletişim & Bilgi</h4>
         <div class="kv"><span>E-posta</span><span>${escapeHtml(a.email) || "—"}</span></div>
-        <div class="kv"><span>Telefon</span><span style="display:flex;align-items:center;gap:8px">${escapeHtml(a.phone) || "—"} ${waBtn(a.phone)}</span></div>
+        <div class="kv"><span>Telefon</span><span style="display:flex;align-items:center;gap:8px">${a.phone ? `<a href="tel:${escapeHtml(a.phone)}" style="color:inherit;white-space:nowrap">${escapeHtml(telGoster(a.phone))}</a>` : "—"} ${waBtn(a.phone)}</span></div>
         ${(a.phone && (a.status === "sozlesme" || a.status === "yayinda")) ? `<div class="kv"><span>Sözleşme Mesajı</span><span><a href="${toWaLink(a.phone, contractConfirmText(a.name, a.package && PACKAGES[a.package] ? PACKAGES[a.package].label : ''))}" target="_blank" style="color:var(--brand);text-decoration:underline;font-size:12px">${icon('smartphone', 13)} Onay Mesajı Gönder</a></span></div>` : ''}
         ${contractRowHtml}
         <div class="kv"><span>Kaynak</span><span>${escapeHtml(a.source) || "—"}</span></div>
