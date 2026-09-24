@@ -1,0 +1,12 @@
+# Yalnızca web sitesi randevularını karşılayan küçük worker (bkz. src/randevu.js).
+# Ana worker'dan (wrangler.toml) bağımsız; zamanlanmış görev ve KV yok.
+#
+#   npx wrangler secret put RANDEVU_SECRET -c wrangler-randevu.toml
+#   Get-Content anahtar.json -Raw | npx wrangler secret put FIREBASE_SERVICE_ACCOUNT -c wrangler-randevu.toml
+#   npx wrangler deploy -c wrangler-randevu.toml
+name = "mst-randevu-crm"
+main = "src/randevu.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+FIREBASE_PROJECT_ID = "mst-crm"
