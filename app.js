@@ -2552,6 +2552,7 @@
       authors: "Yazarlar",
       contracts: "Sözleşmeli Yazarlar",
       followups: "Takip Listesi",
+      randevular: "Web Randevuları",
       team: "Ekip",
       accounting: "Ödemeler",
       muhasebe: "Muhasebe",
@@ -2616,6 +2617,14 @@
         }
       }
       renderTaskNotifDropdown();
+
+      // Web Randevuları menüsündeki sayaç: bugün ya da daha önce olup henüz
+      // aranmamış randevular.
+      const wrSayi = bekleyenWebRandevuSayisi();
+      document.querySelectorAll(".wr-sayac").forEach(el => {
+        el.textContent = wrSayi > 9 ? "9+" : String(wrSayi);
+        el.style.display = wrSayi ? "inline-block" : "none";
+      });
 
       const isPersonel = currentRole === "personel";
       // Muhasebe (gelir/gider) sadece admin/muhasebe içindir. Ödemeler ise
@@ -2690,6 +2699,7 @@
       else if (currentView === "stock") c.innerHTML = viewStock();
       else if (currentView === "matbaa") c.innerHTML = viewMatbaa();
       else if (currentView === "followups") c.innerHTML = viewFollowups();
+      else if (currentView === "randevular") c.innerHTML = viewWebRandevular();
       else if (currentView === "team") { c.innerHTML = viewTeam(); if (currentRole === "admin") setTimeout(loadPendingUsers, 0); }
       else if (currentView === "feedback") c.innerHTML = viewFeedback();
       else if (currentView === "linda") { c.innerHTML = viewLinda(); renderChatInto("lindaMessages"); setTimeout(() => { const i = document.getElementById("lindaInput"); if (i) i.focus(); }, 0); }
@@ -2750,6 +2760,9 @@
       if (!currentStaffId) return false;
       if (a.addedBy === currentStaffId) return true;
       if ((a.logs || []).some(l => l.staffId === currentStaffId)) return true;
+      // Web sitesinden randevu almış adaylar herkese açık (Web Randevuları
+      // sekmesi) — randevuyu hangi görüşmeci karşılarsa karşılasın kaydı açabilsin.
+      if ((a.webRandevular || []).length) return true;
       return isInCommonPool(a);
     }
     function visibleAuthors() { return (db.authors || []).filter(canSeeAuthor); }
@@ -5512,6 +5525,140 @@
       return visibleAuthors().filter(a => {
         if (a.status === "sozlesme" || a.status === "yayinda" || a.status === "arsiv") return false;
         return unreachedCallStatus(a.logs) === true;
+      });
+    }
+
+    /* ---------- Web Randevuları ----------
+     * Web sitesindeki randevu formundan (mst-randevu eklentisi → worker
+     * /randevu) gelen randevular. Veri ayrı bir koleksiyonda değil, yazar
+     * dokümanındaki webRandevular dizisinde duruyor — zaten yüklü olan
+     * db.authors'tan okunduğu için bu ekran hiç ek Firestore okuması yapmaz.
+     * Bu kayıtlar tüm kullanıcılara açık (bkz. canSeeAuthor). */
+    const WEB_RANDEVU_DURUM = {
+      bekliyor: { label: "Bekliyor", color: "var(--amber)" },
+      arandi: { label: "Arandı", color: "var(--green)" },
+      ulasilamadi: { label: "Ulaşılamadı", color: "var(--red)" },
+      iptal: { label: "İptal", color: "var(--muted)" }
+    };
+    function webRandevuListesi() {
+      const out = [];
+      (db.authors || []).forEach(a => {
+        if (a.deleted) return;
+        (a.webRandevular || []).forEach(r => out.push({ r, a }));
+      });
+      return out;
+    }
+    function bekleyenWebRandevuSayisi() {
+      const today = todayStr();
+      return webRandevuListesi().filter(x => x.r.durum === "bekliyor" && x.r.tarih <= today).length;
+    }
+    function webRandevuGunBasligi(tarih) {
+      const d = daysUntil(tarih);
+      const uzun = new Date(tarih + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
+      if (d === 0) return "Bugün — " + uzun;
+      if (d === 1) return "Yarın — " + uzun;
+      if (d === -1) return "Dün — " + uzun;
+      return uzun;
+    }
+    function viewWebRandevular() {
+      const today = todayStr();
+      const t = searchTerm();
+      const hepsi = webRandevuListesi().filter(({ r, a }) =>
+        !t || searchKey(a.name + " " + (a.phone || "") + " " + (r.not || "")).includes(t));
+
+      const bekleyen = hepsi.filter(x => x.r.durum === "bekliyor");
+      const bugun = hepsi.filter(x => x.r.tarih === today);
+      const sonuclanan = hepsi.filter(x => x.r.durum !== "bekliyor");
+      if (!['bekleyen', 'bugun', 'sonuclanan', 'tumu'].includes(filterStatus)) filterStatus = 'bekleyen';
+
+      const sekmeler = [
+        { id: 'bekleyen', label: 'Bekleyen', list: bekleyen, color: '#f4b740' },
+        { id: 'bugun', label: 'Bugün', list: bugun, color: '#4aa8ff' },
+        { id: 'sonuclanan', label: 'Sonuçlanan', list: sonuclanan, color: '#37c98a' },
+        { id: 'tumu', label: 'Tümü', list: hepsi, color: '#a99bff' }
+      ];
+      let bar = `<div class="toolbar" style="margin-top:-8px;margin-bottom:20px;gap:10px">`;
+      sekmeler.forEach(s => {
+        const aktif = filterStatus === s.id;
+        const style = aktif ? `background:${s.color}15;border-color:${s.color};color:${s.color};box-shadow:0 0 14px ${s.color}40;` : ``;
+        bar += `<span class="pill ${aktif ? 'active' : ''}" style="${style}" onclick="setFilter('${s.id}')">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${s.color};margin-right:8px"></span>${s.label} (${s.list.length})</span>`;
+      });
+      bar += `</div>`;
+
+      const aktifListe = sekmeler.find(s => s.id === filterStatus).list.slice();
+      // Bekleyenler en yakın saatten başlar; sonuçlananlar en yeniden eskiye.
+      const eskidenYeniye = filterStatus === 'bekleyen' || filterStatus === 'bugun';
+      aktifListe.sort((x, y) => {
+        const k = (x.r.tarih + x.r.saat).localeCompare(y.r.tarih + y.r.saat);
+        return eskidenYeniye ? k : -k;
+      });
+      if (!hepsi.length) return bar + `<div class="empty">Henüz web sitesinden randevu gelmedi.</div>`;
+      if (!aktifListe.length) return bar + `<div class="empty">Bu kategoride randevu yok.</div>`;
+
+      const gunler = [];
+      aktifListe.forEach(x => {
+        const son = gunler[gunler.length - 1];
+        if (son && son.tarih === x.r.tarih) son.list.push(x);
+        else gunler.push({ tarih: x.r.tarih, list: [x] });
+      });
+
+      const satir = ({ r, a }) => {
+        const d = WEB_RANDEVU_DURUM[r.durum] || WEB_RANDEVU_DURUM.bekliyor;
+        const gecikti = r.durum === "bekliyor" && (r.tarih < today || (r.tarih === today && r.saat < new Date().toTimeString().slice(0, 5)));
+        const durumEtiketi = gecikti
+          ? `<span class="badge" style="background:rgba(242,97,122,.15);color:var(--red)">Saati geçti</span>`
+          : `<span class="badge" style="background:color-mix(in srgb, ${d.color} 15%, transparent);color:${d.color}">${d.label}</span>`;
+        const kim = r.isaretleyen ? (r.isaretleyen === "admin" ? "Sistem Yöneticisi" : staffName(r.isaretleyen)) : "";
+        const aid = escapeHtml(a.id), rid = escapeHtml(r.id);
+        const eylemler = r.durum === "bekliyor"
+          ? `<button class="btn" style="padding:6px 12px;font-size:12px;background:var(--green)" onclick="event.stopPropagation();webRandevuIsaretle('${aid}','${rid}','arandi')">${icon('check', 13)} Arandı</button>
+             <button class="btn ghost" style="padding:6px 12px;font-size:12px" onclick="event.stopPropagation();webRandevuIsaretle('${aid}','${rid}','ulasilamadi')">Ulaşılamadı</button>`
+          : `<button class="btn ghost" style="padding:6px 12px;font-size:12px" onclick="event.stopPropagation();webRandevuIsaretle('${aid}','${rid}','bekliyor')" title="Bekliyor durumuna geri al">Geri al</button>`;
+        return `<div class="mini" onclick="openDrawer('${aid}')" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-size:20px;font-weight:700;min-width:58px;${r.durum === 'iptal' ? 'text-decoration:line-through;color:var(--muted)' : ''}">${escapeHtml(r.saat)}</div>
+          <div style="flex:1;min-width:160px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="mn">${escapeHtml(a.name)}</span>${durumEtiketi}</div>
+            <div class="ms">${a.phone ? `<a href="tel:${escapeHtml(a.phone)}" onclick="event.stopPropagation()" style="color:inherit">${escapeHtml(a.phone)}</a>` : "—"}${kim ? ` • ${escapeHtml(d.label)}: ${escapeHtml(kim)}` : ""}</div>
+            ${r.not ? `<div class="ms" style="color:var(--txt);margin-top:6px">📖 ${escapeHtml(r.not)}</div>` : ""}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            ${a.phone ? `<a class="btn ghost" href="tel:${escapeHtml(a.phone)}" onclick="event.stopPropagation()" style="padding:6px 10px;text-decoration:none" title="Ara">${icon('smartphone', 14)}</a>` : ""}
+            ${waBtn(a.phone, "Merhaba " + a.name + ", MST Yayıncılık'tan arıyoruz. Web sitemizden aldığınız görüşme randevusu için yazıyoruz.")}
+            ${eylemler}
+          </div>
+        </div>`;
+      };
+
+      const html = gunler.map(g => `<div class="card" style="margin-bottom:16px">
+        <h4 style="margin:0 0 12px;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.5px">${icon('calendar', 14)} ${escapeHtml(webRandevuGunBasligi(g.tarih))} <span style="font-weight:500">(${g.list.length})</span></h4>
+        ${g.list.map(satir).join("")}
+      </div>`).join("");
+      return bar + html;
+    }
+    // Arandı / Ulaşılamadı: görüşme geçmişine de "Telefon" kaydı düşer
+    // (günlük raporlar ve personelin kayıt görünürlüğü bu kayıtlardan
+    // hesaplanıyor). "Geri al" yalnızca durumu sıfırlar, kayıt eklemez.
+    async function webRandevuIsaretle(authorId, randevuId, durum) {
+      const simdi = new Date();
+      const saat = simdi.toTimeString().slice(0, 5);
+      await mutateAuthor(authorId, a => {
+        const r = (a.webRandevular || []).find(x => x.id === randevuId);
+        if (!r) return;
+        r.durum = durum;
+        if (durum === "bekliyor") {
+          delete r.isaretleyen; delete r.isaretTarihi;
+          return;
+        }
+        r.isaretleyen = currentStaffId || "admin";
+        r.isaretTarihi = todayStr();
+        a.logs = a.logs || [];
+        a.logs.push({
+          type: "Telefon", date: todayStr(), time: saat, staffId: currentStaffId || "",
+          text: durum === "arandi" ? `Web randevusu (${r.tarih} ${r.saat}) — arandı` : `Web randevusu (${r.tarih} ${r.saat}) — ulaşılamadı`
+        });
+        // Randevu karşılandı: hatırlatıcı ve Takip Listesi artık uyarmasın
+        if (a.interviewDate === r.tarih && a.interviewTime === r.saat) { a.interviewDate = ""; a.interviewTime = ""; }
       });
     }
 
