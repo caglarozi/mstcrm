@@ -706,10 +706,13 @@ async function handleCallRecording(payload, env) {
 // bir kayıt açılır. Her iki durumda da:
 //   - interviewDate/interviewTime randevu saatine ayarlanır (CRM'in mevcut
 //     randevu hatırlatıcısı ve Takip Listesi bunu kullanıyor),
-//   - webRandevular dizisine { id, tarih, saat, not, durum } eklenir — CRM'deki
+//   - webRandevular dizisine { id, tarih, saat, not, durum, tur } eklenir — CRM'deki
 //     "Web Randevuları" sekmesi bu diziden beslenir ve bu kayıtlar TÜM
 //     kullanıcılara açıktır (bkz. app.js > canSeeAuthor),
 //   - görüşme geçmişine bir satır düşülür.
+// tur: "yazar" (yazar adayı görüşmesi) ya da "akademi" (Yazar Kariyer
+// Akademisi ön görüşmesi; eklenti 1.5.13+). Eski eklentiler tur göndermez,
+// o randevular "yazar" sayılır.
 // Aynı randevu iki kez gelirse (eklentideki "yeniden bildir" düğmesi) id
 // eşleştiği için ikinci kez eklenmez.
 function webRandevuYazisi(payload) {
@@ -720,6 +723,7 @@ function webRandevuYazisi(payload) {
     tarih: m[1],
     saat: m[2],
     not: String(payload?.not || "").trim().slice(0, 1000),
+    tur: payload?.tur === "akademi" ? "akademi" : "yazar",
     durum: "bekliyor",
     olusturma: new Date().toISOString()
   };
@@ -734,11 +738,53 @@ async function firestoreCommit(projectId, token, writes) {
   if (!resp.ok) throw new Error("Firestore yazma hatası: " + resp.status + " " + (await resp.text()).slice(0, 300));
 }
 
+// Danışmanların CRM'de elle koyduğu görüşmeler (yazarın interviewDate +
+// interviewTime alanı). Web sitesindeki randevu eklentisi bunu birkaç
+// dakikada bir sorar ve yazar adayı takviminde o saatlerden birer kişilik
+// yer düşer; danışmanın koyduğu saate siteden fazla randevu alınmaz.
+// Yalnızca tarih ve saat döner — isim, telefon gibi bilgiler siteye gitmez.
+// Siteden alınmış (webRandevular'da iptal edilmemiş kaydı olan) görüşmeler
+// dönmez; eklenti onları zaten kendi veritabanında sayıyor.
+async function handleDoluSaatler(env) {
+  const token = await getAccessToken(env);
+  const projectId = env.FIREBASE_PROJECT_ID;
+  const bugun = crmBugun();
+  const resp = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: "authors" }],
+          select: { fields: ["interviewDate", "interviewTime", "webRandevular", "deleted"].map(fieldPath => ({ fieldPath })) },
+          where: { fieldFilter: { field: { fieldPath: "interviewDate" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: bugun } } },
+          limit: 2000
+        }
+      })
+    }
+  );
+  if (!resp.ok) throw new Error("Görüşme sorgusu başarısız: " + resp.status + " " + (await resp.text()).slice(0, 200));
+  const satirlar = await resp.json();
+  const dolu = [];
+  for (const row of Array.isArray(satirlar) ? satirlar : []) {
+    if (!row || !row.document) continue;
+    const a = docToObject(row.document);
+    const tarih = String(a.interviewDate || ""), saat = String(a.interviewTime || "").slice(0, 5);
+    if (a.deleted || !/^\d{4}-\d{2}-\d{2}$/.test(tarih) || !/^\d{2}:\d{2}$/.test(saat)) continue;
+    const webden = (a.webRandevular || []).some(w => w && w.tarih === tarih && w.saat === saat && w.durum !== "iptal");
+    if (!webden) dolu.push({ tarih, saat });
+  }
+  dolu.sort((x, y) => (x.tarih + x.saat).localeCompare(y.tarih + y.saat));
+  return { ok: true, dolu };
+}
+
 async function handleWebRandevu(payload, env) {
   const olay = String(payload?.olay || "");
   // Eklentinin ayarlar sayfasındaki "Test gönder" düğmesi: bağlantı ve
   // anahtar doğru mu diye bakılır, CRM'e hiçbir şey yazılmaz.
   if (olay === "test") return { ok: true, test: true };
+  if (olay === "dolu.sorgu") return handleDoluSaatler(env);
   if (olay !== "randevu.olusturuldu" && olay !== "randevu.iptal") return { ok: true, yoksayildi: olay };
 
   const phone = normalizePhone(payload?.telefon);
@@ -768,7 +814,7 @@ async function handleWebRandevu(payload, env) {
       update: { name: docPath(matched.id), fields },
       updateMask: { fieldPaths: Object.keys(alanlar) },
       updateTransforms: [
-        { fieldPath: "logs", appendMissingElements: { values: [toFirestoreValue({ type: "Web randevu", date: crmBugun(), text: `Web randevusu iptal edildi (${mevcut.tarih} ${mevcut.saat})`, staffId: "" })] } },
+        { fieldPath: "logs", appendMissingElements: { values: [toFirestoreValue({ type: "Web randevu", date: crmBugun(), text: `${mevcut.tur === "akademi" ? "Akademi randevusu" : "Web randevusu"} iptal edildi (${mevcut.tarih} ${mevcut.saat})`, staffId: "" })] } },
         { fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" }
       ],
       currentDocument: { exists: true }
@@ -780,10 +826,11 @@ async function handleWebRandevu(payload, env) {
 
   const ad = String(payload?.ad_soyad || "").trim().slice(0, 100);
   const tarihMetin = String(payload?.tarih_metin || `${randevu.tarih} ${randevu.saat}`);
+  const akademi = randevu.tur === "akademi";
   const logEntry = {
     type: "Web randevu",
     date: crmBugun(),
-    text: `Web sitesinden randevu aldı: ${tarihMetin}` + (randevu.not ? ` — Not: ${randevu.not}` : ""),
+    text: (akademi ? `Web sitesinden Yazar Kariyer Akademisi ön görüşme randevusu aldı: ${tarihMetin}` : `Web sitesinden randevu aldı: ${tarihMetin}`) + (randevu.not ? ` — Not: ${randevu.not}` : ""),
     staffId: ""
   };
 
@@ -812,7 +859,8 @@ async function handleWebRandevu(payload, env) {
       id: yazarId, name: ad || "+" + phone, status: "aday", email: "", phone: "+" + phone,
       phoneNorm: phoneKey(phone),
       genres: [], temp: 3, work: "", interviewDate: randevu.tarih, interviewTime: randevu.saat, followup: "",
-      source: "Web randevu", notes: randevu.not ? "Kitap notu (web randevu formu): " + randevu.not : "", package: null,
+      source: akademi ? "Akademi randevu" : "Web randevu",
+      notes: randevu.not ? (akademi ? "Not (akademi ön görüşme formu): " : "Kitap notu (web randevu formu): ") + randevu.not : "", package: null,
       created: today,
       logs: [logEntry],
       files: [],
@@ -833,8 +881,8 @@ async function handleWebRandevu(payload, env) {
   try {
     await handleNotifyTask({
       herkes: true,
-      title: "Web randevusu",
-      baslik: "📅 Yeni web randevusu",
+      title: akademi ? "Akademi randevusu" : "Web randevusu",
+      baslik: akademi ? "🎓 Yeni akademi randevusu" : "📅 Yeni web randevusu",
       govde: `${ad || "+" + phone} — ${tarihMetin}`,
       etiket: "webrandevu_" + randevu.id
     }, env);

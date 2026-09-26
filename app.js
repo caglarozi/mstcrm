@@ -5554,6 +5554,16 @@
       ulasilamadi: { label: "Ulaşılamadı", color: "var(--red)" },
       iptal: { label: "İptal", color: "var(--muted)" }
     };
+    // Randevu türü: "yazar" (yazar adayı görüşmesi) ya da "akademi" (Yazar
+    // Kariyer Akademisi ön görüşmesi). tur alanı olmayan eski kayıtlar yazar sayılır.
+    const WEB_RANDEVU_TUR = {
+      tumu: { label: "Tüm türler", color: "#a99bff" },
+      yazar: { label: "Yazar adayı", color: "#4aa8ff" },
+      akademi: { label: "🎓 Akademi", color: "#dc9814" }
+    };
+    let webRandevuTur = "tumu";
+    const webRandevuTuru = r => r.tur === "akademi" ? "akademi" : "yazar";
+    function webRandevuTurSec(t) { webRandevuTur = WEB_RANDEVU_TUR[t] ? t : "tumu"; render(); }
     function webRandevuListesi() {
       const out = [];
       (db.authors || []).forEach(a => {
@@ -5577,8 +5587,10 @@
     function viewWebRandevular() {
       const today = todayStr();
       const t = searchTerm();
-      const hepsi = webRandevuListesi().filter(({ r, a }) =>
-        !t || searchKey(a.name + " " + (a.phone || "") + " " + (r.not || "")).includes(t));
+      const tumTurler = webRandevuListesi();
+      const hepsi = tumTurler.filter(({ r, a }) =>
+        (webRandevuTur === "tumu" || webRandevuTuru(r) === webRandevuTur) &&
+        (!t || searchKey(a.name + " " + (a.phone || "") + " " + (r.not || "") + " " + WEB_RANDEVU_TUR[webRandevuTuru(r)].label).includes(t)));
 
       const bekleyen = hepsi.filter(x => x.r.durum === "bekliyor");
       const bugun = hepsi.filter(x => x.r.tarih === today);
@@ -5599,6 +5611,13 @@
           <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${s.color};margin-right:8px"></span>${s.label} (${s.list.length})</span>`;
       });
       bar += `</div>`;
+      // Tür süzgeci yalnızca akademi randevusu geldiyse görünür
+      if (tumTurler.some(x => webRandevuTuru(x.r) === "akademi")) {
+        bar += `<div class="toolbar" style="margin-top:-8px;margin-bottom:20px;gap:8px">` +
+          Object.entries(WEB_RANDEVU_TUR).map(([id, v]) =>
+            `<span class="pill ${webRandevuTur === id ? 'active' : ''}" style="${webRandevuTur === id ? `background:${v.color}15;border-color:${v.color};color:${v.color};` : ''}" onclick="webRandevuTurSec('${id}')">${v.label}</span>`).join("") +
+          `</div>`;
+      }
 
       const aktifListe = sekmeler.find(s => s.id === filterStatus).list.slice();
       // Bekleyenler en yakın saatten başlar; sonuçlananlar en yeniden eskiye.
@@ -5624,6 +5643,8 @@
           ? `<span class="badge" style="background:rgba(242,97,122,.15);color:var(--red)">Saati geçti</span>`
           : `<span class="badge" style="background:color-mix(in srgb, ${d.color} 15%, transparent);color:${d.color}">${d.label}</span>`;
         const kim = r.isaretleyen ? (r.isaretleyen === "admin" ? "Sistem Yöneticisi" : staffName(r.isaretleyen)) : "";
+        const akademi = webRandevuTuru(r) === "akademi";
+        const turEtiketi = akademi ? `<span class="badge" style="background:rgba(220,152,20,.16);color:#dc9814">🎓 Akademi</span>` : "";
         const aid = escapeHtml(a.id), rid = escapeHtml(r.id);
         const eylemler = r.durum === "bekliyor"
           ? `<button class="btn" style="padding:6px 12px;font-size:12px;background:var(--green)" onclick="event.stopPropagation();webRandevuIsaretle('${aid}','${rid}','arandi')">${icon('check', 13)} Arandı</button>
@@ -5632,13 +5653,15 @@
         return `<div class="mini" onclick="openDrawer('${aid}')" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <div style="font-size:20px;font-weight:700;min-width:58px;${r.durum === 'iptal' ? 'text-decoration:line-through;color:var(--muted)' : ''}">${escapeHtml(r.saat)}</div>
           <div style="flex:1;min-width:160px">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="mn">${escapeHtml(a.name)}</span>${durumEtiketi}</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="mn">${escapeHtml(a.name)}</span>${turEtiketi}${durumEtiketi}</div>
             <div class="ms">${a.phone ? `<a href="tel:${escapeHtml(a.phone)}" onclick="event.stopPropagation()" style="color:inherit;white-space:nowrap">${escapeHtml(telGoster(a.phone))}</a>` : "—"}${kim ? ` • ${escapeHtml(d.label)}: ${escapeHtml(kim)}` : ""}</div>
             ${r.not ? `<div class="ms" style="color:var(--txt);margin-top:6px">📖 ${escapeHtml(r.not)}</div>` : ""}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             ${a.phone ? `<a class="btn ghost" href="tel:${escapeHtml(a.phone)}" onclick="event.stopPropagation()" style="padding:6px 10px;text-decoration:none" title="Ara">${icon('smartphone', 14)}</a>` : ""}
-            ${waBtn(a.phone, "Merhaba " + a.name + ", MST Yayıncılık'tan arıyoruz. Web sitemizden aldığınız görüşme randevusu için yazıyoruz.")}
+            ${waBtn(a.phone, akademi
+              ? "Merhaba " + a.name + ", MST Yayıncılık'tan arıyoruz. Yazar Kariyer Akademisi için aldığınız ön görüşme randevusu için yazıyoruz."
+              : "Merhaba " + a.name + ", MST Yayıncılık'tan arıyoruz. Web sitemizden aldığınız görüşme randevusu için yazıyoruz.")}
             ${eylemler}
           </div>
         </div>`;
@@ -5669,7 +5692,7 @@
         a.logs = a.logs || [];
         a.logs.push({
           type: "Telefon", date: todayStr(), time: saat, staffId: currentStaffId || "",
-          text: durum === "arandi" ? `Web randevusu (${r.tarih} ${r.saat}) — arandı` : `Web randevusu (${r.tarih} ${r.saat}) — ulaşılamadı`
+          text: `${webRandevuTuru(r) === "akademi" ? "Akademi randevusu" : "Web randevusu"} (${r.tarih} ${r.saat}) — ${durum === "arandi" ? "arandı" : "ulaşılamadı"}`
         });
         // Randevu karşılandı: hatırlatıcı ve Takip Listesi artık uyarmasın
         if (a.interviewDate === r.tarih && a.interviewTime === r.saat) { a.interviewDate = ""; a.interviewTime = ""; }
